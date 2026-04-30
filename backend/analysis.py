@@ -28,7 +28,10 @@ def load_data(filepath=None):
     """Carga los datos del Excel y retorna un DataFrame limpio."""
     if filepath is None:
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        filepath = os.path.join(base, "cumplimiento_visitas_nuevo.xlsx")
+        filepath = os.path.join(base, "cumplimiento_visitas_custom.xlsx")
+        # Fallback if custom doesn't exist
+        if not os.path.exists(filepath):
+            filepath = os.path.join(base, "cumplimiento_visitas_nuevo.xlsx")
         # Fallback if nuevo doesn't exist
         if not os.path.exists(filepath):
             filepath = os.path.join(base, "cumplimiento_visitas.xlsx")
@@ -240,13 +243,14 @@ def compute_clusters(matrix, max_k=10):
 # REDUCTOR DE DIAS - ANALISIS DE PUNTO OPTIMO
 # ============================================================
 
-def compute_reductor(matrix, threshold=0.90, coverage=0.80):
+def compute_reductor(matrix, threshold=0.90, coverage=0.80, manual_day=None):
     """
     Analisis completo para determinar el dia optimo de reduccion.
     
     Args:
         threshold: Porcentaje minimo de cumplimiento aceptable (0-1)
         coverage: Porcentaje minimo de distritos que deben alcanzar el threshold (0-1)
+        manual_day: Dia manual forzado por el usuario (sobreescribe recomendacion)
     """
     n_districts, n_days = matrix.shape
     dias = np.arange(1, n_days + 1)
@@ -305,7 +309,7 @@ def compute_reductor(matrix, threshold=0.90, coverage=0.80):
 
     # --- 6. Distritos en riesgo en el dia optimo ---
     risk_districts = []
-    opt_day = optimal_day_coverage or knee_day or 35
+    opt_day = manual_day or optimal_day_coverage or knee_day or 35
     if opt_day <= n_days:
         col = matrix[:, opt_day - 1]
         for i in range(n_districts):

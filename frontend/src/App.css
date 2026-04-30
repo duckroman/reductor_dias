@@ -215,6 +215,38 @@ body {
   -webkit-text-fill-color: transparent;
 }
 
+/* Explicaciones UI Amigable */
+.info-box {
+  background: rgba(59, 130, 246, 0.1);
+  border-left: 4px solid var(--accent-color);
+  padding: 16px 20px;
+  border-radius: 8px;
+  margin-bottom: 24px;
+}
+
+.info-box h4 {
+  color: #93c5fd;
+  margin-bottom: 8px;
+  font-size: 1.05rem;
+}
+
+.explanation-text {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.explanation-text.micro {
+  font-size: 0.8rem;
+  margin-top: 8px;
+  display: block;
+  opacity: 0.8;
+}
+
+.mb-15 {
+  margin-bottom: 15px;
+}
+
 /* Charts */
 .charts-grid {
   display: grid;

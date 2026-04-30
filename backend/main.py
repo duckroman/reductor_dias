@@ -3,9 +3,11 @@ main.py - FastAPI backend para el analisis de cumplimiento de visitas del INE.
 Sirve endpoints REST que el frontend React consume.
 """
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 import analysis
+import shutil
+import os
 
 app = FastAPI(title="Reductor de Dias - INE", version="1.0.0")
 
@@ -80,11 +82,47 @@ def get_clusters():
 def get_reductor(
     threshold: float = Query(0.90, ge=0.0, le=1.0),
     coverage: float = Query(0.80, ge=0.0, le=1.0),
+    manual_day: int = Query(None, ge=1, le=50)
 ):
     """Analisis de punto optimo para reduccion de dias."""
     _, matrix, _ = get_data()
-    return analysis.compute_reductor(matrix, threshold=threshold, coverage=coverage)
+    return analysis.compute_reductor(matrix, threshold=threshold, coverage=coverage, manual_day=manual_day)
 
+
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...)):
+    """Sube un archivo de Excel para reemplazar los datos de analisis."""
+    global _df, _matrix, _day_cols
+    try:
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        filepath = os.path.join(base, "cumplimiento_visitas_custom.xlsx")
+        print(f"--- Recibiendo archivo: {file.filename} ---")
+        
+        contents = await file.read()
+        if not contents:
+            raise ValueError("El archivo está vacío")
+            
+        with open(filepath, "wb") as f:
+            f.write(contents)
+        
+        print(f"Archivo guardado en: {filepath}. Iniciando recarga de datos...")
+        
+        # Intentar cargar para validar formato
+        new_df = analysis.load_data(filepath)
+        new_matrix, new_day_cols = analysis.get_data_matrix(new_df)
+        
+        # Si todo bien, actualizar globales
+        _df = new_df
+        _matrix = new_matrix
+        _day_cols = new_day_cols
+        
+        print(f"Recarga exitosa: {len(_df)} distritos, {len(_day_cols)} días.")
+        return {"message": "Archivo cargado y procesado exitosamente", "filename": file.filename}
+        
+    except Exception as e:
+        print(f"ERROR en upload_file: {str(e)}")
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Error al procesar el archivo: {str(e)}")
 
 @app.get("/api/health")
 def health():

@@ -22,26 +22,39 @@ const Clustering = () => {
   }, []);
 
   if (loading) return <div className="loading">Analizando clusters (K-Means)...</div>;
-  if (!clusterData) return <div>No hay datos de clusters.</div>;
+  if (!clusterData || !clusterData.cluster_profiles) return <div className="loading">Error al cargar clusters.</div>;
 
   const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
 
   return (
     <div className="dashboard-container">
-      <h2>Clustering de Distritos (K-Means)</h2>
+      <h2>Agrupación de Distritos (Clustering)</h2>
       
+      <div className="info-box">
+        <h4>¿Qué estamos viendo aquí?</h4>
+        <p className="explanation-text">
+          El sistema analizó el comportamiento de todos los distritos y los agrupó ("Clustering") según su ritmo de trabajo. 
+          En lugar de analizar 300 distritos uno por uno, podemos ver unas cuantas "familias" o grupos que comparten el mismo problema o el mismo éxito.
+        </p>
+      </div>
+
       <div className="kpi-grid">
         <div className="kpi-card">
           <div className="kpi-content">
-            <h3>K Óptimo Encontrado</h3>
+            <h3>Grupos (Familias) Encontrados</h3>
             <div className="kpi-value">{clusterData.best_k}</div>
+            <span className="explanation-text micro">Número ideal de familias con ritmos distintos.</span>
           </div>
         </div>
       </div>
 
       <div className="charts-grid">
         <div className="chart-card">
-          <h3>Perfiles de Clusters (Curvas Promedio)</h3>
+          <h3>Comportamiento Promedio por Grupo</h3>
+          <p className="explanation-text mb-15">
+            <strong>¿Cómo leer esto?</strong> Cada línea representa el "ritmo de trabajo" típico de una familia entera. 
+            Puedes ver rápidamente qué familia se atrasó a mitad de camino o cuál empezó rápido.
+          </p>
           <div className="chart-wrapper">
             <Plot
               data={clusterData.cluster_profiles.map((p, i) => ({
@@ -68,7 +81,11 @@ const Clustering = () => {
         </div>
 
         <div className="chart-card">
-          <h3>Distribución PCA 2D</h3>
+          <h3>Mapa de Similitud entre Distritos</h3>
+          <p className="explanation-text mb-15">
+            <strong>¿Cómo leer esto?</strong> Imagina que el sistema lee las curvas de los 300 distritos y los dibuja en un mapa. 
+            Cada punto es un distrito. Los distritos que están muy pegaditos se comportaron casi igual durante los 50 días.
+          </p>
           <div className="chart-wrapper">
             <Plot
               data={clusterData.cluster_profiles.map((p, i) => {

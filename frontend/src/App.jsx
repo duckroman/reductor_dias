@@ -4,10 +4,30 @@ import Statistical from './components/Statistical';
 import Clustering from './components/Clustering';
 import Reductor from './components/Reductor';
 import './App.css';
-import { LayoutDashboard, LineChart, Network, Target } from 'lucide-react';
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [uploading, setUploading] = useState(false);
+  const [dataVersion, setDataVersion] = useState(0);
+
+  const handleFileUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    setUploading(true);
+    try {
+      const { uploadDataFile } = await import('./services/api');
+      await uploadDataFile(file);
+      setDataVersion(v => v + 1);
+      alert('Datos cargados exitosamente.');
+    } catch (error) {
+      console.error('Error uploading file', error);
+      alert('Error al cargar archivo.');
+    } finally {
+      setUploading(false);
+      if (e && e.target) e.target.value = '';
+    }
+  };
 
   return (
     <div className="app-container">
@@ -15,38 +35,48 @@ function App() {
         <div className="logo-container">
           <div className="logo-icon">INE</div>
           <h1>Reductor de Días</h1>
-          <span className="subtitle">Análisis de Cumplimiento de Visitas</span>
+          <span className="subtitle" style={{marginRight: '20px'}}>Análisis de Cumplimiento</span>
+          <label className="upload-btn" style={{ cursor: 'pointer', padding: '6px 12px', background: 'rgba(59, 130, 246, 0.2)', border: '1px solid #3b82f6', borderRadius: '4px', fontSize: '0.85rem' }}>
+            {uploading ? 'Cargando...' : '📄 Cargar Excel'}
+            <input 
+              type="file" 
+              accept=".xlsx, .xls" 
+              style={{ display: 'none' }} 
+              onChange={handleFileUpload}
+              disabled={uploading}
+            />
+          </label>
         </div>
         <nav className="tab-navigation">
           <button 
             className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`}
             onClick={() => setActiveTab('dashboard')}
           >
-            <LayoutDashboard size={18} /> Dashboard General
+            📊 Dashboard
           </button>
           <button 
             className={`tab-btn ${activeTab === 'statistical' ? 'active' : ''}`}
             onClick={() => setActiveTab('statistical')}
           >
-            <LineChart size={18} /> Análisis Estadístico
+            📉 Estadísticas
           </button>
           <button 
             className={`tab-btn ${activeTab === 'clustering' ? 'active' : ''}`}
             onClick={() => setActiveTab('clustering')}
           >
-            <Network size={18} /> Clustering
+            🕸️ Clustering
           </button>
           <button 
             className={`tab-btn highlight-tab ${activeTab === 'reductor' ? 'active' : ''}`}
             onClick={() => setActiveTab('reductor')}
           >
-            <Target size={18} /> Reductor de Días
+            🎯 Reductor
           </button>
         </nav>
       </header>
 
       <main className="app-main">
-        <div className="tab-content">
+        <div className="tab-content" key={dataVersion}>
           {activeTab === 'dashboard' && <Dashboard />}
           {activeTab === 'statistical' && <Statistical />}
           {activeTab === 'clustering' && <Clustering />}

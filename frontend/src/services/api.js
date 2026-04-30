@@ -37,7 +37,22 @@ export const getClusters = async () => {
   return response.data;
 };
 
-export const getReductorAnalysis = async (threshold = 0.90, coverage = 0.80) => {
-  const response = await api.get('/reductor', { params: { threshold, coverage } });
+export const getReductorAnalysis = async (threshold = 0.90, coverage = 0.80, manualDay = null) => {
+  let url = `/reductor?threshold=${threshold}&coverage=${coverage}`;
+  if (manualDay) {
+    url += `&manual_day=${manualDay}`;
+  }
+  const response = await api.get(url);
+  return response.data;
+};
+
+export const uploadDataFile = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post('/upload', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
   return response.data;
 };

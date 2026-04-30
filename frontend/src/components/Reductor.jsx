@@ -8,6 +8,7 @@ const Plot = PlotlyComponent.default || PlotlyComponent;
 const Reductor = () => {
   const [threshold, setThreshold] = useState(0.90);
   const [coverage, setCoverage] = useState(0.80);
+  const [manualDay, setManualDay] = useState(0); // 0 means use auto recommendation
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -15,7 +16,7 @@ const Reductor = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const result = await getReductorAnalysis(threshold, coverage);
+        const result = await getReductorAnalysis(threshold, coverage, manualDay === 0 ? null : manualDay);
         setData(result);
       } catch (error) {
         console.error("Error fetching reductor data", error);
@@ -27,16 +28,27 @@ const Reductor = () => {
       fetchData();
     }, 500);
     return () => clearTimeout(timer);
-  }, [threshold, coverage]);
+  }, [threshold, coverage, manualDay]);
 
   return (
     <div className="dashboard-container">
       <h2>🎯 Reductor de Días - Análisis de Punto Óptimo</h2>
+
+      <div className="info-box">
+        <h4>¿Qué estamos viendo aquí?</h4>
+        <p className="explanation-text">
+          Esta es la herramienta principal para la toma de decisiones. Sirve para responder: <strong>"¿En qué día puedo detener el trabajo en campo garantizando que la mayoría de los distritos cumplieron su meta?"</strong>. 
+          El sistema calculará automáticamente un día recomendado, pero puedes probar tus propios recortes de tiempo para ver qué pasaría.
+        </p>
+      </div>
       
       <div className="controls panel">
         <div className="control-group">
           <label>
-            Umbral de Cumplimiento Aceptable: {(threshold * 100).toFixed(0)}%
+            Umbral de Cumplimiento (La meta por distrito): {(threshold * 100).toFixed(0)}%
+            <span className="explanation-text micro" style={{marginBottom: '5px'}}>
+              ¿Cuánto avance consideras que es "suficiente" para un distrito?
+            </span>
             <input 
               type="range" 
               min="0.50" max="0.99" step="0.01"
@@ -48,7 +60,10 @@ const Reductor = () => {
         </div>
         <div className="control-group">
           <label>
-            Cobertura Mínima (Distritos que cumplen): {(coverage * 100).toFixed(0)}%
+            Cobertura Nacional Esperada: {(coverage * 100).toFixed(0)}%
+            <span className="explanation-text micro" style={{marginBottom: '5px'}}>
+              ¿Qué porcentaje de los 300 distritos deben llegar a la meta antes de cortar?
+            </span>
             <input 
               type="range" 
               min="0.50" max="1.0" step="0.01"
@@ -58,11 +73,28 @@ const Reductor = () => {
             />
           </label>
         </div>
+        <div className="control-group highlight-control" style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '10px', borderRadius: '8px', border: '1px solid #ff7f0e' }}>
+          <label>
+            <strong style={{color: '#ff7f0e'}}>Probar Recorte Manual:</strong> {manualDay === 0 ? "Automático (Recomendado por la IA)" : `Forzar Día ${manualDay}`}
+            <span className="explanation-text micro" style={{marginBottom: '5px'}}>
+              Mueve este control para ignorar a la IA y ver qué pasaría si decides cortar el trabajo en el día que tú elijas.
+            </span>
+            <input 
+              type="range" 
+              min="0" max={data ? data.dias.length : 50} step="1"
+              value={manualDay} 
+              onChange={(e) => setManualDay(parseInt(e.target.value))}
+              className="slider"
+            />
+          </label>
+        </div>
       </div>
 
       {loading && !data ? (
         <div className="loading">Calculando punto óptimo...</div>
-      ) : data ? (
+      ) : !data ? (
+        <div className="loading">Error al cargar análisis del reductor.</div>
+      ) : (
         <>
           <div className="kpi-grid" style={{ marginTop: '20px' }}>
             <div className="kpi-card highlight">
@@ -263,7 +295,7 @@ const Reductor = () => {
             )}
           </div>
         </>
-      ) : null}
+      )}
     </div>
   );
 };

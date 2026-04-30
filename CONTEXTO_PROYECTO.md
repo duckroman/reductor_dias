@@ -116,6 +116,9 @@ react, react-dom, recharts, plotly.js, react-plotly.js, axios, lucide-react
 | Etapa 2 | ✅ COMPLETADO | Backend FastAPI (manejo de floats NaN corregido) |
 | Etapa 3 | ✅ COMPLETADO | Frontend React + Vite con estilos UI premium (Downgrade a React 18 para compatibilidad con librerías de gráficos) |
 | Etapa 4 | ✅ COMPLETADO | Integración frontend-backend funcionando en puertos 5173 y 8000 |
+| Etapa 5 | ✅ COMPLETADO | UI Simplificada con explicaciones para usuarios no técnicos y corrección de Boxplot |
+| Etapa 6 | ✅ COMPLETADO | Reductor de Días permite control y sobreescritura manual del día óptimo |
+| Etapa 7 | ✅ COMPLETADO | Capacidad de cargar archivos Excel (`.xlsx`) desde la UI para recálculo global |
 
 ## 🚀 Cómo Ejecutar
 
