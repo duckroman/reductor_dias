@@ -50,7 +50,8 @@ def get_data_matrix(df):
     """Extrae la matriz numerica (300 x 50) del DataFrame."""
     day_cols = [c for c in df.columns if c.startswith('D')]
     day_cols = [c for c in day_cols if c != 'Distrito']
-    matrix = df[day_cols].values.astype(float)
+    # Rellenar nulos con 0 para evitar errores en calculos matriciales
+    matrix = df[day_cols].fillna(0).values.astype(float)
     return matrix, day_cols
 
 
@@ -109,10 +110,10 @@ def fit_distributions(matrix, day):
     x = np.linspace(0, 1, 200)
     results['normal'] = {
         'params': {'mu': float(mu), 'sigma': float(sigma)},
-        'ks_statistic': float(ks_stat),
-        'ks_pvalue': float(ks_p),
+        'ks_statistic': safe_float(ks_stat),
+        'ks_pvalue': safe_float(ks_p),
         'pdf_x': x.tolist(),
-        'pdf_y': stats.norm.pdf(x, mu, sigma).tolist(),
+        'pdf_y': [safe_float(v) for v in stats.norm.pdf(x, mu, sigma)],
     }
 
     # Beta
@@ -121,10 +122,10 @@ def fit_distributions(matrix, day):
         ks_stat, ks_p = stats.kstest(col_clean, 'beta', args=(a, b, loc, scale))
         results['beta'] = {
             'params': {'a': float(a), 'b': float(b)},
-            'ks_statistic': float(ks_stat),
-            'ks_pvalue': float(ks_p),
+            'ks_statistic': safe_float(ks_stat),
+            'ks_pvalue': safe_float(ks_p),
             'pdf_x': x.tolist(),
-            'pdf_y': stats.beta.pdf(x, a, b, loc, scale).tolist(),
+            'pdf_y': [safe_float(v) for v in stats.beta.pdf(x, a, b, loc, scale)],
         }
 
     # Log-Normal (solo si todos > 0)
@@ -133,10 +134,10 @@ def fit_distributions(matrix, day):
         ks_stat, ks_p = stats.kstest(col, 'lognorm', args=(shape, loc, scale))
         results['lognormal'] = {
             'params': {'shape': float(shape), 'loc': float(loc), 'scale': float(scale)},
-            'ks_statistic': float(ks_stat),
-            'ks_pvalue': float(ks_p),
+            'ks_statistic': safe_float(ks_stat),
+            'ks_pvalue': safe_float(ks_p),
             'pdf_x': x.tolist(),
-            'pdf_y': stats.lognorm.pdf(x, shape, loc, scale).tolist(),
+            'pdf_y': [safe_float(v) for v in stats.lognorm.pdf(x, shape, loc, scale)],
         }
 
     # Histograma de datos reales
@@ -170,7 +171,8 @@ def compute_correlation(matrix, days=None):
     
     indices = [d - 1 for d in days if d - 1 < matrix.shape[1]]
     sub_matrix = matrix[:, indices]
-    corr = np.corrcoef(sub_matrix.T)
+    # np.corrcoef puede dar NaN si la varianza es cero
+    corr = np.nan_to_num(np.corrcoef(sub_matrix.T))
     
     return {
         'days': [d + 1 for d in indices],
@@ -258,19 +260,23 @@ def compute_reductor(matrix, threshold=0.90, coverage=0.80, manual_day=None):
     # --- 1. Rendimiento marginal ---
     mean_by_day = matrix.mean(axis=0)
     marginal = np.diff(mean_by_day)
-    marginal = np.insert(marginal, 0, mean_by_day[0])  # Dia 1
+    # El primer día el incremento es relativo al inicio (0), 
+    # pero para evitar que opaque la gráfica si el inicio es alto,
+    # usamos el incremento del día 1 al día 2 como referencia inicial o lo ponemos en 0.
+    marginal = np.insert(marginal, 0, 0.0) 
 
     # --- 2. Cumplimiento acumulado promedio ---
     cumulative_mean = mean_by_day.tolist()
 
     # --- 3. Knee point (Kneedle algorithm) ---
     try:
+        # Filtramos para evitar que el día 1 sea siempre el codo si los datos ya son altos
         kn = KneeLocator(
-            dias, mean_by_day,
+            dias[1:], mean_by_day[1:],
             curve='concave', direction='increasing',
             S=1.0
         )
-        knee_day = int(kn.knee) if kn.knee else None
+        knee_day = int(kn.knee) if kn.knee else (int(dias[0]) if mean_by_day[0] > threshold else None)
     except Exception:
         knee_day = None
 
@@ -334,7 +340,7 @@ def compute_reductor(matrix, threshold=0.90, coverage=0.80, manual_day=None):
         'marginal_returns': marginal.tolist(),
         'knee_day': knee_day,
         'optimal_day_coverage': optimal_day_coverage,
-        'recommended_day': optimal_day_coverage or knee_day or 35,
+        'recommended_day': manual_day or optimal_day_coverage or knee_day or 35,
         'coverage_by_day': coverage_by_day,
         'scenarios': scenarios,
         'risk_districts': risk_districts[:20],  # Top 20 peores
@@ -343,7 +349,36 @@ def compute_reductor(matrix, threshold=0.90, coverage=0.80, manual_day=None):
         'threshold': threshold,
         'coverage': coverage,
         'dias': list(range(1, n_days + 1)),
+        'recommendation_reason': get_recommendation_reason(
+            manual_day, optimal_day_coverage, knee_day, 
+            threshold, coverage, mean_by_day, n_days
+        )
     }
+
+def get_recommendation_reason(manual_day, opt_cov, knee, threshold, coverage, mean_by_day, n_days):
+    """Genera una explicacion textual de la recomendacion."""
+    if manual_day:
+        return f"Ajuste manual: Se está evaluando el impacto operativo de cerrar el campo en el Día {manual_day}."
+    
+    rec_day = opt_cov or knee or 35
+    
+    reason = ""
+    if opt_cov:
+        reason = f"Meta alcanzada: El Día {opt_cov}, el {coverage*100:.0f}% de los distritos ya superaron el umbral del {threshold*100:.0f}% de cumplimiento."
+    elif knee:
+        reason = f"Máxima eficiencia: El Día {knee} se detectó el 'punto de codo', donde la ganancia diaria empieza a ser menor al costo operativo."
+    else:
+        reason = "Recomendación estándar basada en la finalización del ciclo operativo previsto."
+
+    # Validacion de dias minimos (< 20)
+    if rec_day < 20:
+        current_mean = mean_by_day[rec_day - 1]
+        if current_mean < 0.50:
+            reason += " Nota: La recomendación es temprana debido a un estancamiento crítico en el avance (rendimiento casi nulo desde el inicio)."
+        else:
+            reason += " Nota: Los datos muestran un arranque excepcionalmente rápido, alcanzando niveles óptimos antes de lo previsto."
+            
+    return reason
 
 
 # ============================================================

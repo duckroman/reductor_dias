@@ -41,9 +41,10 @@ Cada distrito no avanza de forma lineal. Al principio van lento (arranque), lueg
 No todos los distritos son iguales. Algunos son "estrellas" que terminan rápido, otros son "lentos pero seguros", y otros son "críticos".
 *   **¿Qué hace el sistema?** Agrupa los 300 distritos en 4 o 5 "familias". Así, en lugar de revisar 300 gráficas, el coordinador puede ver el comportamiento de 5 grandes grupos y entender quiénes necesitan ayuda.
 
-### C. El Método del Codo (Algoritmo Kneedle)
-Este es el corazón del reductor. Imagina que doblas tu brazo: el "codo" es el punto de máxima curvatura.
-*   En nuestro caso, el "codo" es el día donde la ganancia de cumplimiento empieza a caer drásticamente. Si después de ese día solo ganas un 0.1% de cumplimiento por cada día extra de trabajo, el sistema marca ese punto como el **Día Óptimo**.
+### C. El Punto de Corte (Balance de Esfuerzo)
+Este es el corazón del reductor. El sistema busca el día donde la ganancia de cumplimiento empieza a caer drásticamente.
+*   **Ajuste Automático:** El sistema propone un día basado en el algoritmo del "Codo", detectando cuándo el esfuerzo extra produce resultados mínimos.
+*   **Ajuste Manual:** Tú tienes la última palabra. Puedes mover el control deslizante para ver el impacto exacto en la cobertura nacional y en el número de distritos en riesgo si decides cerrar el campo antes o después de lo sugerido.
 
 ---
 
@@ -60,9 +61,10 @@ Este es el corazón del reductor. Imagina que doblas tu brazo: el "codo" es el p
 
 ## 5. Glosario para el Usuario
 
-*   **Umbral (Threshold):** Es tu calificación mínima aprobatoria. Si pones 90%, el sistema buscará qué día la mayoría llega a 90.
-*   **Cobertura (Coverage):** Es qué tan flexible eres. ¿Necesitas que el 100% de los distritos cumplan, o te basta con que el 80% lo logre antes de cerrar el campo?
-*   **Punto de Rendimiento Marginal:** El momento donde el esfuerzo extra ya no produce resultados significativos.
+*   **Umbral (Threshold):** Es tu meta mínima por distrito. Si pones 90%, el sistema evalúa quiénes llegan a esa meta.
+*   **Cobertura (Coverage):** Es el porcentaje de los 300 distritos que "exiges" que lleguen a la meta antes de considerar el cierre.
+*   **Rendimiento Marginal:** El avance neto logrado cada día. Ayuda a ver si el equipo está perdiendo fuerza.
+*   **Distritos con Rezago:** Aquellos que no alcanzarán la meta si cortas el trabajo en el día seleccionado.
 
 ---
 

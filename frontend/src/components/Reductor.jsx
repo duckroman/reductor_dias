@@ -26,7 +26,7 @@ const Reductor = () => {
     // Debounce to avoid too many requests while sliding
     const timer = setTimeout(() => {
       fetchData();
-    }, 500);
+    }, 200);
     return () => clearTimeout(timer);
   }, [threshold, coverage, manualDay]);
 
@@ -35,11 +35,15 @@ const Reductor = () => {
       <h2>🎯 Reductor de Días - Análisis de Punto Óptimo</h2>
 
       <div className="info-box">
-        <h4>¿Qué estamos viendo aquí?</h4>
+        <h4>🔍 Guía de Análisis de Optimización</h4>
         <p className="explanation-text">
-          Esta es la herramienta principal para la toma de decisiones. Sirve para responder: <strong>"¿En qué día puedo detener el trabajo en campo garantizando que la mayoría de los distritos cumplieron su meta?"</strong>. 
-          El sistema calculará automáticamente un día recomendado, pero puedes probar tus propios recortes de tiempo para ver qué pasaría.
+          Esta herramienta utiliza algoritmos de detección de codos (Kneedle) y análisis de cobertura probabilística para determinar el equilibrio óptimo entre <strong>tiempo en campo</strong> y <strong>cumplimiento de metas</strong>.
         </p>
+        <ul className="explanation-text micro" style={{ marginTop: '10px' }}>
+          <li><strong>Umbral de Cumplimiento ($U$):</strong> Meta mínima de avance esperada por cada uno de los 300 distritos.</li>
+          <li><strong>Cobertura Nacional ($\Phi$):</strong> Porcentaje mínimo de distritos que deben haber alcanzado el umbral $U$ para considerar el cierre de la etapa.</li>
+          <li><strong>Rendimiento Marginal:</strong> El avance adicional logrado cada día. Ayuda a identificar cuándo el esfuerzo extra ya no produce resultados significativos.</li>
+        </ul>
       </div>
       
       <div className="controls panel">
@@ -75,9 +79,9 @@ const Reductor = () => {
         </div>
         <div className="control-group highlight-control" style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '10px', borderRadius: '8px', border: '1px solid #ff7f0e' }}>
           <label>
-            <strong style={{color: '#ff7f0e'}}>Probar Recorte Manual:</strong> {manualDay === 0 ? "Automático (Recomendado por la IA)" : `Forzar Día ${manualDay}`}
+            <strong style={{color: '#ff7f0e'}}>Ajuste de Día de Corte:</strong> {manualDay === 0 ? "Recomendación Sugerida" : `Manual: Día ${manualDay}`}
             <span className="explanation-text micro" style={{marginBottom: '5px'}}>
-              Mueve este control para ignorar a la IA y ver qué pasaría si decides cortar el trabajo en el día que tú elijas.
+              Usa este control para simular un cierre en una fecha específica y evaluar el impacto en los indicadores de riesgo.
             </span>
             <input 
               type="range" 
@@ -100,40 +104,54 @@ const Reductor = () => {
             <div className="kpi-card highlight">
               <div className="kpi-icon"><Target /></div>
               <div className="kpi-content">
-                <h3>Día Recomendado</h3>
+                <h3>Día de Corte</h3>
                 <div className="kpi-value highlight-value">Día {data.recommended_day}</div>
+                <span className="micro-text">{manualDay === 0 ? '(Óptimo calculado)' : '(Selección manual)'}</span>
               </div>
             </div>
             <div className="kpi-card">
               <div className="kpi-icon"><TrendingDown /></div>
               <div className="kpi-content">
-                <h3>Día de Rendimiento Decreciente (Knee)</h3>
+                <h3>Rendimiento Decreciente</h3>
                 <div className="kpi-value">{data.knee_day ? `Día ${data.knee_day}` : 'N/A'}</div>
+                <span className="micro-text">Punto donde el avance se estanca</span>
               </div>
             </div>
             <div className="kpi-card">
               <div className="kpi-icon"><CheckCircle2 /></div>
               <div className="kpi-content">
-                <h3>Cobertura Alcanzada en Día Rec.</h3>
+                <h3>Cobertura Lograda</h3>
                 <div className="kpi-value">
                   {data.coverage_by_day[data.recommended_day - 1] 
                     ? (data.coverage_by_day[data.recommended_day - 1] * 100).toFixed(1) + '%' 
                     : 'N/A'}
                 </div>
+                <span className="micro-text">Distritos que alcanzaron el {(threshold*100).toFixed(0)}%</span>
               </div>
             </div>
             <div className="kpi-card alert">
               <div className="kpi-icon"><AlertTriangle /></div>
               <div className="kpi-content">
-                <h3>Distritos en Riesgo</h3>
+                <h3>Distritos con Rezago</h3>
                 <div className="kpi-value">{data.total_risk_districts}</div>
+                <span className="micro-text">No llegan a la meta el Día {data.recommended_day}</span>
               </div>
             </div>
           </div>
 
+          <div className="panel reasoning-panel" style={{ marginTop: '15px', borderLeft: '4px solid #3A6BC5', background: 'rgba(58, 107, 197, 0.1)' }}>
+             <p className="explanation-text" style={{ fontSize: '1rem', color: '#e0e0e0' }}>
+               <strong>💡 Razonamiento:</strong> {data.recommendation_reason}
+             </p>
+          </div>
+
           <div className="charts-grid">
             <div className="chart-card">
-              <h3>Rendimiento Marginal vs Acumulado</h3>
+              <h3>📈 Eficiencia: Rendimiento Marginal vs Acumulado</h3>
+              <p className="explanation-text micro" style={{marginBottom: '10px'}}>
+                Compara el porcentaje de cumplimiento promedio (línea azul) contra el incremento diario de avance (barras naranjas). 
+                La línea punteada roja marca el <strong>Punto de Corte</strong> seleccionado.
+              </p>
               <div className="chart-wrapper">
                 <Plot
                   data={[
@@ -185,12 +203,12 @@ const Reductor = () => {
                         y: 100,
                         xref: 'x',
                         yref: 'y1',
-                        text: 'Corte Recomendado',
+                        text: 'Punto de Corte',
                         showarrow: true,
                         arrowhead: 2,
                         ax: -40,
                         ay: -40,
-                        font: { color: '#ff3333' }
+                        font: { color: '#ff3333', size: 10 }
                       }
                     ]
                   }}
@@ -201,7 +219,11 @@ const Reductor = () => {
             </div>
 
             <div className="chart-card">
-              <h3>Cobertura de Distritos por Día</h3>
+              <h3>🗺️ Cobertura de Distritos por Día</h3>
+              <p className="explanation-text micro" style={{marginBottom: '10px'}}>
+                Muestra qué porcentaje de los 300 distritos han superado el <strong>Umbral de Cumplimiento</strong> ({(threshold*100).toFixed(0)}%) en cada día del operativo.
+                La línea horizontal naranja es la <strong>Meta de Cobertura</strong> ({(coverage*100).toFixed(0)}%).
+              </p>
               <div className="chart-wrapper">
                 <Plot
                   data={[
