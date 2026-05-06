@@ -11,6 +11,7 @@ const Reductor = () => {
   const [manualDay, setManualDay] = useState(0); // 0 means use auto recommendation
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showAllRisk, setShowAllRisk] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -300,17 +301,33 @@ const Reductor = () => {
 
             {data.risk_districts.length > 0 && (
               <div className="chart-card wide alert-card">
-                <h3>Top Distritos en Riesgo (Día {data.recommended_day})</h3>
+                <h3>⚠️ Top Distritos en Riesgo (Día {data.recommended_day})</h3>
                 <p>Estos distritos no alcanzarán el umbral del {(threshold*100).toFixed(0)}% si se recorta a {data.recommended_day} días.</p>
                 <div className="risk-tags">
-                  {data.risk_districts.map((d) => (
+                  {(showAllRisk ? data.risk_districts : data.risk_districts.slice(0, 20)).map((d) => (
                     <div key={d.distrito} className="risk-tag">
                       Distrito {d.distrito} 
                       <span className="risk-value">{(d.cumplimiento * 100).toFixed(1)}%</span>
                     </div>
                   ))}
-                  {data.total_risk_districts > 20 && (
-                    <div className="risk-tag more">+ {data.total_risk_districts - 20} más</div>
+                  {!showAllRisk && data.total_risk_districts > 20 && (
+                    <div 
+                      className="risk-tag more" 
+                      onClick={() => setShowAllRisk(true)}
+                      style={{ cursor: 'pointer', background: '#ff7f0e', color: 'white' }}
+                      title="Click para ver todos"
+                    >
+                      + {data.total_risk_districts - 20} más
+                    </div>
+                  )}
+                  {showAllRisk && data.total_risk_districts > 20 && (
+                    <div 
+                      className="risk-tag more" 
+                      onClick={() => setShowAllRisk(false)}
+                      style={{ cursor: 'pointer', background: '#666', color: 'white' }}
+                    >
+                      Ver menos
+                    </div>
                   )}
                 </div>
               </div>

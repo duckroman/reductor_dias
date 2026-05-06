@@ -343,7 +343,7 @@ def compute_reductor(matrix, threshold=0.90, coverage=0.80, manual_day=None):
         'recommended_day': manual_day or optimal_day_coverage or knee_day or 35,
         'coverage_by_day': coverage_by_day,
         'scenarios': scenarios,
-        'risk_districts': risk_districts[:20],  # Top 20 peores
+        'risk_districts': risk_districts,
         'total_risk_districts': len(risk_districts),
         'efficiency': efficiency,
         'threshold': threshold,
