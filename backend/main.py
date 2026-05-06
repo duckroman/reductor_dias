@@ -72,10 +72,10 @@ def get_boxplot():
 
 
 @app.get("/api/clusters")
-def get_clusters():
-    """Ejecuta K-Means clustering con seleccion automatica de K."""
+def get_clusters(k: int = Query(None, ge=2, le=10)):
+    """Ejecuta K-Means clustering con seleccion manual o automatica de K."""
     _, matrix, _ = get_data()
-    return analysis.compute_clusters(matrix)
+    return analysis.compute_clusters(matrix, k=k)
 
 
 @app.get("/api/reductor")

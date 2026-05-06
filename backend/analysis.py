@@ -184,27 +184,36 @@ def compute_correlation(matrix, days=None):
 # CLUSTERING
 # ============================================================
 
-def compute_clusters(matrix, max_k=10):
-    """Ejecuta K-Means clustering con seleccion automatica de K."""
+def compute_clusters(matrix, k=None, max_k=10):
+    """Ejecuta K-Means clustering con seleccion opcional de K o automatica."""
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(matrix)
 
-    # Encontrar K optimo
     inertias = []
     silhouettes = []
     k_range = range(2, max_k + 1)
 
-    for k in k_range:
-        kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
-        labels = kmeans.fit_predict(X_scaled)
-        inertias.append(float(kmeans.inertia_))
-        silhouettes.append(float(silhouette_score(X_scaled, labels)))
+    if k is None:
+        # Encontrar K optimo
+        for k_val in k_range:
+            kmeans = KMeans(n_clusters=k_val, random_state=42, n_init=10)
+            labels = kmeans.fit_predict(X_scaled)
+            inertias.append(float(kmeans.inertia_))
+            silhouettes.append(float(silhouette_score(X_scaled, labels)))
 
-    # Mejor K por Silhouette
-    best_k_idx = np.argmax(silhouettes)
-    best_k = list(k_range)[best_k_idx]
+        # Mejor K por Silhouette
+        best_k_idx = np.argmax(silhouettes)
+        best_k = list(k_range)[best_k_idx]
+    else:
+        best_k = k
+        # Aun calculamos inertias/silhouettes para graficos si se requieren
+        for k_val in k_range:
+            kmeans = KMeans(n_clusters=k_val, random_state=42, n_init=10)
+            labels_tmp = kmeans.fit_predict(X_scaled)
+            inertias.append(float(kmeans.inertia_))
+            silhouettes.append(float(silhouette_score(X_scaled, labels_tmp)))
 
-    # Ejecutar con K optimo
+    # Ejecutar con K seleccionado
     kmeans = KMeans(n_clusters=best_k, random_state=42, n_init=10)
     labels = kmeans.fit_predict(X_scaled)
 

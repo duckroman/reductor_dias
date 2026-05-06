@@ -32,8 +32,9 @@ export const getBoxplot = async () => {
   return response.data;
 };
 
-export const getClusters = async () => {
-  const response = await api.get('/clusters');
+export const getClusters = async (k = null) => {
+  const url = k ? `/clusters?k=${k}` : '/clusters';
+  const response = await api.get(url);
   return response.data;
 };
 

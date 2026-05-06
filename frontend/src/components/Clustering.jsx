@@ -7,11 +7,13 @@ const Plot = PlotlyComponent.default || PlotlyComponent;
 const Clustering = () => {
   const [clusterData, setClusterData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [k, setK] = useState(0); // 0 means automatic
 
   useEffect(() => {
     const fetchData = async () => {
+      setLoading(true);
       try {
-        const data = await getClusters();
+        const data = await getClusters(k === 0 ? null : k);
         setClusterData(data);
       } catch (error) {
         console.error("Error fetching cluster data", error);
@@ -19,10 +21,10 @@ const Clustering = () => {
       setLoading(false);
     };
     fetchData();
-  }, []);
+  }, [k]);
 
-  if (loading) return <div className="loading">Analizando clusters (K-Means)...</div>;
-  if (!clusterData || !clusterData.cluster_profiles) return <div className="loading">Error al cargar clusters.</div>;
+  if (!clusterData && loading) return <div className="loading">Analizando clusters (K-Means)...</div>;
+  if (!clusterData) return <div className="loading">Error al cargar clusters.</div>;
 
   const colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
 
@@ -38,12 +40,30 @@ const Clustering = () => {
         </p>
       </div>
 
+      <div className="controls panel" style={{ marginBottom: '20px' }}>
+        <div className="control-group">
+          <label>
+            <strong>Número de Grupos (K):</strong> {k === 0 ? `Automático (Sugerido: ${clusterData.best_k})` : `${k} Grupos`}
+            <span className="explanation-text micro" style={{marginBottom: '5px'}}>
+              Mueve este control para forzar al sistema a agrupar los distritos en más o menos familias.
+            </span>
+            <input 
+              type="range" 
+              min="0" max="10" step="1"
+              value={k} 
+              onChange={(e) => setK(parseInt(e.target.value))}
+              className="slider"
+            />
+          </label>
+        </div>
+      </div>
+
       <div className="kpi-grid">
-        <div className="kpi-card">
+        <div className="kpi-card highlight">
           <div className="kpi-content">
-            <h3>Grupos (Familias) Encontrados</h3>
-            <div className="kpi-value">{clusterData.best_k}</div>
-            <span className="explanation-text micro">Número ideal de familias con ritmos distintos.</span>
+            <h3>Grupos Activos</h3>
+            <div className="kpi-value highlight-value">{clusterData.best_k}</div>
+            <span className="explanation-text micro">Familias de distritos con comportamientos similares.</span>
           </div>
         </div>
       </div>
