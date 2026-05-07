@@ -163,6 +163,35 @@ def compute_full_data(df, matrix):
     }
 
 
+def compute_lagging_districts(matrix, df=None, top_n=20, flatline_days=5):
+    """Calcula los distritos con mayor rezago y detecta estancamientos."""
+    n_districts, n_days = matrix.shape
+    district_labels = get_district_labels(df) if df is not None else [f"Distrito {i+1}" for i in range(n_districts)]
+    
+    current_day_idx = n_days - 1
+    current_vals = matrix[:, current_day_idx]
+    
+    if n_days > flatline_days:
+        past_vals = matrix[:, current_day_idx - flatline_days]
+        growth = current_vals - past_vals
+    else:
+        growth = np.zeros(n_districts)
+        
+    lagging = []
+    for i in range(n_districts):
+        lagging.append({
+            'distrito': district_labels[i],
+            'cumplimiento': safe_float(current_vals[i]),
+            'crecimiento_5d': safe_float(growth[i]),
+            'estancado': bool(growth[i] < 0.01) # Menos de 1% de crecimiento
+        })
+        
+    # Ordenar por el cumplimiento mas bajo
+    lagging.sort(key=lambda x: x['cumplimiento'])
+    
+    return lagging[:top_n]
+
+
 # ============================================================
 # AJUSTE DE DISTRIBUCIONES
 # ============================================================

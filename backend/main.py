@@ -54,16 +54,42 @@ def get_data(sheet: str = None, state: str = None):
     if not sheet and _available_sheets:
         sheet = _available_sheets[0]
 
-    if sheet not in _sheets_cache:
-        fp = _get_filepath()
-        df = analysis.load_data(fp, sheet_name=sheet)
-        matrix, day_cols = analysis.get_data_matrix(df)
-        _sheets_cache[sheet] = (df, matrix, day_cols)
+    if sheet == "Global":
+        if "Global" not in _sheets_cache:
+            import numpy as np
+            fp = _get_filepath()
+            matrices = []
+            base_df = None
+            day_cols = None
+            for s in _available_sheets:
+                if s == "Global": continue
+                if s not in _sheets_cache:
+                    df = analysis.load_data(fp, sheet_name=s)
+                    m, dc = analysis.get_data_matrix(df)
+                    _sheets_cache[s] = (df, m, dc)
+                
+                df, m, dc = _sheets_cache[s]
+                matrices.append(m)
+                if base_df is None:
+                    base_df = df
+                    day_cols = dc
+            
+            if matrices:
+                global_matrix = np.mean(matrices, axis=0)
+                _sheets_cache["Global"] = (base_df, global_matrix, day_cols)
+        
+        df, matrix, day_cols = _sheets_cache.get("Global", (None, None, None))
+    else:
+        if sheet not in _sheets_cache:
+            fp = _get_filepath()
+            df = analysis.load_data(fp, sheet_name=sheet)
+            matrix, day_cols = analysis.get_data_matrix(df)
+            _sheets_cache[sheet] = (df, matrix, day_cols)
 
-    df, matrix, day_cols = _sheets_cache[sheet]
+        df, matrix, day_cols = _sheets_cache[sheet]
 
     # Filtrar por estado si se solicita
-    if state:
+    if state and df is not None:
         df, matrix, day_cols = analysis.filter_by_state(df, state)
 
     return df, matrix, day_cols
@@ -73,7 +99,8 @@ def get_data(sheet: str = None, state: str = None):
 def get_sheets():
     """Retorna la lista de hojas disponibles en el Excel."""
     _ensure_sheets()
-    return {"sheets": _available_sheets}
+    sheets_list = ["Global"] + _available_sheets if _available_sheets else []
+    return {"sheets": sheets_list}
 
 
 @app.get("/api/data")
@@ -113,6 +140,13 @@ def get_boxplot(sheet: str = Query(None), state: str = Query(None)):
     return analysis.compute_boxplot_data(matrix)
 
 
+@app.get("/api/lagging")
+def get_lagging(sheet: str = Query(None), state: str = Query(None), top: int = 20):
+    """Distritos con mayor rezago y alertas de estancamiento."""
+    df, matrix, _ = get_data(sheet, state)
+    return analysis.compute_lagging_districts(matrix, df=df, top_n=top)
+
+
 @app.get("/api/clusters")
 def get_clusters(k: int = Query(None, ge=2, le=10), sheet: str = Query(None), state: str = Query(None)):
     """Ejecuta K-Means clustering."""
@@ -131,6 +165,38 @@ def get_reductor(
     """Analisis de punto optimo para reduccion de dias."""
     df, matrix, _ = get_data(sheet, state)
     return analysis.compute_reductor(matrix, df=df, threshold=threshold, coverage=coverage, manual_day=manual_day)
+
+
+@app.get("/api/comparative")
+def get_comparative(state: str = Query(None)):
+    """Devuelve el avance actual promedio para cada rubro."""
+    _ensure_sheets()
+    results = []
+    fp = _get_filepath()
+    if not fp: return results
+    
+    for s in _available_sheets:
+        if s == "Global": continue
+        
+        # Aprovechar la cache si existe
+        if s in _sheets_cache:
+            df, matrix, day_cols = _sheets_cache[s]
+        else:
+            df = analysis.load_data(fp, sheet_name=s)
+            matrix, day_cols = analysis.get_data_matrix(df)
+            _sheets_cache[s] = (df, matrix, day_cols)
+            
+        if state and df is not None:
+            df_filtered, matrix_filtered, _ = analysis.filter_by_state(df, state)
+            m = matrix_filtered
+        else:
+            m = matrix
+            
+        if m.shape[1] > 0:
+            last_day_mean = float(m[:, -1].mean())
+            results.append({'rubro': s, 'avance': last_day_mean})
+            
+    return sorted(results, key=lambda x: x['avance'], reverse=True)
 
 
 @app.get("/api/state-summary")

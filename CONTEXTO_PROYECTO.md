@@ -1,7 +1,7 @@
 # CONTEXTO DEL PROYECTO — Reductor de Días (INE)
 
 > **Propósito**: Este archivo permite que cualquier agente AI retome el proyecto donde se dejó.
-> **Última actualización**: 2026-05-06T16:55 CST
+> **Última actualización**: 2026-05-06T18:25 CST
 
 ---
 
@@ -122,6 +122,7 @@ react, react-dom, recharts, plotly.js, react-plotly.js, axios, lucide-react
 | Etapa 8 | ✅ COMPLETADO | Optimización de lógica de reducción (bias Día 1 corregido), interfaz dinámica con ajuste manual y explicaciones técnicas enriquecidas |
 | Etapa 9 | ✅ COMPLETADO | Clustering manual (2-10), razonamiento dinámico de recomendación, corrección de errores en estadísticas y lista expandible de riesgo |
 | Etapa 10 | ✅ COMPLETADO | Soporte multi-hoja (4 rubros), sidebar de navegación, mapa interactivo de México por entidad, filtro estatal en todos los paneles |
+| Etapa 11 | ✅ COMPLETADO | Cálculo Global multi-rubro, panel de distritos rezagados y alertas tempranas (flatlines), comparativa de rubros, contexto PCA y exportación PDF |
 
 ## 🚀 Cómo Ejecutar
 

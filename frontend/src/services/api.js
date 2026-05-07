@@ -45,6 +45,17 @@ export const getBoxplot = async (sheet = null, state = null) => {
   return response.data;
 };
 
+export const getLaggingDistricts = async (sheet = null, state = null) => {
+  const response = await api.get('/lagging', { params: sheetParams(sheet, state) });
+  return response.data;
+};
+
+export const getComparative = async (state = null) => {
+  const params = state ? { state } : {};
+  const response = await api.get('/comparative', { params });
+  return response.data;
+};
+
 export const getClusters = async (k = null, sheet = null, state = null) => {
   const params = sheetParams(sheet, state);
   if (k) params.k = k;

@@ -102,9 +102,11 @@ const Clustering = ({ sheet, state }) => {
 
         <div className="chart-card">
           <h3>Mapa de Similitud entre Distritos</h3>
-          <p className="explanation-text mb-15">
+          <p className="explanation-text mb-15" style={{ fontSize: '0.9rem' }}>
             <strong>¿Cómo leer esto?</strong> Imagina que el sistema lee las curvas de los 300 distritos y los dibuja en un mapa. 
-            Cada punto es un distrito. Los distritos que están muy pegaditos se comportaron casi igual durante los 50 días.
+            Cada punto es un distrito. Los distritos que están muy pegaditos se comportaron casi igual.<br/><br/>
+            <strong>Eje X (Horizontal): Nivel de Cumplimiento.</strong> Los distritos más a la derecha tienen mejor avance, los de la izquierda están rezagados.<br/>
+            <strong>Eje Y (Vertical): Velocidad de Trabajo.</strong> Diferencia a los distritos según su ritmo (ej. empezaron rápido y se estancaron vs. empezaron lento y aceleraron).
           </p>
           <div className="chart-wrapper">
             <Plot

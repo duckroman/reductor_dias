@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { getStats, getFullData } from '../services/api';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { getStats, getFullData, getLaggingDistricts, getComparative } from '../services/api';
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend } from 'recharts';
 import PlotlyComponent from 'react-plotly.js';
-import { Activity, CheckCircle, Target, TrendingUp } from 'lucide-react';
+import { Activity, CheckCircle, Target, TrendingUp, AlertTriangle } from 'lucide-react';
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
 const Dashboard = ({ sheet, state }) => {
   const [stats, setStats] = useState([]);
   const [fullData, setFullData] = useState(null);
+  const [lagging, setLagging] = useState([]);
+  const [comparative, setComparative] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -16,8 +18,18 @@ const Dashboard = ({ sheet, state }) => {
       try {
         const statsData = await getStats(sheet, state);
         const full = await getFullData(sheet, state);
+        const lag = await getLaggingDistricts(sheet, state);
+        
+        if (sheet === 'Global' || !sheet) {
+          const comp = await getComparative(state);
+          setComparative(comp);
+        } else {
+          setComparative([]);
+        }
+
         setStats(statsData);
         setFullData(full);
+        setLagging(lag);
         setLoading(false);
       } catch (error) {
         console.error("Error fetching dashboard data", error);
@@ -26,6 +38,7 @@ const Dashboard = ({ sheet, state }) => {
     };
     fetchData();
   }, [sheet, state]);
+
 
   const latestStats = stats.length > 0 ? stats[stats.length - 1] : null;
 
@@ -97,7 +110,7 @@ const Dashboard = ({ sheet, state }) => {
                 <CartesianGrid strokeDasharray="3 3" stroke="#444" />
                 <XAxis dataKey="dia" stroke="#888" label={{ value: 'Días', position: 'insideBottom', offset: -5 }} />
                 <YAxis stroke="#888" tickFormatter={(val) => `${(val * 100).toFixed(0)}%`} />
-                <Tooltip formatter={(val) => `${(val * 100).toFixed(1)}%`} />
+                <RechartsTooltip formatter={(val) => `${(val * 100).toFixed(1)}%`} />
                 <Legend />
                 <Line type="monotone" dataKey="media" name="Media" stroke="#3A6BC5" strokeWidth={3} dot={false} />
                 <Line type="monotone" dataKey="mediana" name="Mediana" stroke="#2B579A" strokeWidth={2} strokeDasharray="5 5" dot={false} />
@@ -105,6 +118,29 @@ const Dashboard = ({ sheet, state }) => {
             </ResponsiveContainer>
           </div>
         </div>
+
+        {comparative.length > 0 && (
+          <div className="chart-card">
+            <h3>📊 Comparativa de Rubros</h3>
+            <p className="explanation-text micro mb-15">
+              Promedio de avance por cada actividad. Ayuda a identificar rápidamente cuál es el cuello de botella.
+            </p>
+            <div className="chart-wrapper">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={comparative} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                  <XAxis dataKey="rubro" stroke="#94a3b8" tick={{ fontSize: 11 }} />
+                  <YAxis domain={[0, 1]} tickFormatter={(tick) => `${(tick * 100).toFixed(0)}%`} stroke="#94a3b8" />
+                  <RechartsTooltip 
+                    formatter={(value) => [`${(value * 100).toFixed(1)}%`, 'Avance Promedio']}
+                    contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.95)', borderColor: '#3b82f6', color: '#f8fafc' }} 
+                  />
+                  <Bar dataKey="avance" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        )}
 
         <div className="chart-card wide">
           <h3>Mapa de Calor: Distritos vs Días</h3>
@@ -142,6 +178,55 @@ const Dashboard = ({ sheet, state }) => {
           </div>
         </div>
       </div>
+
+      {lagging.length > 0 && (
+        <div className="chart-card wide alert-card" style={{ marginTop: '30px' }}>
+          <h3 style={{ color: '#fca5a5', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <AlertTriangle size={20} />
+            🚨 Focos Rojos: Top Distritos Rezagados
+          </h3>
+          <p className="explanation-text" style={{ marginBottom: '20px' }}>
+            Esta tabla muestra los distritos con el porcentaje de cumplimiento más bajo hasta la fecha de corte. 
+            La columna de <strong>Crecimiento (5 días)</strong> ayuda a identificar distritos que están estancados 
+            (crecimiento menor al 1% en los últimos 5 días).
+          </p>
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Distrito</th>
+                  <th>Cumplimiento Actual</th>
+                  <th>Crecimiento (Últimos 5 Días)</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {lagging.map((dist) => (
+                  <tr key={dist.distrito} className={dist.estancado ? 'highlight-row' : ''} style={dist.estancado ? { backgroundColor: 'rgba(239, 68, 68, 0.15)' } : {}}>
+                    <td>{dist.distrito}</td>
+                    <td><strong className={dist.cumplimiento < 0.6 ? 'danger-text' : ''}>{(dist.cumplimiento * 100).toFixed(1)}%</strong></td>
+                    <td>
+                      {(dist.crecimiento_5d * 100).toFixed(1)}%
+                      {dist.crecimiento_5d < 0 ? ' 📉' : ' 📈'}
+                    </td>
+                    <td>
+                      {dist.estancado ? (
+                        <span className="risk-tag" style={{ display: 'inline-flex', padding: '4px 10px', fontSize: '0.8rem', background: '#991b1b', color: '#fecaca', border: 'none' }}>
+                          ⚠️ Estancamiento Crítico
+                        </span>
+                      ) : (
+                        <span className="risk-tag more" style={{ display: 'inline-flex', padding: '4px 10px', fontSize: '0.8rem' }}>
+                          Activo
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -8,6 +8,7 @@ import { getSheets, uploadDataFile } from './services/api';
 import './App.css';
 
 const SHEET_ICONS = {
+  'Global': '🌐',
   'Nombramientos': '📋',
   'Capacitación': '📚',
   'Asistencia a Simulacros': '🎯',
@@ -93,7 +94,8 @@ function App() {
         </div>
 
         <div className="sidebar-section">
-          <label className="upload-sidebar-btn">
+          <h3 className="sidebar-section-title">Opciones</h3>
+          <label className="upload-sidebar-btn mb-15">
             {uploading ? '⏳ Cargando...' : '📂 Cargar Excel'}
             <input
               type="file"
@@ -103,6 +105,13 @@ function App() {
               disabled={uploading}
             />
           </label>
+          <button 
+            className="sidebar-btn" 
+            onClick={() => window.print()}
+            style={{ background: 'rgba(255,255,255,0.1)', textAlign: 'center', display: 'block' }}
+          >
+            📄 Exportar PDF
+          </button>
         </div>
 
         {selectedState && (
