@@ -24,35 +24,105 @@ def safe_float(val):
 # CARGA DE DATOS
 # ============================================================
 
-def load_data(filepath=None):
-    """Carga los datos del Excel y retorna un DataFrame limpio."""
+def load_data(filepath=None, sheet_name=None):
+    """Carga los datos del Excel y retorna un DataFrame limpio.
+    Si sheet_name es None, usa la primera hoja."""
     if filepath is None:
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         filepath = os.path.join(base, "cumplimiento_visitas_custom.xlsx")
-        # Fallback if custom doesn't exist
+        if not os.path.exists(filepath):
+            filepath = os.path.join(base, "cumplimiento_completo_v1_poblado.xlsx")
         if not os.path.exists(filepath):
             filepath = os.path.join(base, "cumplimiento_visitas_nuevo.xlsx")
-        # Fallback if nuevo doesn't exist
         if not os.path.exists(filepath):
             filepath = os.path.join(base, "cumplimiento_visitas.xlsx")
 
-    df = pd.read_excel(filepath, header=1)  # Row 2 is the header
-    # Clean column names
+    kwargs = {'header': 1}
+    if sheet_name:
+        kwargs['sheet_name'] = sheet_name
+
+    df = pd.read_excel(filepath, **kwargs)
     df.columns = [str(c).strip() for c in df.columns]
-    # Remove any fully empty rows
     df = df.dropna(how='all')
-    # Ensure Distrito is int
-    df['Distrito'] = df['Distrito'].astype(int)
+
+    # Detectar columna de distrito: puede ser 'Distrito' o 'ID Distrito'
+    if 'Distrito' in df.columns:
+        df['Distrito'] = df['Distrito'].astype(int)
+    elif 'ID Distrito' in df.columns:
+        df.rename(columns={'ID Distrito': 'Distrito'}, inplace=True)
+        df['Distrito'] = df['Distrito'].astype(int)
+
+    # Normalizar columna de entidad
+    if 'ID Entidad' in df.columns and 'Entidad' in df.columns:
+        df['ID Entidad'] = df['ID Entidad'].astype(int)
+
     return df
 
 
+def get_sheet_names(filepath=None):
+    """Devuelve la lista de hojas disponibles en el Excel."""
+    if filepath is None:
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        filepath = os.path.join(base, "cumplimiento_visitas_custom.xlsx")
+        if not os.path.exists(filepath):
+            filepath = os.path.join(base, "cumplimiento_completo_v1_poblado.xlsx")
+        if not os.path.exists(filepath):
+            filepath = os.path.join(base, "cumplimiento_visitas_nuevo.xlsx")
+        if not os.path.exists(filepath):
+            filepath = os.path.join(base, "cumplimiento_visitas.xlsx")
+    xl = pd.ExcelFile(filepath)
+    return xl.sheet_names
+
+
 def get_data_matrix(df):
-    """Extrae la matriz numerica (300 x 50) del DataFrame."""
-    day_cols = [c for c in df.columns if c.startswith('D')]
-    day_cols = [c for c in day_cols if c != 'Distrito']
-    # Rellenar nulos con 0 para evitar errores en calculos matriciales
+    """Extrae la matriz numerica del DataFrame.
+    Soporta columnas 'DX' y 'Día X'."""
+    day_cols = [c for c in df.columns if c.startswith('Día ') or
+                (c.startswith('D') and c[1:].isdigit())]
+    day_cols = [c for c in day_cols if c not in ('Distrito', 'ID Distrito')]
     matrix = df[day_cols].fillna(0).values.astype(float)
     return matrix, day_cols
+
+
+def filter_by_state(df, state):
+    """Filtra el DataFrame por nombre de entidad y devuelve df + matrix."""
+    if state and 'Entidad' in df.columns:
+        df_filtered = df[df['Entidad'] == state].copy()
+    else:
+        df_filtered = df.copy()
+    matrix, day_cols = get_data_matrix(df_filtered)
+    return df_filtered, matrix, day_cols
+
+
+def compute_state_summary(df, matrix, day_cols):
+    """Resumen ejecutivo por entidad federativa."""
+    if 'Entidad' not in df.columns:
+        return []
+
+    n_days = matrix.shape[1]
+    last_day_idx = n_days - 1
+    states = []
+
+    for state_name, group in df.groupby('Entidad'):
+        indices = group.index
+        # Necesitamos mapear indices de grupo al rango de la matrix
+        # La matrix se construyo del df completo, asi que usamos posiciones
+        pos = [df.index.get_loc(i) for i in indices]
+        sub = matrix[pos, :]
+        last_vals = sub[:, last_day_idx]
+
+        states.append({
+            'entidad': state_name,
+            'id_entidad': int(group['ID Entidad'].iloc[0]) if 'ID Entidad' in group.columns else 0,
+            'n_distritos': len(group),
+            'media_actual': safe_float(np.mean(last_vals)),
+            'min_actual': safe_float(np.min(last_vals)),
+            'max_actual': safe_float(np.max(last_vals)),
+            'std_actual': safe_float(np.std(last_vals)),
+            'media_dia1': safe_float(np.mean(sub[:, 0])),
+        })
+
+    return sorted(states, key=lambda x: x['media_actual'] or 0)
 
 
 # ============================================================
@@ -184,14 +254,66 @@ def compute_correlation(matrix, days=None):
 # CLUSTERING
 # ============================================================
 
-def compute_clusters(matrix, k=None, max_k=10):
+def get_district_labels(df):
+    """Genera las etiquetas formateadas de los distritos."""
+    labels = []
+    if df is None:
+        return labels
+    for _, row in df.iterrows():
+        entidad = row.get('Entidad', 'Desconocido')
+        distrito = row.get('Distrito', '')
+        cabecera = row.get('Cabecera', 'Desconocido')
+        
+        if isinstance(distrito, (int, float)) or (isinstance(distrito, str) and str(distrito).isdigit()):
+            dist_str = f"D{int(distrito):02d}"
+        else:
+            dist_str = f"D{distrito}"
+            
+        labels.append(f"{entidad}_{dist_str}_{cabecera}")
+    return labels
+
+def compute_clusters(matrix, df=None, k=None, max_k=10):
     """Ejecuta K-Means clustering con seleccion opcional de K o automatica."""
+    n_samples = matrix.shape[0]
+    district_labels = get_district_labels(df) if df is not None else [f"Distrito {i+1}" for i in range(n_samples)]
+
+    # Guard: no se puede clusterizar con menos de 3 muestras
+    if n_samples < 3:
+        pca = PCA(n_components=min(2, matrix.shape[1]))
+        X_pca = pca.fit_transform(matrix)
+        return {
+            'best_k': 1,
+            'labels': [0] * n_samples,
+            'district_names': district_labels,
+            'inertias': [],
+            'silhouettes': [],
+            'k_range': [],
+            'pca': {
+                'x': X_pca[:, 0].tolist() if X_pca.shape[1] > 0 else [0]*n_samples,
+                'y': X_pca[:, 1].tolist() if X_pca.shape[1] > 1 else [0]*n_samples,
+                'explained_variance': pca.explained_variance_ratio_.tolist(),
+            },
+            'cluster_profiles': [{
+                'cluster': 0,
+                'n_distritos': n_samples,
+                'profile': matrix.mean(axis=0).tolist(),
+                'mean_final': float(matrix[:, -1].mean()),
+                'std_final': float(matrix[:, -1].std()) if n_samples > 1 else 0.0,
+                'mean_day1': float(matrix[:, 0].mean()),
+            }],
+        }
+
+    # Ajustar max_k si hay menos muestras que el rango
+    effective_max_k = min(max_k, n_samples - 1)
+    if effective_max_k < 2:
+        effective_max_k = 2
+
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(matrix)
 
     inertias = []
     silhouettes = []
-    k_range = range(2, max_k + 1)
+    k_range = range(2, effective_max_k + 1)
 
     if k is None:
         # Encontrar K optimo
@@ -205,7 +327,7 @@ def compute_clusters(matrix, k=None, max_k=10):
         best_k_idx = np.argmax(silhouettes)
         best_k = list(k_range)[best_k_idx]
     else:
-        best_k = k
+        best_k = min(k, effective_max_k)
         # Aun calculamos inertias/silhouettes para graficos si se requieren
         for k_val in k_range:
             kmeans = KMeans(n_clusters=k_val, random_state=42, n_init=10)
@@ -238,6 +360,7 @@ def compute_clusters(matrix, k=None, max_k=10):
     return {
         'best_k': int(best_k),
         'labels': [int(l) for l in labels],
+        'district_names': district_labels,
         'inertias': inertias,
         'silhouettes': silhouettes,
         'k_range': list(k_range),
@@ -251,19 +374,13 @@ def compute_clusters(matrix, k=None, max_k=10):
 
 
 # ============================================================
-# REDUCTOR DE DIAS - ANALISIS DE PUNTO OPTIMO
+# REDUCTOR DE DIAS
 # ============================================================
 
-def compute_reductor(matrix, threshold=0.90, coverage=0.80, manual_day=None):
-    """
-    Analisis completo para determinar el dia optimo de reduccion.
-    
-    Args:
-        threshold: Porcentaje minimo de cumplimiento aceptable (0-1)
-        coverage: Porcentaje minimo de distritos que deben alcanzar el threshold (0-1)
-        manual_day: Dia manual forzado por el usuario (sobreescribe recomendacion)
-    """
+def compute_reductor(matrix, df=None, threshold=0.90, coverage=0.80, manual_day=None):
+    """Calcula el analisis del Reductor de Dias para el balance optimo."""
     n_districts, n_days = matrix.shape
+    district_labels = get_district_labels(df) if df is not None else [f"Distrito {i+1}" for i in range(n_districts)]
     dias = np.arange(1, n_days + 1)
 
     # --- 1. Rendimiento marginal ---
@@ -330,7 +447,7 @@ def compute_reductor(matrix, threshold=0.90, coverage=0.80, manual_day=None):
         for i in range(n_districts):
             if col[i] < threshold:
                 risk_districts.append({
-                    'distrito': int(i + 1),
+                    'distrito': district_labels[i],
                     'cumplimiento': float(col[i]),
                     'deficit': float(threshold - col[i]),
                 })

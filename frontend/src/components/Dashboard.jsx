@@ -6,7 +6,7 @@ import { Activity, CheckCircle, Target, TrendingUp } from 'lucide-react';
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
-const Dashboard = () => {
+const Dashboard = ({ sheet, state }) => {
   const [stats, setStats] = useState([]);
   const [fullData, setFullData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -14,8 +14,8 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const statsData = await getStats();
-        const full = await getFullData();
+        const statsData = await getStats(sheet, state);
+        const full = await getFullData(sheet, state);
         setStats(statsData);
         setFullData(full);
         setLoading(false);
@@ -25,7 +25,7 @@ const Dashboard = () => {
       }
     };
     fetchData();
-  }, []);
+  }, [sheet, state]);
 
   const latestStats = stats.length > 0 ? stats[stats.length - 1] : null;
 

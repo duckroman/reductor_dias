@@ -4,7 +4,7 @@ import PlotlyComponent from 'react-plotly.js';
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
-const Clustering = () => {
+const Clustering = ({ sheet, state }) => {
   const [clusterData, setClusterData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [k, setK] = useState(0); // 0 means automatic
@@ -13,7 +13,7 @@ const Clustering = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const data = await getClusters(k === 0 ? null : k);
+        const data = await getClusters(k === 0 ? null : k, sheet, state);
         setClusterData(data);
       } catch (error) {
         console.error("Error fetching cluster data", error);
@@ -21,7 +21,7 @@ const Clustering = () => {
       setLoading(false);
     };
     fetchData();
-  }, [k]);
+  }, [k, sheet, state]);
 
   if (!clusterData && loading) return <div className="loading">Analizando clusters (K-Means)...</div>;
   if (!clusterData) return <div className="loading">Error al cargar clusters.</div>;
@@ -116,8 +116,10 @@ const Clustering = () => {
                 return {
                   x: indices.map(idx => clusterData.pca.x[idx]),
                   y: indices.map(idx => clusterData.pca.y[idx]),
+                  text: indices.map(idx => clusterData.district_names ? clusterData.district_names[idx] : `Distrito ${idx + 1}`),
                   type: 'scatter',
                   mode: 'markers',
+                  hoverinfo: 'text+name',
                   name: `Cluster ${p.cluster}`,
                   marker: { color: colors[i % colors.length], size: 8, opacity: 0.7 }
                 };

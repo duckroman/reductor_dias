@@ -4,32 +4,31 @@ import PlotlyComponent from 'react-plotly.js';
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
-const Statistical = () => {
+const Statistical = ({ sheet, state }) => {
   const [day, setDay] = useState(25);
   const [distData, setDistData] = useState(null);
   const [boxData, setBoxData] = useState(null);
   const [corrData, setCorrData] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Carga inicial de datos que no dependen del día seleccionado
   useEffect(() => {
     const fetchStaticData = async () => {
       const [box, corr] = await Promise.allSettled([
-        getBoxplot(),
-        getCorrelation()
+        getBoxplot(sheet, state),
+        getCorrelation(sheet, state)
       ]);
       if (box.status === 'fulfilled') setBoxData(box.value);
       if (corr.status === 'fulfilled') setCorrData(corr.value);
     };
     fetchStaticData();
-  }, []);
+  }, [sheet, state]);
 
   // Recarga solo los datos que dependen del día seleccionado
   useEffect(() => {
     const fetchDynamicData = async () => {
       setLoading(true);
       try {
-        const dist = await getDistributions(day);
+        const dist = await getDistributions(day, sheet, state);
         setDistData(dist);
       } catch (error) {
         console.error("Error loading distributions", error);

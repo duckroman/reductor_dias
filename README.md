@@ -1,6 +1,6 @@
 # 🎯 Reductor de Días (INE) - Análisis de Cumplimiento de Visitas
 
-Esta aplicación es una herramienta interactiva de análisis de datos para el INE. Su propósito principal es analizar las curvas de cumplimiento de 300 distritos electorales a lo largo de 50 días y utilizar algoritmos para **encontrar el día óptimo para reducir el periodo de visitas**, asegurando el mayor nivel de cumplimiento posible.
+Esta aplicación es una herramienta interactiva de análisis de datos para el INE. Su propósito principal es analizar las curvas de cumplimiento de 300 distritos electorales a lo largo de 50 días y utilizar algoritmos para **encontrar el día óptimo para reducir el periodo de visitas**, permitiendo segmentación dinámica de distritos y razonamiento basado en evidencia.
 
 El proyecto consta de una API desarrollada en **FastAPI** (Backend) y una interfaz de usuario creada en **React + Vite** (Frontend).
 

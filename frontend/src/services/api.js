@@ -7,43 +7,62 @@ const api = axios.create({
   },
 });
 
-export const getFullData = async () => {
-  const response = await api.get('/data');
+// Helper para agregar sheet y state a los params
+const sheetParams = (sheet, state) => {
+  const params = {};
+  if (sheet) params.sheet = sheet;
+  if (state) params.state = state;
+  return params;
+};
+
+export const getSheets = async () => {
+  const response = await api.get('/sheets');
   return response.data;
 };
 
-export const getStats = async () => {
-  const response = await api.get('/stats');
+export const getFullData = async (sheet = null, state = null) => {
+  const response = await api.get('/data', { params: sheetParams(sheet, state) });
   return response.data;
 };
 
-export const getDistributions = async (day) => {
-  const response = await api.get(`/distributions/${day}`);
+export const getStats = async (sheet = null, state = null) => {
+  const response = await api.get('/stats', { params: sheetParams(sheet, state) });
   return response.data;
 };
 
-export const getCorrelation = async () => {
-  const response = await api.get('/correlation');
+export const getDistributions = async (day, sheet = null, state = null) => {
+  const response = await api.get(`/distributions/${day}`, { params: sheetParams(sheet, state) });
   return response.data;
 };
 
-export const getBoxplot = async () => {
-  const response = await api.get('/boxplot');
+export const getCorrelation = async (sheet = null, state = null) => {
+  const response = await api.get('/correlation', { params: sheetParams(sheet, state) });
   return response.data;
 };
 
-export const getClusters = async (k = null) => {
-  const url = k ? `/clusters?k=${k}` : '/clusters';
-  const response = await api.get(url);
+export const getBoxplot = async (sheet = null, state = null) => {
+  const response = await api.get('/boxplot', { params: sheetParams(sheet, state) });
   return response.data;
 };
 
-export const getReductorAnalysis = async (threshold = 0.90, coverage = 0.80, manualDay = null) => {
-  let url = `/reductor?threshold=${threshold}&coverage=${coverage}`;
-  if (manualDay) {
-    url += `&manual_day=${manualDay}`;
-  }
-  const response = await api.get(url);
+export const getClusters = async (k = null, sheet = null, state = null) => {
+  const params = sheetParams(sheet, state);
+  if (k) params.k = k;
+  const response = await api.get('/clusters', { params });
+  return response.data;
+};
+
+export const getReductorAnalysis = async (threshold = 0.90, coverage = 0.80, manualDay = null, sheet = null, state = null) => {
+  const params = { threshold, coverage, ...sheetParams(sheet, state) };
+  if (manualDay) params.manual_day = manualDay;
+  const response = await api.get('/reductor', { params });
+  return response.data;
+};
+
+export const getStateSummary = async (sheet = null) => {
+  const params = {};
+  if (sheet) params.sheet = sheet;
+  const response = await api.get('/state-summary', { params });
   return response.data;
 };
 

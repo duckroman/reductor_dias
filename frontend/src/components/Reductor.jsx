@@ -5,7 +5,7 @@ import { AlertTriangle, TrendingDown, Target, CheckCircle2 } from 'lucide-react'
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
-const Reductor = () => {
+const Reductor = ({ sheet, state }) => {
   const [threshold, setThreshold] = useState(0.90);
   const [coverage, setCoverage] = useState(0.80);
   const [manualDay, setManualDay] = useState(0); // 0 means use auto recommendation
@@ -17,7 +17,7 @@ const Reductor = () => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const result = await getReductorAnalysis(threshold, coverage, manualDay === 0 ? null : manualDay);
+        const result = await getReductorAnalysis(threshold, coverage, manualDay === 0 ? null : manualDay, sheet, state);
         setData(result);
       } catch (error) {
         console.error("Error fetching reductor data", error);
@@ -29,7 +29,7 @@ const Reductor = () => {
       fetchData();
     }, 200);
     return () => clearTimeout(timer);
-  }, [threshold, coverage, manualDay]);
+  }, [threshold, coverage, manualDay, sheet, state]);
 
   return (
     <div className="dashboard-container">
@@ -306,7 +306,7 @@ const Reductor = () => {
                 <div className="risk-tags">
                   {(showAllRisk ? data.risk_districts : data.risk_districts.slice(0, 20)).map((d) => (
                     <div key={d.distrito} className="risk-tag">
-                      Distrito {d.distrito} 
+                      {d.distrito} 
                       <span className="risk-value">{(d.cumplimiento * 100).toFixed(1)}%</span>
                     </div>
                   ))}

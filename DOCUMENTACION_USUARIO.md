@@ -37,14 +37,16 @@ Para llegar a una recomendación confiable, el sistema usa tres "cerebros" matem
 ### A. El Modelo de Crecimiento (Curvas en S)
 Cada distrito no avanza de forma lineal. Al principio van lento (arranque), luego muy rápido (ritmo fuerte) y al final vuelven a ir lento (los casos más difíciles). El sistema entiende esta **Curva en S** para predecir cuándo un distrito ya dio todo lo que podía dar.
 
-### B. Agrupación por Familias (Clustering K-Means)
+### B. Agrupación por Familias (Clustering)
 No todos los distritos son iguales. Algunos son "estrellas" que terminan rápido, otros son "lentos pero seguros", y otros son "críticos".
-*   **¿Qué hace el sistema?** Agrupa los 300 distritos en 4 o 5 "familias". Así, en lugar de revisar 300 gráficas, el coordinador puede ver el comportamiento de 5 grandes grupos y entender quiénes necesitan ayuda.
+*   **¿Qué hace el sistema?** Agrupa los 300 distritos en "familias". 
+*   **Control Manual:** Ahora tú puedes decidir en cuántas familias dividir el país (desde 2 hasta 10), permitiéndote un análisis mucho más detallado o uno más general según lo necesites.
 
 ### C. El Punto de Corte (Balance de Esfuerzo)
 Este es el corazón del reductor. El sistema busca el día donde la ganancia de cumplimiento empieza a caer drásticamente.
 *   **Ajuste Automático:** El sistema propone un día basado en el algoritmo del "Codo", detectando cuándo el esfuerzo extra produce resultados mínimos.
-*   **Ajuste Manual:** Tú tienes la última palabra. Puedes mover el control deslizante para ver el impacto exacto en la cobertura nacional y en el número de distritos en riesgo si decides cerrar el campo antes o después de lo sugerido.
+*   **Ajuste Manual:** Tú tienes la última palabra. Puedes mover el control deslizante para ver el impacto exacto en la cobertura nacional y en el número de distritos en riesgo.
+*   **Razonamiento Dinámico:** El sistema ahora te explica **por qué** está recomendando un día específico (ej. "Meta de cobertura alcanzada" o "Punto de saturación detectado"), dándote total claridad sobre la sugerencia técnica.
 
 ---
 

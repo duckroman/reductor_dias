@@ -41,10 +41,10 @@ Para identificar patrones de comportamiento sin etiquetas previas, se utiliza el
 Dado que los distritos pueden tener escalas distintas, los datos se normalizan mediante **Z-Score**: $z = \frac{x - \mu}{\sigma}$. La similitud entre distritos se mide con la **Distancia Euclidiana**:
 $$d(p, q) = \sqrt{\sum_{t=1}^{50} (p_t - q_t)^2}$$
 
-### 3.2. Optimización de Grupos ($k$)
-El número óptimo de clusters se determina mediante el **Coeficiente de Silueta ($S$):**
-$$S_i = \frac{b_i - a_i}{\max(a_i, b_i)}$$
-Donde $a_i$ es la distancia media intra-cluster y $b_i$ la distancia media al cluster más cercano.
+### 3.2. Selección de Grupos ($k$)
+El sistema ofrece dos modalidades de agrupamiento:
+1.  **Modo Automático:** Utiliza el **Coeficiente de Silueta ($S$):** $S_i = \frac{b_i - a_i}{\max(a_i, b_i)}$ para determinar el número óptimo de clusters que maximiza la cohesión interna.
+2.  **Modo Manual:** Permite al usuario seleccionar un rango de entre 2 y 10 clusters (familias) para realizar micro-segmentación operativa basada en el volumen de distritos ($n=300$).
 
 ### 3.3. Reducción de Dimensionalidad (PCA)
 Para visualizar 50 dimensiones (días) en un plano 2D, se utiliza el **Análisis de Componentes Principales (PCA)**, proyectando los datos en los autovectores que maximizan la varianza explicada.
@@ -55,9 +55,11 @@ Para visualizar 50 dimensiones (días) en un plano 2D, se utiliza el **Análisis
 
 El "Día Óptimo" se calcula mediante la convergencia de tres criterios técnicos:
 
-### 4.1. Algoritmo Kneedle (Detección de "Codos")
-Busca el punto de máxima curvatura en la función de cumplimiento acumulado. Para una curva cóncava, se busca el punto $x$ que maximiza la distancia perpendicular a la línea que une el inicio y el fin de la curva.
-$$K(x) = \frac{|f''(x)|}{(1 + f'(x)^2)^{3/2}}$$
+### 4.1. Algoritmo Kneedle y Razonamiento Dinámico
+Busca el punto de máxima curvatura en la función de cumplimiento acumulado. El sistema no solo entrega un número, sino un **Razonamiento Lógico** que justifica la recomendación basándose en:
+- Cumplimiento de metas de cobertura ($\Phi$).
+- Punto de saturación operativa ($Kneedle$).
+- Estancamiento crítico o arranque acelerado (Validación de días < 20).
 
 $$R_m(t) = \frac{\Delta C}{\Delta t} = C(t) - C(t-1)$$
 El sistema identifica el punto donde $R_m(t) < \epsilon$, donde $\epsilon$ es el umbral de eficiencia institucional. Para evitar sesgos en la visualización, el rendimiento del Día 1 se normaliza a 0 si el punto de partida es alto, permitiendo observar la dinámica real del incremento diario a partir del arranque de la operación.
