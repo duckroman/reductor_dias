@@ -76,12 +76,14 @@ function App() {
       <aside className="app-sidebar">
         <div className="sidebar-header">
           <div className="logo-icon">INE</div>
-          <div>
-            <h2>Reductor de Días</h2>
-            <span className="sidebar-subtitle">Análisis de Cumplimiento</span>
-            {activeFile && (
+          <h2>Reductor de Días</h2>
+        </div>
+        <div className="sidebar-metadata">
+          <span className="sidebar-subtitle">Análisis de Cumplimiento</span>
+          {activeFile && (
               <div className="active-file-indicator">
-                📂 <span title={activeFile}>{activeFile}</span>
+                <div className="active-file-label">Archivo Activo:</div>
+                <span title={activeFile}>{activeFile}</span>
               </div>
             )}
           </div>

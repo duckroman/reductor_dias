@@ -1,37 +1,48 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --bg-color: #0f172a;
-  --bg-gradient: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-  --panel-bg: rgba(30, 41, 59, 0.7);
-  --panel-border: rgba(255, 255, 255, 0.1);
-  --text-primary: #f8fafc;
+  --bg-color: #030508;
+  --bg-gradient: radial-gradient(circle at 50% 0%, #111827, #030508);
+  --sidebar-bg: #07090d;
+  --panel-bg: #0b0e14;
+  --panel-border: transparent; /* Eliminar bordes por defecto */
+  --text-primary: #ffffff;
   --text-secondary: #94a3b8;
-  --accent-color: #3b82f6;
-  --accent-hover: #2563eb;
+  --accent-color: #6366f1;
+  --accent-glow: rgba(99, 102, 241, 0.5);
   --success-color: #10b981;
   --warning-color: #f59e0b;
   --danger-color: #ef4444;
-  --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-  --glass-blur: blur(12px);
-  --border-radius: 16px;
-  --sidebar-width: 240px;
+  --border-radius: 12px;
+  --sidebar-width: 280px;
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  border: none !important; /* Reset agresivo de bordes */
+  outline: none !important;
+  box-shadow: none;
 }
 
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-  background: var(--bg-gradient);
+  font-family: 'Outfit', sans-serif;
+  background: var(--bg-color) !important;
+  background-image: var(--bg-gradient) !important;
   background-attachment: fixed;
   color: var(--text-primary);
-  line-height: 1.6;
+  line-height: 1.5;
   min-height: 100vh;
+  overflow-x: hidden;
 }
+
+/* Ocultar scrollbars por completo para eliminar lineas verticales */
+::-webkit-scrollbar {
+  display: none;
+}
+-ms-overflow-style: none;  /* IE and Edge */
+scrollbar-width: none;  /* Firefox */
 
 /* ============================================ */
 /* APP LAYOUT: Sidebar + Content                */
@@ -40,21 +51,26 @@ body {
 .app-layout {
   display: flex;
   min-height: 100vh;
+  background: var(--bg-color);
+  border: none; /* Asegurar no bordes en el layout */
+  outline: none;
 }
 
 /* SIDEBAR */
 .app-sidebar {
-  background: rgba(15, 23, 42, 0.95);
-  border-right: 1px solid var(--panel-border);
-  padding: 24px 16px;
+  background: var(--sidebar-bg);
+  padding: 40px 24px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 32px;
   position: fixed;
+  top: 0;
+  left: 0;
   width: var(--sidebar-width);
   height: 100vh;
   overflow-y: auto;
   z-index: 100;
+  border: none !important;
 }
 
 .sidebar-header {
@@ -66,14 +82,18 @@ body {
 }
 
 .sidebar-header h2 {
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   font-weight: 700;
   line-height: 1.2;
+  color: #ffffff; /* Alto contraste */
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
 }
 
 .sidebar-subtitle {
-  font-size: 0.75rem;
-  color: var(--text-secondary);
+  font-size: 0.8rem;
+  color: var(--accent-color);
+  font-weight: 500;
+  letter-spacing: 0.5px;
 }
 
 .sidebar-section-title {
@@ -86,24 +106,30 @@ body {
 }
 
 .active-file-indicator {
-  font-size: 0.7rem;
-  color: #93c5fd;
-  background: rgba(59, 130, 246, 0.1);
-  padding: 4px 8px;
-  border-radius: 6px;
-  margin-top: 8px;
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  font-size: 0.75rem;
+  color: #fff;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.2), rgba(168, 85, 247, 0.2));
+  padding: 8px 12px;
+  border-radius: 8px;
+  margin-top: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
+  flex-direction: column;
+  gap: 4px;
+  word-break: break-all; /* Permitir que el nombre rompa linea */
+}
+
+.active-file-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  letter-spacing: 1px;
 }
 
 .active-file-indicator span {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 140px;
+  display: block;
+  font-weight: 600;
+  color: #a5b4fc;
 }
 
 .sidebar-btn {
@@ -131,10 +157,10 @@ body {
 }
 
 .sidebar-btn.active {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.15));
-  color: var(--text-primary);
-  border-left: 3px solid var(--accent-color);
+  background: var(--accent-color);
+  color: #ffffff;
   font-weight: 600;
+  box-shadow: 0 4px 15px var(--accent-glow);
 }
 
 .sidebar-icon { font-size: 1.1rem; }
@@ -197,14 +223,15 @@ body {
   flex-direction: column;
   min-height: 100vh;
   flex: 1;
-  width: calc(100vw - var(--sidebar-width));
+  border: none;
+  background: transparent;
 }
 
 /* MAP PANEL */
 .map-panel {
-  padding: 16px 24px;
+  padding: 0; /* Eliminar padding para que el mapa toque bordes si es necesario */
+  background: transparent;
   border-bottom: 1px solid var(--panel-border);
-  background: rgba(15, 23, 42, 0.5);
 }
 
 /* TABS */
@@ -260,12 +287,13 @@ body {
   background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
   color: white;
   font-weight: 800;
-  padding: 10px 14px;
-  border-radius: 12px;
-  font-size: 1.1rem;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
   letter-spacing: 1px;
-  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
   flex-shrink: 0;
+  margin-right: 12px;
 }
 
 /* ============================================ */
@@ -546,13 +574,64 @@ body {
   100% { opacity: 0.6; }
 }
 
-/* Map styles */
-.map-title {
-  font-size: 1rem;
-  font-weight: 600;
-  margin-bottom: 8px;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* ============================================ */
+/* RESPONSIVIDAD                                */
+/* ============================================ */
+
+@media (max-width: 1024px) {
+  :root {
+    --sidebar-width: 80px;
+  }
+  .sidebar-header h2, .sidebar-subtitle, .sidebar-label, .active-file-indicator, .sidebar-section-title {
+    display: none;
+  }
+  .app-sidebar {
+    padding: 20px 10px;
+    align-items: center;
+  }
+  .sidebar-btn {
+    justify-content: center;
+    padding: 12px;
+  }
+  .sidebar-icon {
+    font-size: 1.4rem;
+  }
+  .app-content {
+    width: calc(100vw - 80px);
+  }
+}
+
+@media (max-width: 768px) {
+  .app-layout {
+    flex-direction: column;
+  }
+  .app-sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    padding: 10px;
+    overflow-x: auto;
+    gap: 10px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+  .sidebar-header, .sidebar-section-title {
+    display: none;
+  }
+  .sidebar-section {
+    flex-direction: row;
+    display: flex;
+    gap: 5px;
+  }
+  .app-content {
+    margin-left: 0;
+    width: 100%;
+  }
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+  .controls.panel {
+    flex-direction: column;
+    gap: 20px;
+  }
 }

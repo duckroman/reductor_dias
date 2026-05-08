@@ -48,78 +48,79 @@ const MexicoMap = ({ sheet, selectedState, onStateClick, dataVersion }) => {
   });
 
   return (
-    <div>
-      <div className="map-title">
-        🗺️ Mapa de Cumplimiento por Entidad — <span style={{color: '#93c5fd'}}>{sheet}</span>
+    <div style={{ padding: '24px' }}>
+      <div className="map-title" style={{ marginBottom: '16px' }}>
+        🗺️ Mapa de Cumplimiento por Entidad — <span style={{color: '#818cf8'}}>{sheet}</span>
         {selectedState && (
           <span style={{ marginLeft: '15px', color: '#6ee7b7', fontSize: '0.85rem' }}>
             | Filtro: {selectedState}
           </span>
         )}
       </div>
-      <Plot
-        data={[{
-          type: 'choropleth',
-          geojson: geoJson,
-          locations: locations,
-          z: values,
-          featureidkey: 'properties.name',
-          colorscale: [
-            [0, '#dc2626'],
-            [0.25, '#f97316'],
-            [0.5, '#facc15'],
-            [0.75, '#22c55e'],
-            [1, '#059669']
-          ],
-          zmin: 0,
-          zmax: 100,
-          marker: {
-            line: {
-              color: selectedState ? locations.map(n =>
-                n === selectedState ? '#ffffff' : 'rgba(255,255,255,0.3)'
-              ) : 'rgba(255,255,255,0.3)',
-              width: selectedState ? locations.map(n =>
-                n === selectedState ? 3 : 0.5
-              ) : 0.5,
-            }
-          },
-          hoverinfo: 'text',
-          text: hoverTexts,
-          hoverlabel: {
-            bgcolor: 'rgba(15, 23, 42, 0.95)',
-            bordercolor: '#3b82f6',
-            font: { family: 'Inter, sans-serif', size: 13, color: '#f8fafc' },
-          },
-          colorbar: {
-            title: { text: '% Cumplimiento', font: { color: '#e0e0e0' } },
-            tickfont: { color: '#e0e0e0' },
-            ticksuffix: '%',
-            len: 0.6,
-          },
-          selectedpoints: selectedState ? [locations.indexOf(selectedState)] : undefined,
-        }]}
-        layout={{
-          geo: {
-            scope: 'north america',
-            showframe: false,
-            showcoastlines: false,
-            showland: true,
-            landcolor: 'rgba(30, 41, 59, 0.3)',
-            showocean: true,
-            oceancolor: 'rgba(15, 23, 42, 0.5)',
-            showlakes: false,
-            projection: { type: 'mercator' },
-            center: { lat: 23.6345, lon: -102.5528 },
-            lonaxis: { range: [-118, -86] },
-            lataxis: { range: [14, 33] },
-            bgcolor: 'rgba(0,0,0,0)',
-          },
-          margin: { t: 0, r: 0, b: 0, l: 0 },
-          paper_bgcolor: 'rgba(0,0,0,0)',
-          font: { color: '#e0e0e0' },
-          dragmode: false,
-          height: 320,
-        }}
+      <div style={{ borderRadius: '12px', overflow: 'hidden' }}>
+        <Plot
+          data={[{
+            type: 'choropleth',
+            geojson: geoJson,
+            locations: locations,
+            z: values,
+            featureidkey: 'properties.name',
+            colorscale: [
+              [0, '#ef4444'],
+              [0.25, '#f97316'],
+              [0.5, '#fbbf24'],
+              [0.75, '#22c55e'],
+              [1, '#059669']
+            ],
+            zmin: 0,
+            zmax: 100,
+            marker: {
+              line: {
+                color: selectedState ? locations.map(n =>
+                  n === selectedState ? '#ffffff' : 'rgba(255,255,255,0.2)'
+                ) : 'rgba(255,255,255,0.2)',
+                width: selectedState ? locations.map(n =>
+                  n === selectedState ? 2 : 0.5
+                ) : 0.5,
+              }
+            },
+            hoverinfo: 'text',
+            text: hoverTexts,
+            hoverlabel: {
+              bgcolor: '#0f172a',
+              bordercolor: '#6366f1',
+              font: { family: 'Outfit, sans-serif', size: 13, color: '#f8fafc' },
+            },
+            colorbar: {
+              title: { text: '%', font: { color: '#94a3b8', size: 12 } },
+              tickfont: { color: '#94a3b8' },
+              len: 0.8,
+            },
+            selectedpoints: selectedState ? [locations.indexOf(selectedState)] : undefined,
+          }]}
+          layout={{
+            geo: {
+              scope: 'north america',
+              showframe: false,
+              showcoastlines: false,
+              showland: true,
+              landcolor: '#0f172a',
+              showocean: true,
+              oceancolor: '#020617',
+              showlakes: false,
+              projection: { type: 'mercator' },
+              center: { lat: 23.6345, lon: -102.5528 },
+              lonaxis: { range: [-118, -86] },
+              lataxis: { range: [14, 33] },
+              bgcolor: '#030712',
+            },
+            margin: { t: 0, r: 0, b: 0, l: 0 },
+            paper_bgcolor: '#030712',
+            plot_bgcolor: '#030712',
+            font: { color: '#94a3b8' },
+            dragmode: false,
+            height: 350,
+          }}
         useResizeHandler={true}
         style={{ width: '100%' }}
         onClick={(event) => {
@@ -132,6 +133,7 @@ const MexicoMap = ({ sheet, selectedState, onStateClick, dataVersion }) => {
         }}
         config={{ displayModeBar: false, scrollZoom: false }}
       />
+      </div>
     </div>
   );
 };
