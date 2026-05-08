@@ -4,7 +4,7 @@ import PlotlyComponent from 'react-plotly.js';
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
-const MexicoMap = ({ sheet, selectedState, onStateClick }) => {
+const MexicoMap = ({ sheet, selectedState, onStateClick, dataVersion }) => {
   const [stateData, setStateData] = useState([]);
   const [geoJson, setGeoJson] = useState(null);
 
@@ -16,7 +16,7 @@ const MexicoMap = ({ sheet, selectedState, onStateClick }) => {
       .catch(e => console.error('Error loading GeoJSON', e));
   }, []);
 
-  // Cargar resumen estatal cuando cambia el rubro
+  // Cargar resumen estatal cuando cambia el rubro o la versión de datos
   useEffect(() => {
     if (!sheet) return;
     const fetchSummary = async () => {
@@ -28,7 +28,7 @@ const MexicoMap = ({ sheet, selectedState, onStateClick }) => {
       }
     };
     fetchSummary();
-  }, [sheet]);
+  }, [sheet, dataVersion]);
 
   if (!geoJson) return <div style={{ padding: '20px', color: '#94a3b8' }}>Cargando mapa...</div>;
 

@@ -106,7 +106,12 @@ const Clustering = ({ sheet, state }) => {
             <strong>¿Cómo leer esto?</strong> Imagina que el sistema lee las curvas de los 300 distritos y los dibuja en un mapa. 
             Cada punto es un distrito. Los distritos que están muy pegaditos se comportaron casi igual.<br/><br/>
             <strong>Eje X (Horizontal): Nivel de Cumplimiento.</strong> Los distritos más a la derecha tienen mejor avance, los de la izquierda están rezagados.<br/>
-            <strong>Eje Y (Vertical): Velocidad de Trabajo.</strong> Diferencia a los distritos según su ritmo (ej. empezaron rápido y se estancaron vs. empezaron lento y aceleraron).
+            <strong>Eje Y (Vertical): Velocidad de Trabajo.</strong> Diferencia a los distritos según su ritmo (ej. empezaron rápido y se estancaron vs. empezaron lento y aceleraron).<br/><br/>
+            <span style={{ color: '#3b82f6', fontSize: '0.85rem' }}>
+              💡 <strong>Nota sobre la escala:</strong> El valor <strong>0 (cero)</strong> representa exactamente el <strong>Promedio Nacional</strong>. 
+              Los valores positivos y negativos (como +2 o -3) <strong>no son puntos porcentuales</strong>, sino "unidades de variación" (desviaciones estándar). 
+              Un distrito en -3 significa que su rezago es estadísticamente 3 niveles más severo que lo normal.
+            </span>
           </p>
           <div className="chart-wrapper">
             <Plot

@@ -15,6 +15,11 @@ const sheetParams = (sheet, state) => {
   return params;
 };
 
+export const getActiveFile = async () => {
+  const response = await api.get('/active-file');
+  return response.data;
+};
+
 export const getSheets = async () => {
   const response = await api.get('/sheets');
   return response.data;

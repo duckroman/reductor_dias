@@ -4,7 +4,7 @@ import Statistical from './components/Statistical';
 import Clustering from './components/Clustering';
 import Reductor from './components/Reductor';
 import MexicoMap from './components/MexicoMap';
-import { getSheets, uploadDataFile } from './services/api';
+import { getSheets, uploadDataFile, getActiveFile } from './services/api';
 import './App.css';
 
 const SHEET_ICONS = {
@@ -22,6 +22,7 @@ function App() {
   const [availableSheets, setAvailableSheets] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [dataVersion, setDataVersion] = useState(0);
+  const [activeFile, setActiveFile] = useState(null);
 
   useEffect(() => {
     const loadSheets = async () => {
@@ -29,11 +30,13 @@ function App() {
         const data = await getSheets();
         setAvailableSheets(data.sheets || []);
         if (data.sheets && data.sheets.length > 0) {
-          setActiveSheet(data.sheets[0]);
+          setActiveSheet(prev => prev || data.sheets[0]);
         }
+        
+        const fileInfo = await getActiveFile();
+        setActiveFile(fileInfo.filename);
       } catch (e) {
-        console.error('Error loading sheets', e);
-        // Fallback a una sola hoja virtual
+        console.error('Error loading initial data', e);
         setAvailableSheets(['Default']);
         setActiveSheet('Default');
       }
@@ -76,6 +79,11 @@ function App() {
           <div>
             <h2>Reductor de Días</h2>
             <span className="sidebar-subtitle">Análisis de Cumplimiento</span>
+            {activeFile && (
+              <div className="active-file-indicator">
+                📂 <span title={activeFile}>{activeFile}</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -133,6 +141,7 @@ function App() {
             sheet={activeSheet}
             selectedState={selectedState}
             onStateClick={handleStateClick}
+            dataVersion={dataVersion}
           />
         </div>
 

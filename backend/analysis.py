@@ -29,32 +29,63 @@ def load_data(filepath=None, sheet_name=None):
     Si sheet_name es None, usa la primera hoja."""
     if filepath is None:
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        filepath = os.path.join(base, "cumplimiento_visitas_custom.xlsx")
-        if not os.path.exists(filepath):
-            filepath = os.path.join(base, "cumplimiento_completo_v1_poblado.xlsx")
-        if not os.path.exists(filepath):
-            filepath = os.path.join(base, "cumplimiento_visitas_nuevo.xlsx")
-        if not os.path.exists(filepath):
-            filepath = os.path.join(base, "cumplimiento_visitas.xlsx")
+        for name in ["PEC_2023-2024.xlsx", "cumplimiento_visitas_custom.xlsx", 
+                     "cumplimiento_completo_v1_poblado.xlsx", "cumplimiento_visitas_nuevo.xlsx", 
+                     "cumplimiento_visitas.xlsx"]:
+            p = os.path.join(base, name)
+            if os.path.exists(p):
+                filepath = p
+                break
 
     kwargs = {'header': 1}
     if sheet_name:
         kwargs['sheet_name'] = sheet_name
 
-    df = pd.read_excel(filepath, **kwargs)
-    df.columns = [str(c).strip() for c in df.columns]
+    # Intentar detectar si el archivo tiene la estructura de encabezado dividido (Día 1 en fila 2)
+    df_preview = pd.read_excel(filepath, sheet_name=sheet_name if sheet_name is not None else 0, header=None, nrows=3)
+    is_split_header = False
+    if len(df_preview) > 2:
+        row2_str = df_preview.iloc[2].astype(str).tolist()
+        if any('Día 1' in s for s in row2_str):
+            is_split_header = True
+
+    if is_split_header:
+        df_raw = pd.read_excel(filepath, sheet_name=sheet_name if sheet_name is not None else 0, header=None)
+        h1 = df_raw.iloc[1].fillna('').astype(str).tolist()
+        h2 = df_raw.iloc[2].fillna('').astype(str).tolist()
+        
+        new_cols = []
+        for i in range(len(h1)):
+            v1 = h1[i].strip() if h1[i] != 'nan' else ''
+            v2 = h2[i].strip() if h2[i] != 'nan' else ''
+            if v1 == '' and v2 != '':
+                new_cols.append(v2)
+            elif v1 != '' and v2 == '':
+                new_cols.append(v1)
+            elif v1 != '' and v2 != '':
+                # Si ambos tienen datos, priorizamos v2 si parece ser continuación de días
+                new_cols.append(v2 if 'Día' in v2 else v1)
+            else:
+                new_cols.append(f"Col_{i}")
+        
+        df = df_raw.iloc[3:].copy()
+        df.columns = new_cols
+    else:
+        df = pd.read_excel(filepath, **kwargs)
+        df.columns = [str(c).strip() for c in df.columns]
+
     df = df.dropna(how='all')
 
     # Detectar columna de distrito: puede ser 'Distrito' o 'ID Distrito'
     if 'Distrito' in df.columns:
-        df['Distrito'] = df['Distrito'].astype(int)
+        df['Distrito'] = pd.to_numeric(df['Distrito'], errors='coerce').fillna(0).astype(int)
     elif 'ID Distrito' in df.columns:
         df.rename(columns={'ID Distrito': 'Distrito'}, inplace=True)
-        df['Distrito'] = df['Distrito'].astype(int)
+        df['Distrito'] = pd.to_numeric(df['Distrito'], errors='coerce').fillna(0).astype(int)
 
     # Normalizar columna de entidad
-    if 'ID Entidad' in df.columns and 'Entidad' in df.columns:
-        df['ID Entidad'] = df['ID Entidad'].astype(int)
+    if 'ID Entidad' in df.columns:
+        df['ID Entidad'] = pd.to_numeric(df['ID Entidad'], errors='coerce').fillna(0).astype(int)
 
     return df
 
@@ -63,13 +94,16 @@ def get_sheet_names(filepath=None):
     """Devuelve la lista de hojas disponibles en el Excel."""
     if filepath is None:
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        filepath = os.path.join(base, "cumplimiento_visitas_custom.xlsx")
-        if not os.path.exists(filepath):
-            filepath = os.path.join(base, "cumplimiento_completo_v1_poblado.xlsx")
-        if not os.path.exists(filepath):
-            filepath = os.path.join(base, "cumplimiento_visitas_nuevo.xlsx")
-        if not os.path.exists(filepath):
-            filepath = os.path.join(base, "cumplimiento_visitas.xlsx")
+        for name in ["PEC_2023-2024.xlsx", "cumplimiento_visitas_custom.xlsx", 
+                     "cumplimiento_completo_v1_poblado.xlsx", "cumplimiento_visitas_nuevo.xlsx", 
+                     "cumplimiento_visitas.xlsx"]:
+            p = os.path.join(base, name)
+            if os.path.exists(p):
+                filepath = p
+                break
+    
+    if not filepath or not os.path.exists(filepath):
+        return []
     xl = pd.ExcelFile(filepath)
     return xl.sheet_names
 
@@ -448,25 +482,28 @@ def compute_reductor(matrix, df=None, threshold=0.90, coverage=0.80, manual_day=
             optimal_day_coverage = d + 1
             break
 
-    # --- 5. Simulacion de escenarios ---
-    scenario_days = [15, 20, 25, 30, 35, 40, 45, 50]
+    # --- 5. Simulacion de escenarios dinámicos ---
+    # Generar escenarios cada 5 días, empezando en 15, hasta el total de días
+    scenario_days = list(range(15, n_days + 1, 5))
+    if n_days not in scenario_days and n_days >= 15:
+        scenario_days.append(n_days)
+    
     scenarios = []
     for sd in scenario_days:
-        if sd <= n_days:
-            idx = sd - 1
-            col = matrix[:, idx]
-            scenarios.append({
-                'dia': sd,
-                'media': float(col.mean()),
-                'mediana': float(np.median(col)),
-                'pct_above_80': float(np.mean(col >= 0.80) * 100),
-                'pct_above_85': float(np.mean(col >= 0.85) * 100),
-                'pct_above_90': float(np.mean(col >= 0.90) * 100),
-                'pct_above_95': float(np.mean(col >= 0.95) * 100),
-                'min': float(col.min()),
-                'max': float(col.max()),
-                'distritos_en_riesgo': int(np.sum(col < threshold)),
-            })
+        idx = sd - 1
+        col = matrix[:, idx]
+        scenarios.append({
+            'dia': sd,
+            'media': float(col.mean()),
+            'mediana': float(np.median(col)),
+            'pct_above_80': float(np.mean(col >= 0.80) * 100),
+            'pct_above_85': float(np.mean(col >= 0.85) * 100),
+            'pct_above_90': float(np.mean(col >= 0.90) * 100),
+            'pct_above_95': float(np.mean(col >= 0.95) * 100),
+            'min': float(col.min()),
+            'max': float(col.max()),
+            'distritos_en_riesgo': int(np.sum(col < threshold)),
+        })
 
     # --- 6. Distritos en riesgo en el dia optimo ---
     risk_districts = []

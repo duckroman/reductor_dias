@@ -23,12 +23,13 @@ app.add_middleware(
 # Cache multi-hoja: { sheet_name: (df, matrix, day_cols) }
 _sheets_cache = {}
 _available_sheets = []
+_active_filename = None # Para rastrear el nombre real del archivo cargado
 
 
 def _get_filepath():
     base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     for name in ["cumplimiento_visitas_custom.xlsx",
-                  "cumplimiento_completo_v1_poblado.xlsx",
+                  "PEC_2023-2024.xlsx",
                   "cumplimiento_visitas_nuevo.xlsx",
                   "cumplimiento_visitas.xlsx"]:
         p = os.path.join(base, name)
@@ -103,6 +104,19 @@ def get_sheets():
     return {"sheets": sheets_list}
 
 
+@app.get("/api/active-file")
+def get_active_file():
+    """Retorna el nombre del archivo Excel que está siendo utilizado."""
+    global _active_filename
+    if _active_filename:
+        return {"filename": _active_filename}
+    
+    fp = _get_filepath()
+    if fp:
+        return {"filename": os.path.basename(fp)}
+    return {"filename": None, "error": "No se encontró ningún archivo de datos"}
+
+
 @app.get("/api/data")
 def get_full_data(sheet: str = Query(None), state: str = Query(None)):
     """Retorna datos completos."""
@@ -158,7 +172,7 @@ def get_clusters(k: int = Query(None, ge=2, le=10), sheet: str = Query(None), st
 def get_reductor(
     threshold: float = Query(0.90, ge=0.0, le=1.0),
     coverage: float = Query(0.80, ge=0.0, le=1.0),
-    manual_day: int = Query(None, ge=1, le=56),
+    manual_day: int = Query(None, ge=1),
     sheet: str = Query(None),
     state: str = Query(None)
 ):
@@ -218,7 +232,7 @@ def get_state_summary(sheet: str = Query(None)):
 @app.post("/api/upload")
 async def upload_file(file: UploadFile = File(...)):
     """Sube un archivo de Excel para reemplazar los datos de analisis."""
-    global _sheets_cache, _available_sheets
+    global _sheets_cache, _available_sheets, _active_filename
     try:
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         filepath = os.path.join(base, "cumplimiento_visitas_custom.xlsx")
@@ -236,6 +250,7 @@ async def upload_file(file: UploadFile = File(...)):
         # Limpiar cache completo y recargar hojas
         _sheets_cache = {}
         _available_sheets = analysis.get_sheet_names(filepath)
+        _active_filename = file.filename
 
         print(f"Recarga exitosa. Hojas disponibles: {_available_sheets}")
         return {"message": "Archivo cargado y procesado exitosamente", "filename": file.filename, "sheets": _available_sheets}

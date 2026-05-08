@@ -85,6 +85,27 @@ body {
   padding-left: 12px;
 }
 
+.active-file-indicator {
+  font-size: 0.7rem;
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.1);
+  padding: 4px 8px;
+  border-radius: 6px;
+  margin-top: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.active-file-indicator span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
 .sidebar-btn {
   width: 100%;
   background: transparent;
