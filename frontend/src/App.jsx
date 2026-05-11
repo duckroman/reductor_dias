@@ -86,7 +86,6 @@ function App() {
                 <span title={activeFile}>{activeFile}</span>
               </div>
             )}
-          </div>
         </div>
 
         <div className="sidebar-section">
