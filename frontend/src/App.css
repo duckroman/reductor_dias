@@ -38,11 +38,13 @@ body {
 }
 
 /* Ocultar scrollbars por completo para eliminar lineas verticales */
-::-webkit-scrollbar {
+* {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+*::-webkit-scrollbar {
   display: none;
 }
--ms-overflow-style: none;  /* IE and Edge */
-scrollbar-width: none;  /* Firefox */
 
 /* ============================================ */
 /* APP LAYOUT: Sidebar + Content                */
