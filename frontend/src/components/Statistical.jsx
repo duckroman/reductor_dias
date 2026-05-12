@@ -43,10 +43,9 @@ const Statistical = ({ sheet, state }) => {
       <h2>Análisis Estadístico</h2>
       
       <div className="info-box">
-        <h4>¿Qué estamos viendo aquí?</h4>
         <p className="explanation-text">
-          En esta sección evaluamos la uniformidad y el comportamiento del avance a lo largo de los días. 
-          Aquí puedes ver si la mayoría de los distritos avanzan al mismo ritmo o si hay mucha desigualdad (unos muy adelantados y otros muy atrasados).
+          En esta sección se evalúa la uniformidad y el comportamiento del avance a lo largo de los días. 
+          Aquí se puede observar si la mayoría de los distritos avanzan al mismo ritmo o si existe disparidad significativa (distritos con avance acelerado versus distritos rezagados).
         </p>
       </div>
       
@@ -55,7 +54,7 @@ const Statistical = ({ sheet, state }) => {
           <strong>Selecciona un día para analizar:</strong> Día {day}
           <br/>
           <span className="explanation-text micro" style={{marginBottom: '10px', display: 'block'}}>
-            Mueve este control para ver cómo estaban los distritos en ese día en particular.
+            Desplace este control para observar el estado de los distritos en un día específico.
           </span>
           <input 
             type="range" 
@@ -69,7 +68,7 @@ const Statistical = ({ sheet, state }) => {
 
       {loading ? (
         <div className="loading">Cargando análisis estadístico...</div>
-      ) : (!distData && !boxData && !corrData) ? (
+      ) : (!distData && !boxData) ? (
         <div className="loading">Error crítico: No se pudieron cargar datos estadísticos. Verifica la conexión con el servidor.</div>
       ) : (
         <div className="charts-grid">
@@ -77,8 +76,7 @@ const Statistical = ({ sheet, state }) => {
             <div className="chart-card">
               <h3>Distribución de Distritos (Día {day})</h3>
               <p className="explanation-text mb-15">
-                <strong>¿Cómo leer esto?</strong> Las barras azules muestran cuántos distritos tienen qué porcentaje de avance. 
-                Si las barras están muy juntas, todos van parejos. Las líneas de colores (Normal y Beta) son moldes matemáticos para ver si el comportamiento es predecible.
+                Este gráfico permite observar la homogeneidad del avance en un momento específico del operativo. Las barras azules agrupan a los distritos según su nivel de cumplimiento, mientras que las curvas de ajuste (Normal y Beta) actúan como modelos de referencia para detectar comportamientos atípicos. Si las barras se concentran en un solo bloque, significa que el trabajo de campo avanza de forma sincronizada a nivel nacional.
               </p>
               <div className="chart-wrapper">
                 <Plot
@@ -87,7 +85,7 @@ const Statistical = ({ sheet, state }) => {
                       x: distData.histogram.bin_centers,
                       y: distData.histogram.counts,
                       type: 'bar',
-                      name: 'Datos reales',
+                      name: 'Frecuencia (Distritos)',
                       marker: { color: 'rgba(58, 107, 197, 0.6)' }
                     },
                     ...(distData.normal ? [{
@@ -95,32 +93,26 @@ const Statistical = ({ sheet, state }) => {
                       y: distData.normal.pdf_y,
                       type: 'scatter',
                       mode: 'lines',
-                      name: `Normal (Ajuste)`,
-                      line: { color: '#ff7f0e' }
+                      name: 'Ajuste Normal (Teórico)',
+                      line: { color: '#ef4444', width: 2, dash: 'dot' }
                     }] : []),
                     ...(distData.beta ? [{
                       x: distData.beta.pdf_x,
                       y: distData.beta.pdf_y,
                       type: 'scatter',
                       mode: 'lines',
-                      name: `Beta (Ajuste)`,
-                      line: { color: '#2ca02c' }
+                      name: 'Ajuste Beta (Realista)',
+                      line: { color: '#10b981', width: 2 }
                     }] : [])
                   ]}
                   layout={{
-                    margin: { t: 30, r: 20, b: 60, l: 60 },
-                    xaxis: { 
-                      title: 'Nivel de Cumplimiento (0.0 - 1.0)',
-                      gridcolor: 'rgba(255,255,255,0.1)'
-                    },
-                    yaxis: { 
-                      title: 'Número de Distritos',
-                      gridcolor: 'rgba(255,255,255,0.1)'
-                    },
+                    margin: { t: 10, r: 10, b: 40, l: 40 },
+                    xaxis: { title: 'Cumplimiento (%)', tickformat: '.0%' },
+                    yaxis: { title: 'Cantidad de Distritos' },
                     paper_bgcolor: 'rgba(0,0,0,0)',
                     plot_bgcolor: 'rgba(0,0,0,0)',
                     font: { color: '#e0e0e0' },
-                    legend: { orientation: 'h', y: -0.3 }
+                    legend: { orientation: 'h', y: -0.2 }
                   }}
                   useResizeHandler={true}
                   style={{ width: '100%', height: '300px' }}
@@ -132,11 +124,10 @@ const Statistical = ({ sheet, state }) => {
           )}
 
           {boxData ? (
-            <div className="chart-card">
-              <h3>Evolución de la Desigualdad (Cajas y Bigotes)</h3>
+            <div className="chart-card wide">
+              <h3>Evolución de la Variabilidad (Cajas y Bigotes)</h3>
               <p className="explanation-text mb-15">
-                <strong>¿Cómo leer esto?</strong> Cada "caja" representa un día. La caja azul encierra a la mitad de los distritos (los más "normales"). 
-                La línea en medio de la caja es la mitad exacta. Las líneas que salen (bigotes) muestran hasta dónde llegan los distritos más atrasados y los más adelantados.
+                Este diagrama es fundamental para entender la estabilidad del operativo a través del tiempo. Cada "caja" representa un día completo de trabajo para los distritos. El tamaño de la caja (rango intercuartílico) muestra qué tan dispersos están los resultados del 50% central de los distritos. Los "bigotes" o líneas extendidas indican los valores extremos; si los bigotes inferiores se mantienen muy abajo conforme pasan los días, se tiene una señal clara de rezago estructural en ciertos distritos que requieren atención inmediata.
               </p>
               <div className="chart-wrapper">
                 <Plot
@@ -211,41 +202,6 @@ const Statistical = ({ sheet, state }) => {
             <div className="chart-card error-card">Error al cargar gráfico de evolución (Boxplot).</div>
           )}
           
-          {corrData ? (
-            <div className="chart-card wide">
-              <h3>Matriz de Correlación Temporal</h3>
-              <p className="explanation-text mb-15">
-                <strong>¿Cómo leer esto?</strong> Este cuadro compara los días entre sí para ver qué tan parecidos son los resultados. 
-                Los cuadros azules muy oscuros significan que el orden de los distritos (quién va ganando y quién perdiendo) casi no cambió entre esos dos días. 
-                Si ves cuadros claros, significa que las posiciones cambiaron mucho.
-              </p>
-              <div className="chart-wrapper heatmap-wrapper">
-                <Plot
-                  data={[
-                    {
-                      z: corrData.correlation,
-                      x: corrData.days.map(d => `Día ${d}`),
-                      y: corrData.days.map(d => `Día ${d}`),
-                      type: 'heatmap',
-                      colorscale: 'Blues',
-                    }
-                  ]}
-                  layout={{
-                    margin: { t: 40, r: 20, b: 80, l: 80 },
-                    xaxis: { title: 'Día de Referencia' },
-                    yaxis: { title: 'Día de Comparación' },
-                    paper_bgcolor: 'rgba(0,0,0,0)',
-                    plot_bgcolor: 'rgba(0,0,0,0)',
-                    font: { color: '#e0e0e0' },
-                  }}
-                  useResizeHandler={true}
-                  style={{ width: '100%', height: '400px' }}
-                />
-              </div>
-            </div>
-          ) : (
-            <div className="chart-card wide error-card">Error al cargar matriz de correlación.</div>
-          )}
         </div>
       )}
     </div>

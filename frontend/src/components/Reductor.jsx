@@ -36,7 +36,6 @@ const Reductor = ({ sheet, state }) => {
       <h2>🎯 Reductor de Días - Análisis de Punto Óptimo</h2>
 
       <div className="info-box">
-        <h4>🔍 Guía de Análisis de Optimización</h4>
         <p className="explanation-text">
           Esta herramienta utiliza algoritmos de detección de codos (Kneedle) y análisis de cobertura probabilística para determinar el equilibrio óptimo entre <strong>tiempo en campo</strong> y <strong>cumplimiento de metas</strong>.
         </p>
@@ -52,7 +51,7 @@ const Reductor = ({ sheet, state }) => {
           <label>
             Umbral de Cumplimiento (La meta por distrito): {(threshold * 100).toFixed(0)}%
             <span className="explanation-text micro" style={{marginBottom: '5px'}}>
-              ¿Cuánto avance consideras que es "suficiente" para un distrito?
+              Define el nivel de avance considerado como suficiente para el cumplimiento de un distrito.
             </span>
             <input 
               type="range" 
@@ -67,7 +66,7 @@ const Reductor = ({ sheet, state }) => {
           <label>
             Cobertura Nacional Esperada: {(coverage * 100).toFixed(0)}%
             <span className="explanation-text micro" style={{marginBottom: '5px'}}>
-              ¿Qué porcentaje de los 300 distritos deben llegar a la meta antes de cortar?
+              Define el porcentaje mínimo de los 300 distritos que deben alcanzar la meta antes de concluir la etapa.
             </span>
             <input 
               type="range" 
@@ -82,7 +81,7 @@ const Reductor = ({ sheet, state }) => {
           <label>
             <strong style={{color: '#ff7f0e'}}>Ajuste de Día de Corte:</strong> {manualDay === 0 ? "Recomendación Sugerida" : `Manual: Día ${manualDay}`}
             <span className="explanation-text micro" style={{marginBottom: '5px'}}>
-              Usa este control para simular un cierre en una fecha específica y evaluar el impacto en los indicadores de riesgo.
+              Desplace este control para simular un cierre en una fecha específica y evaluar el impacto en los indicadores de riesgo.
             </span>
             <input 
               type="range" 
@@ -148,10 +147,9 @@ const Reductor = ({ sheet, state }) => {
 
           <div className="charts-grid">
             <div className="chart-card">
-              <h3>📈 Eficiencia: Rendimiento Marginal vs Acumulado</h3>
+              <h3>📈 Eficiencia: Análisis de Rendimiento Marginal</h3>
               <p className="explanation-text micro" style={{marginBottom: '10px'}}>
-                Compara el porcentaje de cumplimiento promedio (línea azul) contra el incremento diario de avance (barras naranjas). 
-                La línea punteada roja marca el <strong>Punto de Corte</strong> seleccionado.
+                Este gráfico compara la ganancia diaria de avance (barras) contra el progreso acumulado (línea). El punto de optimización ocurre cuando las barras de crecimiento diario comienzan a disminuir su tamaño de forma sostenida, indicando que el operativo ha entrado en una fase de cierre donde cada día adicional requiere más esfuerzo para obtener el mismo resultado.
               </p>
               <div className="chart-wrapper">
                 <Plot
@@ -220,10 +218,9 @@ const Reductor = ({ sheet, state }) => {
             </div>
 
             <div className="chart-card">
-              <h3>🗺️ Cobertura de Distritos por Día</h3>
+              <h3>🗺️ Cobertura Probabilística de Distritos</h3>
               <p className="explanation-text micro" style={{marginBottom: '10px'}}>
-                Muestra qué porcentaje de los 300 distritos han superado el <strong>Umbral de Cumplimiento</strong> ({(threshold*100).toFixed(0)}%) en cada día del operativo.
-                La línea horizontal naranja es la <strong>Meta de Cobertura</strong> ({(coverage*100).toFixed(0)}%).
+                Muestra la progresión de los 300 distritos conforme superan el umbral establecido. La intersección de la curva de cobertura con la línea de meta (naranja) define el día técnico de cumplimiento. Si la curva tiene una pendiente muy baja, significa que hay un grupo de distritos rezagados que están retrasando la conclusión general del operativo nacional.
               </p>
               <div className="chart-wrapper">
                 <Plot

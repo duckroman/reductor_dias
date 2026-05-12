@@ -55,10 +55,8 @@ const Dashboard = ({ sheet, state }) => {
       <h2>Dashboard General de Cumplimiento</h2>
       
       <div className="info-box">
-        <h4>¿Qué estamos viendo aquí?</h4>
         <p className="explanation-text">
-          Este panel te da un resumen general de cómo va el trabajo de campo. Las tarjetas de arriba muestran el promedio de visitas realizadas, 
-          cuántos distritos ya casi terminan (más del 90%), y el crecimiento diario general. 
+          Este centro de mando integra los indicadores vitales del operativo nacional. Aquí se monitoriza la salud general del cumplimiento: el promedio de visitas nos indica el volumen de trabajo, mientras que el porcentaje de distritos por encima del 90% revela qué tan cerca estamos de la meta crítica. El crecimiento diario permite proyectar si el ritmo actual es suficiente para concluir en los plazos previstos o si se requiere un refuerzo inmediato en la estrategia de campo.
         </p>
       </div>
       
@@ -99,10 +97,9 @@ const Dashboard = ({ sheet, state }) => {
 
       <div className="charts-grid">
         <div className="chart-card wide">
-          <h3>Evolución del Cumplimiento Promedio</h3>
+          <h3>Evolución del Cumplimiento Promedio (Curva de Aprendizaje)</h3>
           <p className="explanation-text mb-15">
-            <strong>¿Cómo leer esto?</strong> Esta línea muestra cómo ha ido subiendo el esfuerzo general a lo largo del tiempo. 
-            Queremos ver que la línea suba rápido al principio y se mantenga estable arriba.
+            Esta línea de tiempo describe la inercia del operativo. Se espera observar una curva con una pendiente pronunciada en los primeros días, lo que representa un arranque sólido. Una curva que se aplana prematuramente sugiere fatiga en el trabajo de campo o dificultades técnicas que están impidiendo el cierre de los distritos más complejos.
           </p>
           <div className="chart-wrapper">
             <ResponsiveContainer width="100%" height={300}>
@@ -143,11 +140,9 @@ const Dashboard = ({ sheet, state }) => {
         )}
 
         <div className="chart-card wide">
-          <h3>Mapa de Calor: Distritos vs Días</h3>
+          <h3>Mapa de Calor: Intensidad Operativa por Distrito</h3>
           <p className="explanation-text mb-15">
-            <strong>¿Cómo leer esto?</strong> Imagina que esto es un calendario gigante. Cada fila es un distrito y cada columna es un día. 
-            El color te dice cómo van: los colores oscuros (morado/azul) significan que casi no llevan visitas, y los colores brillantes (verde/amarillo) 
-            significan que ya casi terminan. Si ves manchas oscuras en los últimos días, son distritos que se están quedando muy atrás.
+            Esta matriz visual es el "termómetro" del cumplimiento. Cada fila es un distrito y cada columna un día de operación. Los colores brillantes (amarillo/verde) representan el éxito, mientras que los tonos oscuros (morado) señalan inactividad o rezago. La aparición de líneas oscuras persistentes hacia el final de la matriz es una señal de alerta máxima sobre distritos que podrían no cumplir con la meta en el tiempo estipulado.
           </p>
           <div className="chart-wrapper heatmap-wrapper">
             {fullData && (

@@ -335,6 +335,45 @@ def get_district_labels(df):
         labels.append(f"{entidad}_{dist_str}_{cabecera}")
     return labels
 
+def get_cluster_name(cluster_idx, profile):
+    """
+    Asigna un nombre descriptivo único al cluster basado en su posición en los ejes.
+    Eje X (Horizontal): Nivel de Cumplimiento (final_val)
+    Eje Y (Vertical): Velocidad de Trabajo (slope/early_val)
+    """
+    n_days = len(profile)
+    final_val = profile[-1]
+    # Velocidad basada en el avance al día 15 respecto al final
+    early_val = profile[min(14, n_days-1)]
+    
+    # Letra identificadora para asegurar unicidad
+    prefix = chr(65 + cluster_idx) # A, B, C...
+    
+    # Categoría de Cumplimiento (Eje X)
+    if final_val >= 0.95:
+        x_label = "Cumplimiento Sobresaliente"
+    elif final_val >= 0.85:
+        x_label = "Cumplimiento Alto"
+    elif final_val >= 0.70:
+        x_label = "Cumplimiento Medio"
+    else:
+        x_label = "Cumplimiento Crítico"
+        
+    # Categoría de Velocidad/Dinámica (Eje Y)
+    # Relación entre lo avanzado al inicio vs el final
+    velocity_ratio = early_val / final_val if final_val > 0 else 0
+    
+    if velocity_ratio > 0.75:
+        y_label = "Arranque Explosivo"
+    elif velocity_ratio > 0.60:
+        y_label = "Ritmo Acelerado"
+    elif velocity_ratio > 0.45:
+        y_label = "Progresión Constante"
+    else:
+        y_label = "Inercia Lenta"
+        
+    return f"Grupo {prefix}: {x_label} con {y_label}"
+
 def compute_clusters(matrix, df=None, k=None, max_k=10):
     """Ejecuta K-Means clustering con seleccion opcional de K o automatica."""
     n_samples = matrix.shape[0]
@@ -413,10 +452,11 @@ def compute_clusters(matrix, df=None, k=None, max_k=10):
         profile = matrix[mask].mean(axis=0)
         cluster_profiles.append({
             'cluster': int(c),
+            'name': get_cluster_name(c, profile),
             'n_distritos': int(mask.sum()),
             'profile': profile.tolist(),
             'mean_final': float(matrix[mask, -1].mean()),
-            'std_final': float(matrix[mask, -1].std()),
+            'std_final': float(matrix[mask, -1].std()) if mask.sum() > 1 else 0.0,
             'mean_day1': float(matrix[mask, 0].mean()),
         })
 

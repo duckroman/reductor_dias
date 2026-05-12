@@ -23,20 +23,19 @@ app.add_middleware(
 # Cache multi-hoja: { sheet_name: (df, matrix, day_cols) }
 _sheets_cache = {}
 _available_sheets = []
+_active_file_path = None # Solo se llena cuando se sube un archivo en esta sesión
 _active_filename = None # Para rastrear el nombre real del archivo cargado
 
 
 def _get_filepath():
-    base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    for name in ["cumplimiento_visitas_custom.xlsx",
-                  "PEC_2023-2024.xlsx",
-                  "cumplimiento_visitas_nuevo.xlsx",
-                  "cumplimiento_visitas.xlsx"]:
-        p = os.path.join(base, name)
-        if os.path.exists(p):
-            return p
-    return None
+    """Retorna la ruta del archivo cargado en la sesión actual."""
+    return _active_file_path
 
+# Definición de Rubros por Etapa
+RUBROS_ETAPA_1 = ["Visitas", "Notificaciones", "Ciudadanos CR"]
+RUBROS_ETAPA_2 = ["Nombramientos", "Capacitación", "Asistencia a Simulacros"]
+
+EXCLUDED_RUBRO = "Sustituciones de FMDC"
 
 def _ensure_sheets():
     global _available_sheets
@@ -59,11 +58,18 @@ def get_data(sheet: str = None, state: str = None):
         if "Global" not in _sheets_cache:
             import numpy as np
             fp = _get_filepath()
+            
+            # Determinar qué rubros promediar según los que existan en el archivo
+            # y pertenezcan a la etapa actual (o simplemente los operativos encontrados)
+            relevant_rubros = RUBROS_ETAPA_1 + RUBROS_ETAPA_2
+            
             matrices = []
             base_df = None
             day_cols = None
             for s in _available_sheets:
-                if s == "Global": continue
+                # Solo promediar si es un rubro operativo conocido
+                if s not in relevant_rubros: continue
+                
                 if s not in _sheets_cache:
                     df = analysis.load_data(fp, sheet_name=s)
                     m, dc = analysis.get_data_matrix(df)
@@ -96,12 +102,29 @@ def get_data(sheet: str = None, state: str = None):
     return df, matrix, day_cols
 
 
-@app.get("/api/sheets")
-def get_sheets():
-    """Retorna la lista de hojas disponibles en el Excel."""
+def _get_filtered_sheets(stage=None):
+    """Helper para obtener la lista de rubros filtrada por etapa y con Global."""
     _ensure_sheets()
-    sheets_list = ["Global"] + _available_sheets if _available_sheets else []
-    return {"sheets": sheets_list}
+    
+    # Si se especifica etapa, filtramos estrictamente por esa lista
+    if stage == 1:
+        target_list = RUBROS_ETAPA_1
+    elif stage == 2:
+        target_list = RUBROS_ETAPA_2
+    else:
+        # Si no hay etapa, excluimos los especiales y mostramos lo que haya
+        target_list = [s for s in _available_sheets if "sustituciones" not in s.strip().lower()]
+
+    filtered = [s for s in _available_sheets if s in target_list]
+    
+    if not filtered:
+        return []
+    return ["Global"] + filtered
+
+@app.get("/api/sheets")
+def get_sheets(stage: int = Query(None)):
+    """Retorna la lista de hojas disponibles en el Excel, filtradas por etapa."""
+    return {"sheets": _get_filtered_sheets(stage)}
 
 
 @app.get("/api/active-file")
@@ -230,13 +253,13 @@ def get_state_summary(sheet: str = Query(None)):
 
 
 @app.post("/api/upload")
-async def upload_file(file: UploadFile = File(...)):
+async def upload_file(stage: int = Query(None), file: UploadFile = File(...)):
     """Sube un archivo de Excel para reemplazar los datos de analisis."""
-    global _sheets_cache, _available_sheets, _active_filename
+    global _sheets_cache, _available_sheets, _active_filename, _active_file_path
     try:
         base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         filepath = os.path.join(base, "cumplimiento_visitas_custom.xlsx")
-        print(f"--- Recibiendo archivo: {file.filename} ---")
+        print(f"--- Recibiendo archivo etapa {stage}: {file.filename} ---")
 
         contents = await file.read()
         if not contents:
@@ -249,11 +272,23 @@ async def upload_file(file: UploadFile = File(...)):
 
         # Limpiar cache completo y recargar hojas
         _sheets_cache = {}
+        _active_file_path = filepath
         _available_sheets = analysis.get_sheet_names(filepath)
         _active_filename = file.filename
 
-        print(f"Recarga exitosa. Hojas disponibles: {_available_sheets}")
-        return {"message": "Archivo cargado y procesado exitosamente", "filename": file.filename, "sheets": _available_sheets}
+        # Obtener lista filtrada para el frontend según la etapa elegida
+        sheets_for_front = _get_filtered_sheets(stage)
+        
+        # Pre-calcular el rubro Global para calentar la caché si hay hojas disponibles
+        if "Global" in sheets_for_front:
+            try:
+                print(f"Calentando caché para el rubro Global de la Etapa {stage}...")
+                get_data("Global")
+            except Exception as e:
+                print(f"Aviso: No se pudo pre-calcular Global: {e}")
+        
+        print(f"Recarga exitosa. Hojas disponibles para el menú: {sheets_for_front}")
+        return {"message": "Archivo cargado y procesado exitosamente", "filename": file.filename, "sheets": sheets_for_front}
 
     except Exception as e:
         print(f"ERROR en upload_file: {str(e)}")

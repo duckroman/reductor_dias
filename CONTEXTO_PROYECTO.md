@@ -3,6 +3,17 @@
 > **Propósito**: Este archivo permite que cualquier agente AI retome el proyecto donde se dejó.
 > **Última actualización**: 2026-05-06T18:25 CST
 
+## Reglas de Negocio Específicas
+
+### 1. Estructura Multi-Etapa
+El sistema se divide en dos fases operativas distintas, seleccionables desde el inicio:
+*   **Etapa 1 (Visitas y Notificaciones)**: Analiza los rubros *Visitas*, *Notificaciones* y *Ciudadanos CR*. El cálculo **Global** promedia estos tres indicadores.
+*   **Etapa 2 (Nombramientos y Capacitación)**: Analiza los rubros *Nombramientos*, *Capacitación* y *Asistencia a Simulacros*. El cálculo **Global** promedia estos tres indicadores.
+*   **Sustituciones de FMDC**: Rubro especializado de la Etapa 2, estrictamente excluido de cálculos globales y del menú principal; accesible vía `/sustituciones`.
+
+### 2. Estándar de Comunicación
+*   Toda la interfaz debe utilizar lenguaje **impersonal y profesional** (ej. "se observa", "se evalúa") para garantizar un tono ejecutivo y neutro.
+
 ---
 
 ## 🎯 Objetivo del Proyecto
@@ -39,7 +50,8 @@ reductor_dias/
         │   ├── Dashboard.jsx       # Tab 1: KPIs, heatmap, curvas
         │   ├── Statistical.jsx     # Tab 2: Distribuciones, box plots, correlación
         │   ├── Clustering.jsx      # Tab 3: K-Means, PCA, silueta
-        │   └── Reductor.jsx        # Tab 4: Punto óptimo, escenarios, riesgo
+        │   ├── Reductor.jsx        # Tab 4: Punto óptimo, escenarios, riesgo
+        │   └── SustitucionesPage.jsx # Página especial para el rubro Sustituciones
         └── services/
             └── api.js              # Fetch helpers para el backend
 ```
@@ -123,6 +135,7 @@ react, react-dom, recharts, plotly.js, react-plotly.js, axios, lucide-react
 | Etapa 9 | ✅ COMPLETADO | Clustering manual (2-10), razonamiento dinámico de recomendación, corrección de errores en estadísticas y lista expandible de riesgo |
 | Etapa 10 | ✅ COMPLETADO | Soporte multi-hoja (4 rubros), sidebar de navegación, mapa interactivo de México por entidad, filtro estatal en todos los paneles |
 | Etapa 11 | ✅ COMPLETADO | Cálculo Global multi-rubro, panel de distritos rezagados y alertas tempranas (flatlines), comparativa de rubros, contexto PCA y exportación PDF |
+| Etapa 12 | ✅ COMPLETADO | Arquitectura multi-etapa: Selección inicial de fase (Etapa 1 vs Etapa 2), filtrado dinámico de rubros y unificación de lógica de procesamiento Global. |
 
 ## 🚀 Cómo Ejecutar
 

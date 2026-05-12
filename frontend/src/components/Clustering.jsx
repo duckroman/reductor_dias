@@ -33,10 +33,9 @@ const Clustering = ({ sheet, state }) => {
       <h2>Agrupación de Distritos (Clustering)</h2>
       
       <div className="info-box">
-        <h4>¿Qué estamos viendo aquí?</h4>
         <p className="explanation-text">
-          El sistema analizó el comportamiento de todos los distritos y los agrupó ("Clustering") según su ritmo de trabajo. 
-          En lugar de analizar 300 distritos uno por uno, podemos ver unas cuantas "familias" o grupos que comparten el mismo problema o el mismo éxito.
+          El sistema ha analizado el comportamiento de todos los distritos, agrupándolos ("Clustering") según su ritmo de trabajo. 
+          En lugar de un análisis individual de 300 distritos, se pueden identificar grupos que comparten patrones similares de desempeño.
         </p>
       </div>
 
@@ -45,7 +44,7 @@ const Clustering = ({ sheet, state }) => {
           <label>
             <strong>Número de Grupos (K):</strong> {k === 0 ? `Automático (Sugerido: ${clusterData.best_k})` : `${k} Grupos`}
             <span className="explanation-text micro" style={{marginBottom: '5px'}}>
-              Mueve este control para forzar al sistema a agrupar los distritos en más o menos familias.
+              Desplace este control para ajustar la granularidad de la agrupación en un mayor o menor número de grupos.
             </span>
             <input 
               type="range" 
@@ -70,10 +69,9 @@ const Clustering = ({ sheet, state }) => {
 
       <div className="charts-grid">
         <div className="chart-card">
-          <h3>Comportamiento Promedio por Grupo</h3>
+          <h3>Comportamiento Promedio por Grupo (Tendencias Dinámicas)</h3>
           <p className="explanation-text mb-15">
-            <strong>¿Cómo leer esto?</strong> Cada línea representa el "ritmo de trabajo" típico de una familia entera. 
-            Puedes ver rápidamente qué familia se atrasó a mitad de camino o cuál empezó rápido.
+            Este gráfico de líneas no representa a distritos individuales, sino a "familias de comportamiento". Cada línea es el promedio matemático de un grupo de distritos que han trabajado a ritmos similares. Se busca observar trayectorias ascendentes constantes; cualquier "plateau" o estancamiento en una de estas líneas indica un problema sistémico que afecta a todo ese grupo. Comparar estas curvas permite identificar qué grupos lograron un despegue rápido y cuáles están experimentando una desaceleración crítica en las etapas finales del operativo.
           </p>
           <div className="chart-wrapper">
             <Plot
@@ -82,13 +80,13 @@ const Clustering = ({ sheet, state }) => {
                 x: Array.from({length: p.profile.length}, (_, i) => i + 1),
                 type: 'scatter',
                 mode: 'lines',
-                name: `Cluster ${p.cluster} (n=${p.n_distritos})`,
+                name: p.name || `Grupo ${String.fromCharCode(65 + i)}`,
                 line: { color: colors[i % colors.length], width: 3 }
               }))}
               layout={{
                 margin: { t: 10, r: 10, b: 40, l: 40 },
-                xaxis: { title: 'Día' },
-                yaxis: { title: 'Cumplimiento' },
+                xaxis: { title: 'Día del Operativo' },
+                yaxis: { title: 'Nivel de Cumplimiento (%)', tickformat: '.0%' },
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
                 font: { color: '#e0e0e0' },
@@ -101,16 +99,13 @@ const Clustering = ({ sheet, state }) => {
         </div>
 
         <div className="chart-card">
-          <h3>Mapa de Similitud entre Distritos</h3>
+          <h3>Mapa de Similitud y Posicionamiento Estratégico</h3>
           <p className="explanation-text mb-15" style={{ fontSize: '0.9rem' }}>
-            <strong>¿Cómo leer esto?</strong> Imagina que el sistema lee las curvas de los 300 distritos y los dibuja en un mapa. 
-            Cada punto es un distrito. Los distritos que están muy pegaditos se comportaron casi igual.<br/><br/>
-            <strong>Eje X (Horizontal): Nivel de Cumplimiento.</strong> Los distritos más a la derecha tienen mejor avance, los de la izquierda están rezagados.<br/>
-            <strong>Eje Y (Vertical): Velocidad de Trabajo.</strong> Diferencia a los distritos según su ritmo (ej. empezaron rápido y se estancaron vs. empezaron lento y aceleraron).<br/><br/>
-            <span style={{ color: '#3b82f6', fontSize: '0.85rem' }}>
-              💡 <strong>Nota sobre la escala:</strong> El valor <strong>0 (cero)</strong> representa exactamente el <strong>Promedio Nacional</strong>. 
-              Los valores positivos y negativos (como +2 o -3) <strong>no son puntos porcentuales</strong>, sino "unidades de variación" (desviaciones estándar). 
-              Un distrito en -3 significa que su rezago es estadísticamente 3 niveles más severo que lo normal.
+            Este mapa de dispersión utiliza una técnica de reducción de dimensionalidad (PCA) para proyectar el comportamiento de 50 días en un plano de dos ejes. Es una herramienta diagnóstica poderosa para visualizar la estructura del cumplimiento nacional.<br/><br/>
+            <strong>Eje Horizontal (Cumplimiento):</strong> Los puntos hacia la derecha representan distritos con un desempeño superior al promedio nacional. Los puntos a la izquierda señalan distritos en zona de riesgo.<br/>
+            <strong>Eje Vertical (Dinámica de Trabajo):</strong> Este eje separa a los distritos según su "ritmo". Los distritos en la parte superior suelen ser aquellos con un arranque explosivo que luego se estabilizan, mientras que los de la parte inferior pueden tener un crecimiento más tardío o irregular.<br/><br/>
+            <span style={{ color: '#818cf8', fontSize: '0.85rem' }}>
+              💡 <strong>Interpretación:</strong> La formación de "nubes" de puntos muy compactas indica una alta estandarización en los procesos de esos distritos. Los puntos aislados (outliers) representan distritos con comportamientos únicos que ameritan una auditoría o supervisión especial.
             </span>
           </p>
           <div className="chart-wrapper">
@@ -127,14 +122,14 @@ const Clustering = ({ sheet, state }) => {
                   type: 'scatter',
                   mode: 'markers',
                   hoverinfo: 'text+name',
-                  name: `Cluster ${p.cluster}`,
+                  name: p.name || `Grupo ${String.fromCharCode(65 + i)}`,
                   marker: { color: colors[i % colors.length], size: 8, opacity: 0.7 }
                 };
               })}
               layout={{
                 margin: { t: 10, r: 10, b: 40, l: 40 },
-                xaxis: { title: 'Componente Principal 1' },
-                yaxis: { title: 'Componente Principal 2' },
+                xaxis: { title: 'Eje de Cumplimiento (PCA 1)', showgrid: false },
+                yaxis: { title: 'Eje de Dinámica (PCA 2)', showgrid: false },
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
                 font: { color: '#e0e0e0' },
@@ -161,7 +156,7 @@ const Clustering = ({ sheet, state }) => {
             <tbody>
               {clusterData.cluster_profiles.map((p) => (
                 <tr key={p.cluster}>
-                  <td>Cluster {p.cluster}</td>
+                  <td>{p.name || `Cluster ${p.cluster}`}</td>
                   <td>{p.n_distritos}</td>
                   <td>{(p.mean_day1 * 100).toFixed(2)}%</td>
                   <td>{(p.mean_final * 100).toFixed(2)}%</td>

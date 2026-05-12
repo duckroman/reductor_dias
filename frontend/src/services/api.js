@@ -20,8 +20,9 @@ export const getActiveFile = async () => {
   return response.data;
 };
 
-export const getSheets = async () => {
-  const response = await api.get('/sheets');
+export const getSheets = async (stage = null) => {
+  const params = stage ? { stage } : {};
+  const response = await api.get('/sheets', { params });
   return response.data;
 };
 
@@ -82,13 +83,13 @@ export const getStateSummary = async (sheet = null) => {
   return response.data;
 };
 
-export const uploadDataFile = async (file) => {
+export const uploadDataFile = async (file, stage = null) => {
   const formData = new FormData();
   formData.append('file', file);
+  const params = stage ? { stage } : {};
   const response = await api.post('/upload', formData, {
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
+    params,
+    headers: { 'Content-Type': 'multipart/form-data' }
   });
   return response.data;
 };
