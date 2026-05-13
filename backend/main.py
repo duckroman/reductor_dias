@@ -31,8 +31,8 @@ def _get_filepath():
     """Retorna la ruta del archivo cargado en la sesión actual."""
     return _active_file_path
 
-# Definición de Rubros por Etapa
-RUBROS_ETAPA_1 = ["Visitas", "Notificaciones", "Ciudadanos CR"]
+# Definición de Rubros por Etapa (Nombres exactos de las hojas del Excel)
+RUBROS_ETAPA_1 = ["Visitados", "CCRL Optimo", "CCRL Requeridos"]
 RUBROS_ETAPA_2 = ["Nombramientos", "Capacitación", "Asistencia a Simulacros"]
 
 EXCLUDED_RUBRO = "Sustituciones de FMDC"
@@ -268,12 +268,34 @@ async def upload_file(stage: int = Query(None), file: UploadFile = File(...)):
         with open(filepath, "wb") as f:
             f.write(contents)
 
-        print(f"Archivo guardado en: {filepath}. Limpiando caché...")
+        print(f"Archivo guardado en: {filepath}. Validando hojas para etapa {stage}...")
 
-        # Limpiar cache completo y recargar hojas
+        # Obtener hojas del nuevo archivo
+        _available_sheets = analysis.get_sheet_names(filepath)
+        print(f"Hojas encontradas en el archivo: {_available_sheets}")
+        
+        # Validar si el archivo corresponde a la etapa (insensible a mayúsculas y espacios)
+        required_sheets = RUBROS_ETAPA_1 if stage == 1 else RUBROS_ETAPA_2
+        
+        # Normalizar para comparación
+        available_normalized = [s.strip().lower() for s in _available_sheets]
+        missing_sheets = [s for s in required_sheets if s.strip().lower() not in available_normalized]
+        
+        if missing_sheets:
+            # Si faltan hojas, lanzamos error y no actualizamos el sistema
+            print(f"Error de validación: Faltan hojas {missing_sheets}")
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "error": "El archivo no corresponde a la etapa seleccionada.",
+                    "missing": missing_sheets,
+                    "details": f"Se requieren las hojas con nombres similares a: {', '.join(required_sheets)}. Encontradas: {', '.join(_available_sheets)}"
+                }
+            )
+
+        # Si pasa la validación, limpiar cache completo y actualizar estado
         _sheets_cache = {}
         _active_file_path = filepath
-        _available_sheets = analysis.get_sheet_names(filepath)
         _active_filename = file.filename
 
         # Obtener lista filtrada para el frontend según la etapa elegida

@@ -357,7 +357,7 @@ def get_cluster_name(cluster_idx, profile):
     elif final_val >= 0.70:
         x_label = "Cumplimiento Medio"
     else:
-        x_label = "Cumplimiento Crítico"
+        x_label = "Cumplimiento Bajo"
         
     # Categoría de Velocidad/Dinámica (Eje Y)
     # Relación entre lo avanzado al inicio vs el final
@@ -366,11 +366,11 @@ def get_cluster_name(cluster_idx, profile):
     if velocity_ratio > 0.75:
         y_label = "Arranque Explosivo"
     elif velocity_ratio > 0.60:
-        y_label = "Ritmo Acelerado"
+        y_label = "Ritmo ligeramente acelerado"
     elif velocity_ratio > 0.45:
-        y_label = "Progresión Constante"
+        y_label = "Ritmo regular"
     else:
-        y_label = "Inercia Lenta"
+        y_label = "Lento"
         
     return f"Grupo {prefix}: {x_label} con {y_label}"
 

@@ -9,11 +9,20 @@ import { getSheets, uploadDataFile, getActiveFile } from './services/api';
 import './App.css';
 
 const SHEET_ICONS = {
-  'Global': '🌐',
+  'Global': '🌍',
   'Nombramientos': '📋',
   'Capacitación': '📚',
   'Asistencia a Simulacros': '🎯',
   'Sustituciones de FMDC': '🔄',
+  'Visitados': '🚶',
+  'CCRL Optimo': '📈',
+  'CCRL Requeridos': '📉'
+
+};
+
+const SHEET_LABELS = {
+  'CCRL Optimo': 'Óptimo de Ciudadanos requeridos por Ley',
+  'CCRL Requeridos': 'Mínimo de Ciudadanos requeridos por Ley'
 };
 
 function App() {
@@ -56,7 +65,7 @@ function App() {
         console.error('Error checking active file', e);
       }
     };
-    
+
     // Si cambiamos de etapa o hay nueva version, reseteamos disponible
     if (selectedStage) {
       checkActiveFile();
@@ -78,7 +87,12 @@ function App() {
       alert('Datos cargados y procesados exitosamente.');
     } catch (error) {
       console.error('Error uploading file', error);
-      alert('Error al cargar el archivo. Verifica el formato.');
+      if (error.response && error.response.status === 400) {
+        const detail = error.response.data.details || '';
+        alert(`⚠️ Error de Validación:\n${error.response.data.error}\n\n${detail}`);
+      } else {
+        alert('Error al cargar el archivo. Verifica el formato del Excel.');
+      }
     } finally {
       setUploading(false);
     }
@@ -103,7 +117,7 @@ function App() {
           <div className="logo-icon big">INE</div>
           <h1>Plataforma de Análisis de Cumplimiento</h1>
           <p className="description">Seleccione la etapa operativa que desea analizar para iniciar el procesamiento de datos.</p>
-          
+
           <div className="stage-options">
             <button className="stage-option-btn" onClick={() => setSelectedStage(1)}>
               <div className="btn-icon">1️⃣</div>
@@ -112,7 +126,7 @@ function App() {
                 <p>Análisis de Visitas, Notificaciones y Ciudadanos CR.</p>
               </div>
             </button>
-            
+
             <button className="stage-option-btn" onClick={() => setSelectedStage(2)}>
               <div className="btn-icon">2️⃣</div>
               <div className="btn-content">
@@ -137,11 +151,11 @@ function App() {
         <div className="sidebar-metadata">
           <span className="sidebar-subtitle">Etapa {selectedStage}: {selectedStage === 1 ? 'Visitas' : 'FMDC'}</span>
           {activeFile && (
-              <div className="active-file-indicator">
-                <div className="active-file-label">Archivo Activo:</div>
-                <span title={activeFile}>{activeFile}</span>
-              </div>
-            )}
+            <div className="active-file-indicator">
+              <div className="active-file-label">Archivo Activo:</div>
+              <span title={activeFile}>{activeFile}</span>
+            </div>
+          )}
         </div>
 
         {hasData && (
@@ -154,7 +168,9 @@ function App() {
                 onClick={() => setActiveSheet(sheet)}
               >
                 <span className="sidebar-icon">{SHEET_ICONS[sheet] || '📄'}</span>
-                <span className="sidebar-label">{sheet}</span>
+                <span className="sidebar-label" style={{ fontSize: '0.8rem', lineHeight: '1.2' }}>
+                  {SHEET_LABELS[sheet] || sheet}
+                </span>
               </button>
             ))}
           </div>
@@ -173,7 +189,7 @@ function App() {
             />
           </label>
           <button className="sidebar-btn secondary" onClick={() => { setSelectedStage(null); setAvailableSheets([]); }}>
-             🔄 Cambiar Etapa
+            🔄 Cambiar Etapa
           </button>
         </div>
 
