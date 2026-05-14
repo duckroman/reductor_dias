@@ -2,14 +2,16 @@
 main.py - FastAPI backend para el analisis de cumplimiento de visitas del INE.
 Sirve endpoints REST que el frontend React consume.
 Soporta multiples hojas de Excel y filtrado por entidad federativa.
+Soporta seleccion de datasets predefinidos por etapa operativa.
 """
 
 from fastapi import FastAPI, Query, File, UploadFile
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 import analysis
 import os
 
-app = FastAPI(title="Reductor de Dias - INE", version="2.0.0")
+app = FastAPI(title="Reductor de Dias - INE", version="3.0.0")
 
 # CORS para desarrollo local
 app.add_middleware(
@@ -20,22 +22,54 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Cache multi-hoja: { sheet_name: (df, matrix, day_cols) }
-_sheets_cache = {}
+# ============================================================
+# CONSTANTES: Datasets por Etapa
+# ============================================================
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATASETS_DIR = os.path.join(BASE_DIR, "datasets")
+
+DATASETS_POR_ETAPA = {
+    1: [
+        "PE_2020-2021_1a.xlsx",
+        "PEC_2023-2024_1a.xlsx",
+    ],
+    2: [
+        "PE_2020-2021_2a.xlsx",
+        "PEC_2023-2024_2a.xlsx",
+        "PEL_2022-2023_Coahuila.xlsx",
+    ],
+}
+
+# Definición de Rubros por Etapa (Nombres exactos de las hojas del Excel)
+RUBROS_ETAPA_1 = ["Visitados", "CCRL Optimo", "CCRL Requeridos"]
+RUBROS_ETAPA_2 = ["Nombramientos", "Capacitación", "Asistencia a Simulacros"]
+EXCLUDED_RUBRO = "Sustituciones de FMDC"
+
+# ============================================================
+# ESTADO GLOBAL (Caché)
+# ============================================================
+_sheets_cache = {}       # { sheet_name: (df, matrix, day_cols) }
 _available_sheets = []
-_active_file_path = None # Solo se llena cuando se sube un archivo en esta sesión
-_active_filename = None # Para rastrear el nombre real del archivo cargado
+_active_file_path = None
+_active_filename = None
+_active_stage = None
+
+
+def _clear_all_cache():
+    """Limpia completamente todo el estado de datos cargados."""
+    global _sheets_cache, _available_sheets, _active_file_path, _active_filename, _active_stage
+    _sheets_cache = {}
+    _available_sheets = []
+    _active_file_path = None
+    _active_filename = None
+    _active_stage = None
+    print("--- Caché limpiada completamente ---")
 
 
 def _get_filepath():
     """Retorna la ruta del archivo cargado en la sesión actual."""
     return _active_file_path
 
-# Definición de Rubros por Etapa (Nombres exactos de las hojas del Excel)
-RUBROS_ETAPA_1 = ["Visitados", "CCRL Optimo", "CCRL Requeridos"]
-RUBROS_ETAPA_2 = ["Nombramientos", "Capacitación", "Asistencia a Simulacros"]
-
-EXCLUDED_RUBRO = "Sustituciones de FMDC"
 
 def _ensure_sheets():
     global _available_sheets
@@ -60,14 +94,12 @@ def get_data(sheet: str = None, state: str = None):
             fp = _get_filepath()
             
             # Determinar qué rubros promediar según los que existan en el archivo
-            # y pertenezcan a la etapa actual (o simplemente los operativos encontrados)
             relevant_rubros = RUBROS_ETAPA_1 + RUBROS_ETAPA_2
             
             matrices = []
             base_df = None
             day_cols = None
             for s in _available_sheets:
-                # Solo promediar si es un rubro operativo conocido
                 if s not in relevant_rubros: continue
                 
                 if s not in _sheets_cache:
@@ -106,13 +138,11 @@ def _get_filtered_sheets(stage=None):
     """Helper para obtener la lista de rubros filtrada por etapa y con Global."""
     _ensure_sheets()
     
-    # Si se especifica etapa, filtramos estrictamente por esa lista
     if stage == 1:
         target_list = RUBROS_ETAPA_1
     elif stage == 2:
         target_list = RUBROS_ETAPA_2
     else:
-        # Si no hay etapa, excluimos los especiales y mostramos lo que haya
         target_list = [s for s in _available_sheets if "sustituciones" not in s.strip().lower()]
 
     filtered = [s for s in _available_sheets if s in target_list]
@@ -121,23 +151,188 @@ def _get_filtered_sheets(stage=None):
         return []
     return ["Global"] + filtered
 
+
+# ============================================================
+# ENDPOINTS: Selección de Datasets
+# ============================================================
+
+@app.get("/api/datasets")
+def list_datasets(stage: int = Query(None)):
+    """Retorna la lista de datasets disponibles, opcionalmente filtrados por etapa."""
+    result = {}
+    stages_to_check = [stage] if stage else [1, 2]
+    
+    for s in stages_to_check:
+        datasets = []
+        for filename in DATASETS_POR_ETAPA.get(s, []):
+            filepath = os.path.join(DATASETS_DIR, filename)
+            exists = os.path.exists(filepath)
+            size_mb = round(os.path.getsize(filepath) / (1024 * 1024), 2) if exists else 0
+            datasets.append({
+                "filename": filename,
+                "exists": exists,
+                "size_mb": size_mb,
+            })
+        result[str(s)] = datasets
+    
+    return {"datasets": result}
+
+
+@app.post("/api/select-dataset")
+def select_dataset(filename: str = Query(...), stage: int = Query(...)):
+    """Selecciona un dataset predefinido para cargar y analizar."""
+    global _sheets_cache, _available_sheets, _active_file_path, _active_filename, _active_stage
+    
+    # Validar que el dataset pertenece a la etapa indicada
+    valid_datasets = DATASETS_POR_ETAPA.get(stage, [])
+    if filename not in valid_datasets:
+        return JSONResponse(
+            status_code=400,
+            content={"error": f"El dataset '{filename}' no pertenece a la Etapa {stage}."}
+        )
+    
+    filepath = os.path.join(DATASETS_DIR, filename)
+    if not os.path.exists(filepath):
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"El archivo '{filename}' no existe en la carpeta datasets/."}
+        )
+    
+    # Limpiar caché completa antes de cargar
+    _clear_all_cache()
+    
+    # Cargar nuevo dataset
+    _active_file_path = filepath
+    _active_filename = filename
+    _active_stage = stage
+    
+    _available_sheets = analysis.get_sheet_names(filepath)
+    print(f"--- Dataset seleccionado: {filename} (Etapa {stage}) ---")
+    print(f"    Hojas encontradas: {_available_sheets}")
+    
+    # Obtener rubros filtrados por etapa
+    sheets_for_front = _get_filtered_sheets(stage)
+    
+    # Pre-calcular Global para calentar caché
+    if "Global" in sheets_for_front:
+        try:
+            print(f"    Calentando caché para Global...")
+            get_data("Global")
+        except Exception as e:
+            print(f"    Aviso: No se pudo pre-calcular Global: {e}")
+    
+    # Obtener metadata del dataset: n_dias, n_distritos
+    n_days = 0
+    n_districts = 0
+    day_col_names = []
+    first_sheet = sheets_for_front[1] if len(sheets_for_front) > 1 else (sheets_for_front[0] if sheets_for_front else None)
+    if first_sheet and first_sheet != "Global":
+        try:
+            df, matrix, day_cols = get_data(first_sheet)
+            n_days = matrix.shape[1]
+            n_districts = matrix.shape[0]
+            day_col_names = day_cols
+        except Exception as e:
+            print(f"    Aviso: Error obteniendo metadata: {e}")
+    
+    print(f"    Rubros: {sheets_for_front} | Días: {n_days} | Distritos: {n_districts}")
+    
+    return {
+        "message": f"Dataset '{filename}' cargado exitosamente.",
+        "filename": filename,
+        "stage": stage,
+        "sheets": sheets_for_front,
+        "n_days": n_days,
+        "n_districts": n_districts,
+        "day_columns": day_col_names,
+    }
+
+
+@app.get("/api/clear-cache")
+def clear_cache():
+    """Limpia toda la caché de datos y reinicia el estado del sistema."""
+    _clear_all_cache()
+    return {"message": "Caché limpiada exitosamente."}
+
+
+# ============================================================
+# ENDPOINTS: Datos y Análisis
+# ============================================================
+
 @app.get("/api/sheets")
 def get_sheets(stage: int = Query(None)):
     """Retorna la lista de hojas disponibles en el Excel, filtradas por etapa."""
-    return {"sheets": _get_filtered_sheets(stage)}
+    return {"sheets": _get_filtered_sheets(stage or _active_stage)}
 
 
 @app.get("/api/active-file")
 def get_active_file():
     """Retorna el nombre del archivo Excel que está siendo utilizado."""
-    global _active_filename
     if _active_filename:
-        return {"filename": _active_filename}
+        return {
+            "filename": _active_filename,
+            "stage": _active_stage,
+        }
+    return {"filename": None, "stage": None}
+
+
+@app.get("/api/raw-data")
+def get_raw_data(sheet: str = Query(None), state: str = Query(None)):
+    """Retorna datos crudos del dataset para el visor de tabla.
+    Incluye encabezados, columnas de identificación y valores por día."""
+    _ensure_sheets()
     
     fp = _get_filepath()
-    if fp:
-        return {"filename": os.path.basename(fp)}
-    return {"filename": None, "error": "No se encontró ningún archivo de datos"}
+    if not fp:
+        return JSONResponse(status_code=400, content={"error": "No hay dataset cargado."})
+    
+    target_sheet = sheet
+    if not target_sheet:
+        filtered = _get_filtered_sheets(_active_stage)
+        target_sheet = filtered[1] if len(filtered) > 1 else (filtered[0] if filtered else None)
+    
+    if not target_sheet or target_sheet == "Global":
+        # Para Global, usamos el primer rubro real
+        filtered = _get_filtered_sheets(_active_stage)
+        target_sheet = filtered[1] if len(filtered) > 1 else None
+    
+    if not target_sheet:
+        return JSONResponse(status_code=400, content={"error": "No hay hoja disponible."})
+    
+    # Cargar datos
+    df, matrix, day_cols = get_data(target_sheet, state)
+    
+    # Construir columnas de identificación
+    id_columns = []
+    for col_name in ["ID Entidad", "Entidad", "ID Distrito", "Distrito", "Cabecera"]:
+        if col_name in df.columns:
+            id_columns.append(col_name)
+    
+    # Construir filas
+    rows = []
+    for idx, (_, row) in enumerate(df.iterrows()):
+        row_data = {}
+        for col_name in id_columns:
+            val = row.get(col_name, "")
+            row_data[col_name] = str(val) if val is not None else ""
+        
+        # Agregar valores de días
+        for j, dc in enumerate(day_cols):
+            if idx < matrix.shape[0] and j < matrix.shape[1]:
+                row_data[dc] = round(float(matrix[idx, j]), 4)
+            else:
+                row_data[dc] = 0
+        rows.append(row_data)
+    
+    return {
+        "sheet": target_sheet,
+        "id_columns": id_columns,
+        "day_columns": day_cols,
+        "n_days": len(day_cols),
+        "n_districts": len(rows),
+        "rows": rows,
+        "filename": _active_filename,
+    }
 
 
 @app.get("/api/data")
@@ -215,7 +410,6 @@ def get_comparative(state: str = Query(None)):
     for s in _available_sheets:
         if s == "Global": continue
         
-        # Aprovechar la cache si existe
         if s in _sheets_cache:
             df, matrix, day_cols = _sheets_cache[s]
         else:
@@ -255,10 +449,9 @@ def get_state_summary(sheet: str = Query(None)):
 @app.post("/api/upload")
 async def upload_file(stage: int = Query(None), file: UploadFile = File(...)):
     """Sube un archivo de Excel para reemplazar los datos de analisis."""
-    global _sheets_cache, _available_sheets, _active_filename, _active_file_path
+    global _sheets_cache, _available_sheets, _active_filename, _active_file_path, _active_stage
     try:
-        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        filepath = os.path.join(base, "cumplimiento_visitas_custom.xlsx")
+        filepath = os.path.join(BASE_DIR, "cumplimiento_visitas_custom.xlsx")
         print(f"--- Recibiendo archivo etapa {stage}: {file.filename} ---")
 
         contents = await file.read()
@@ -270,19 +463,14 @@ async def upload_file(stage: int = Query(None), file: UploadFile = File(...)):
 
         print(f"Archivo guardado en: {filepath}. Validando hojas para etapa {stage}...")
 
-        # Obtener hojas del nuevo archivo
         _available_sheets = analysis.get_sheet_names(filepath)
         print(f"Hojas encontradas en el archivo: {_available_sheets}")
         
-        # Validar si el archivo corresponde a la etapa (insensible a mayúsculas y espacios)
         required_sheets = RUBROS_ETAPA_1 if stage == 1 else RUBROS_ETAPA_2
-        
-        # Normalizar para comparación
         available_normalized = [s.strip().lower() for s in _available_sheets]
         missing_sheets = [s for s in required_sheets if s.strip().lower() not in available_normalized]
         
         if missing_sheets:
-            # Si faltan hojas, lanzamos error y no actualizamos el sistema
             print(f"Error de validación: Faltan hojas {missing_sheets}")
             return JSONResponse(
                 status_code=400,
@@ -293,15 +481,13 @@ async def upload_file(stage: int = Query(None), file: UploadFile = File(...)):
                 }
             )
 
-        # Si pasa la validación, limpiar cache completo y actualizar estado
         _sheets_cache = {}
         _active_file_path = filepath
         _active_filename = file.filename
+        _active_stage = stage
 
-        # Obtener lista filtrada para el frontend según la etapa elegida
         sheets_for_front = _get_filtered_sheets(stage)
         
-        # Pre-calcular el rubro Global para calentar la caché si hay hojas disponibles
         if "Global" in sheets_for_front:
             try:
                 print(f"Calentando caché para el rubro Global de la Etapa {stage}...")
@@ -319,7 +505,7 @@ async def upload_file(stage: int = Query(None), file: UploadFile = File(...)):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "message": "Backend activo v2"}
+    return {"status": "ok", "message": "Backend activo v3 — Dataset Selector"}
 
 
 if __name__ == "__main__":

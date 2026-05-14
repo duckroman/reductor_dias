@@ -5,7 +5,8 @@ import Clustering from './components/Clustering';
 import Reductor from './components/Reductor';
 import MexicoMap from './components/MexicoMap';
 import SustitucionesPage from './components/SustitucionesPage';
-import { getSheets, uploadDataFile, getActiveFile } from './services/api';
+import DatasetViewer from './components/DatasetViewer';
+import { getSheets, uploadDataFile, getActiveFile, getDatasets, selectDataset, clearCache } from './services/api';
 import './App.css';
 
 const SHEET_ICONS = {
@@ -17,12 +18,20 @@ const SHEET_ICONS = {
   'Visitados': '🚶',
   'CCRL Optimo': '📈',
   'CCRL Requeridos': '📉'
-
 };
 
 const SHEET_LABELS = {
   'CCRL Optimo': 'Óptimo de Ciudadanos requeridos por Ley',
   'CCRL Requeridos': 'Mínimo de Ciudadanos requeridos por Ley'
+};
+
+// Etiquetas amigables para los datasets
+const DATASET_LABELS = {
+  'PE_2020-2021_1a.xlsx': { name: 'Proceso Electoral 2020-2021', period: '1ª Etapa', icon: '📊' },
+  'PEC_2023-2024_1a.xlsx': { name: 'PEC 2023-2024', period: '1ª Etapa', icon: '📈' },
+  'PE_2020-2021_2a.xlsx': { name: 'Proceso Electoral 2020-2021', period: '2ª Etapa', icon: '📊' },
+  'PEC_2023-2024_2a.xlsx': { name: 'PEC 2023-2024', period: '2ª Etapa', icon: '📈' },
+  'PEL_2022-2023_Coahuila.xlsx': { name: 'PEL 2022-2023 Coahuila', period: 'Local', icon: '🗺️' },
 };
 
 function App() {
@@ -33,7 +42,11 @@ function App() {
   const [dataVersion, setDataVersion] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [activeFile, setActiveFile] = useState(null);
-  const [selectedStage, setSelectedStage] = useState(null); // null, 1 o 2
+  const [selectedStage, setSelectedStage] = useState(null);
+  const [selectedDataset, setSelectedDataset] = useState(null);
+  const [datasetsForStage, setDatasetsForStage] = useState([]);
+  const [loadingDataset, setLoadingDataset] = useState(false);
+  const [datasetMeta, setDatasetMeta] = useState(null); // { n_days, n_districts }
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
 
   useEffect(() => {
@@ -44,33 +57,71 @@ function App() {
     return () => window.removeEventListener('popstate', handleLocationChange);
   }, []);
 
-  // Solo cargar el archivo activo si existe, pero no forzar la carga de rubros si no hay archivo
+  // Cuando se selecciona una etapa, cargar la lista de datasets disponibles
   useEffect(() => {
-    const checkActiveFile = async () => {
-      if (!selectedStage) return;
+    if (!selectedStage) return;
+    const loadDatasets = async () => {
       try {
-        const fileInfo = await getActiveFile();
-        if (fileInfo.filename) {
-          setActiveFile(fileInfo.filename);
-          const data = await getSheets(selectedStage);
-          setAvailableSheets(data.sheets || []);
-          if (data.sheets && data.sheets.length > 0) {
-            setActiveSheet(prev => prev || data.sheets[0]);
-          }
-        } else {
-          setAvailableSheets([]);
-          setActiveFile(null);
-        }
+        // Limpiar caché del backend al cambiar de etapa
+        await clearCache();
+        const result = await getDatasets(selectedStage);
+        const datasets = result.datasets[String(selectedStage)] || [];
+        setDatasetsForStage(datasets);
       } catch (e) {
-        console.error('Error checking active file', e);
+        console.error('Error loading datasets:', e);
+        setDatasetsForStage([]);
       }
     };
+    loadDatasets();
+  }, [selectedStage]);
 
-    // Si cambiamos de etapa o hay nueva version, reseteamos disponible
-    if (selectedStage) {
-      checkActiveFile();
+  // Seleccionar un dataset
+  const handleSelectDataset = async (filename) => {
+    setLoadingDataset(true);
+    try {
+      const res = await selectDataset(filename, selectedStage);
+      setSelectedDataset(filename);
+      setActiveFile(res.filename);
+      setAvailableSheets(res.sheets || []);
+      setDatasetMeta({ n_days: res.n_days, n_districts: res.n_districts });
+      if (res.sheets && res.sheets.length > 0) {
+        setActiveSheet(res.sheets[0]);
+      }
+      setDataVersion(v => v + 1);
+      setActiveTab('dashboard');
+    } catch (e) {
+      console.error('Error selecting dataset:', e);
+      alert('Error al cargar el dataset. Verifique que el archivo existe.');
+    } finally {
+      setLoadingDataset(false);
     }
-  }, [dataVersion, selectedStage]);
+  };
+
+  // Cambiar de etapa: limpiar todo
+  const handleChangeStage = async () => {
+    try { await clearCache(); } catch (e) { /* ignore */ }
+    setSelectedStage(null);
+    setSelectedDataset(null);
+    setAvailableSheets([]);
+    setActiveFile(null);
+    setDatasetMeta(null);
+    setSelectedState(null);
+    setActiveTab('dashboard');
+    setActiveSheet('Global');
+    setDatasetsForStage([]);
+  };
+
+  // Cambiar de dataset (dentro de la misma etapa)
+  const handleChangeDataset = async () => {
+    try { await clearCache(); } catch (e) { /* ignore */ }
+    setSelectedDataset(null);
+    setAvailableSheets([]);
+    setActiveFile(null);
+    setDatasetMeta(null);
+    setSelectedState(null);
+    setActiveTab('dashboard');
+    setActiveSheet('Global');
+  };
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
@@ -84,6 +135,7 @@ function App() {
         setActiveSheet(res.sheets[0]);
       }
       setActiveFile(res.filename);
+      setSelectedDataset(res.filename);
       alert('Datos cargados y procesados exitosamente.');
     } catch (error) {
       console.error('Error uploading file', error);
@@ -109,7 +161,9 @@ function App() {
     return <SustitucionesPage />;
   }
 
-  // PANTALLA DE SELECCIÓN DE ETAPA
+  // ============================================
+  // PANTALLA 1: Selección de Etapa
+  // ============================================
   if (!selectedStage) {
     return (
       <div className="stage-selection-container">
@@ -140,6 +194,63 @@ function App() {
     );
   }
 
+  // ============================================
+  // PANTALLA 2: Selección de Dataset
+  // ============================================
+  if (!selectedDataset) {
+    return (
+      <div className="stage-selection-container">
+        <div className="stage-selection-card" style={{ maxWidth: '900px' }}>
+          <div className="logo-icon big">INE</div>
+          <h1>Etapa {selectedStage}: {selectedStage === 1 ? 'Visitas y Notificaciones' : 'Nombramientos y Capacitación'}</h1>
+          <p className="description">Seleccione el dataset que desea analizar. Solo se mostrarán los datos del dataset seleccionado.</p>
+
+          {loadingDataset ? (
+            <div className="loading">
+              <div className="loading-spinner"></div>
+              Cargando dataset...
+            </div>
+          ) : (
+            <>
+              <div className="dataset-grid">
+                {datasetsForStage.map((ds, idx) => {
+                  const label = DATASET_LABELS[ds.filename] || { name: ds.filename, period: '', icon: '📄' };
+                  return (
+                    <button
+                      key={ds.filename}
+                      className="dataset-card"
+                      onClick={() => handleSelectDataset(ds.filename)}
+                      disabled={!ds.exists}
+                      style={{ animationDelay: `${idx * 0.1}s` }}
+                    >
+                      <div className="dataset-card-icon">{label.icon}</div>
+                      <div className="dataset-card-content">
+                        <h3>{label.name}</h3>
+                        <span className="dataset-card-period">{label.period}</span>
+                        <span className="dataset-card-file">{ds.filename}</span>
+                        <span className="dataset-card-size">{ds.size_mb} MB</span>
+                      </div>
+                      {!ds.exists && <span className="dataset-card-missing">No disponible</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="dataset-actions">
+                <button className="sidebar-btn secondary" onClick={handleChangeStage} style={{ maxWidth: '300px', margin: '0 auto' }}>
+                  ← Regresar a Selección de Etapa
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ============================================
+  // PANTALLA 3: Dashboard principal
+  // ============================================
   return (
     <div className="app-layout">
       {/* Sidebar */}
@@ -152,8 +263,14 @@ function App() {
           <span className="sidebar-subtitle">Etapa {selectedStage}: {selectedStage === 1 ? 'Visitas' : 'FMDC'}</span>
           {activeFile && (
             <div className="active-file-indicator">
-              <div className="active-file-label">Archivo Activo:</div>
+              <div className="active-file-label">Dataset Activo</div>
               <span title={activeFile}>{activeFile}</span>
+              {datasetMeta && (
+                <div className="dataset-meta-info">
+                  <span>📅 {datasetMeta.n_days} días</span>
+                  <span>🏛️ {datasetMeta.n_districts} distritos</span>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -164,8 +281,8 @@ function App() {
             {availableSheets.map(sheet => (
               <button
                 key={sheet}
-                className={`sidebar-btn ${activeSheet === sheet ? 'active' : ''}`}
-                onClick={() => setActiveSheet(sheet)}
+                className={`sidebar-btn ${activeSheet === sheet && activeTab !== 'viewer' ? 'active' : ''}`}
+                onClick={() => { setActiveSheet(sheet); setActiveTab('dashboard'); }}
               >
                 <span className="sidebar-icon">{SHEET_ICONS[sheet] || '📄'}</span>
                 <span className="sidebar-label" style={{ fontSize: '0.8rem', lineHeight: '1.2' }}>
@@ -173,6 +290,19 @@ function App() {
                 </span>
               </button>
             ))}
+          </div>
+        )}
+
+        {hasData && (
+          <div className="sidebar-section">
+            <h3 className="sidebar-section-title">Datos</h3>
+            <button
+              className={`sidebar-btn viewer-btn ${activeTab === 'viewer' ? 'active' : ''}`}
+              onClick={() => setActiveTab('viewer')}
+            >
+              <span className="sidebar-icon">📋</span>
+              <span className="sidebar-label">Ver Dataset</span>
+            </button>
           </div>
         )}
 
@@ -188,7 +318,10 @@ function App() {
               disabled={uploading}
             />
           </label>
-          <button className="sidebar-btn secondary" onClick={() => { setSelectedStage(null); setAvailableSheets([]); }}>
+          <button className="sidebar-btn secondary" onClick={handleChangeDataset}>
+            📁 Cambiar Dataset
+          </button>
+          <button className="sidebar-btn secondary" onClick={handleChangeStage}>
             🔄 Cambiar Etapa
           </button>
         </div>
@@ -206,57 +339,70 @@ function App() {
 
       {/* Main Content Area */}
       <div className="app-content">
-        {/* Mapa siempre visible - En ceros si no hay data */}
-        <div className="map-panel">
-          <MexicoMap
-            key={`map-${dataVersion}-${activeSheet}`}
-            sheet={hasData ? activeSheet : null}
-            selectedState={selectedState}
-            onStateClick={handleStateClick}
-            dataVersion={dataVersion}
-          />
-          {!hasData && (
-            <div className="map-overlay-message">
-              <p>Esperando carga de datos para visualizar el mapa de cumplimiento...</p>
-            </div>
-          )}
-        </div>
-
-        {!hasData ? (
-          <div className="empty-state-container" style={{ minHeight: '300px' }}>
-            <div className="empty-state-card" style={{ padding: '30px', margin: '20px' }}>
-              <div className="empty-state-icon" style={{ fontSize: '2rem' }}>📂</div>
-              <h2>Sin Datos para Análisis</h2>
-              <p>Por favor, utilice el botón en el menú lateral para cargar un archivo Excel (.xlsx).</p>
-            </div>
-          </div>
+        {/* Dataset Viewer Tab */}
+        {activeTab === 'viewer' ? (
+          <main className="app-main">
+            <DatasetViewer
+              key={`viewer-${dataVersion}-${activeSheet}`}
+              sheet={activeSheet === 'Global' ? null : activeSheet}
+              state={selectedState}
+            />
+          </main>
         ) : (
           <>
-            {/* Tabs Navigation */}
-            <nav className="tab-navigation">
-              <button className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
-                📊 Dashboard
-              </button>
-              <button className={`tab-btn ${activeTab === 'statistical' ? 'active' : ''}`} onClick={() => setActiveTab('statistical')}>
-                📉 Estadísticas
-              </button>
-              <button className={`tab-btn ${activeTab === 'clustering' ? 'active' : ''}`} onClick={() => setActiveTab('clustering')}>
-                🕸️ Clustering
-              </button>
-              <button className={`tab-btn highlight-tab ${activeTab === 'reductor' ? 'active' : ''}`} onClick={() => setActiveTab('reductor')}>
-                🎯 Reductor
-              </button>
-            </nav>
+            {/* Mapa siempre visible */}
+            <div className="map-panel">
+              <MexicoMap
+                key={`map-${dataVersion}-${activeSheet}`}
+                sheet={hasData ? activeSheet : null}
+                selectedState={selectedState}
+                onStateClick={handleStateClick}
+                dataVersion={dataVersion}
+              />
+              {!hasData && (
+                <div className="map-overlay-message">
+                  <p>Esperando carga de datos para visualizar el mapa de cumplimiento...</p>
+                </div>
+              )}
+            </div>
 
-            {/* Content */}
-            <main className="app-main">
-              <div className="tab-content" key={`${dataVersion}-${activeSheet}-${selectedState}`}>
-                {activeTab === 'dashboard' && <Dashboard sheet={activeSheet} state={selectedState} />}
-                {activeTab === 'statistical' && <Statistical sheet={activeSheet} state={selectedState} />}
-                {activeTab === 'clustering' && <Clustering sheet={activeSheet} state={selectedState} />}
-                {activeTab === 'reductor' && <Reductor sheet={activeSheet} state={selectedState} />}
+            {!hasData ? (
+              <div className="empty-state-container" style={{ minHeight: '300px' }}>
+                <div className="empty-state-card" style={{ padding: '30px', margin: '20px' }}>
+                  <div className="empty-state-icon" style={{ fontSize: '2rem' }}>📂</div>
+                  <h2>Sin Datos para Análisis</h2>
+                  <p>Por favor, utilice el botón en el menú lateral para cargar un archivo Excel (.xlsx).</p>
+                </div>
               </div>
-            </main>
+            ) : (
+              <>
+                {/* Tabs Navigation */}
+                <nav className="tab-navigation">
+                  <button className={`tab-btn ${activeTab === 'dashboard' ? 'active' : ''}`} onClick={() => setActiveTab('dashboard')}>
+                    📊 Dashboard
+                  </button>
+                  <button className={`tab-btn ${activeTab === 'statistical' ? 'active' : ''}`} onClick={() => setActiveTab('statistical')}>
+                    📉 Estadísticas
+                  </button>
+                  <button className={`tab-btn ${activeTab === 'clustering' ? 'active' : ''}`} onClick={() => setActiveTab('clustering')}>
+                    🕸️ Clustering
+                  </button>
+                  <button className={`tab-btn highlight-tab ${activeTab === 'reductor' ? 'active' : ''}`} onClick={() => setActiveTab('reductor')}>
+                    🎯 Reductor
+                  </button>
+                </nav>
+
+                {/* Content */}
+                <main className="app-main">
+                  <div className="tab-content" key={`${dataVersion}-${activeSheet}-${selectedState}`}>
+                    {activeTab === 'dashboard' && <Dashboard sheet={activeSheet} state={selectedState} />}
+                    {activeTab === 'statistical' && <Statistical sheet={activeSheet} state={selectedState} />}
+                    {activeTab === 'clustering' && <Clustering sheet={activeSheet} state={selectedState} />}
+                    {activeTab === 'reductor' && <Reductor sheet={activeSheet} state={selectedState} />}
+                  </div>
+                </main>
+              </>
+            )}
           </>
         )}
       </div>

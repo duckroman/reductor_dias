@@ -34,7 +34,6 @@ body {
   color: var(--text-primary);
   line-height: 1.5;
   min-height: 100vh;
-  overflow-x: hidden;
 }
 
 /* Ocultar scrollbars por completo para eliminar lineas verticales */
@@ -227,6 +226,7 @@ body {
   flex: 1;
   border: none;
   background: transparent;
+  min-width: 0; /* Permite que el flex child se reduzca más allá de su contenido mínimo, habilitando el scroll interior */
 }
 
 /* MAP PANEL */
@@ -283,6 +283,9 @@ body {
 .app-main {
   padding: 24px;
   flex-grow: 1;
+  min-width: 0; /* Crucial para evitar que el div crezca indefinidamente y rompa el layout */
+  display: flex;
+  flex-direction: column;
 }
 
 .logo-icon {
@@ -826,4 +829,581 @@ body {
   background: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.3);
   color: #fca5a5;
+}
+
+/* ============================================ */
+/* DATASET SELECTION GRID                       */
+/* ============================================ */
+
+.dataset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  margin-bottom: 32px;
+}
+
+.dataset-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  border-radius: 16px;
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  color: #f8fafc;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+  animation: fadeIn 0.6s ease-out both;
+}
+
+.dataset-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.05), rgba(99, 102, 241, 0.05));
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.dataset-card:hover::before {
+  opacity: 1;
+}
+
+.dataset-card:hover {
+  background: rgba(139, 92, 246, 0.08);
+  border-color: rgba(139, 92, 246, 0.5) !important;
+  transform: translateY(-8px);
+  box-shadow: 0 20px 40px -15px rgba(139, 92, 246, 0.3);
+}
+
+.dataset-card:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.dataset-card-icon {
+  font-size: 2.5rem;
+  margin-bottom: 4px;
+}
+
+.dataset-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dataset-card-content h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.dataset-card-period {
+  font-size: 0.8rem;
+  color: #a78bfa;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+.dataset-card-file {
+  font-size: 0.75rem;
+  color: #64748b;
+  font-family: monospace;
+  margin-top: 6px;
+}
+
+.dataset-card-size {
+  font-size: 0.7rem;
+  color: #475569;
+  margin-top: 2px;
+}
+
+.dataset-card-missing {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  background: rgba(239, 68, 68, 0.2);
+  color: #fca5a5;
+  font-size: 0.65rem;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+.dataset-actions {
+  margin-top: 24px;
+}
+
+.dataset-meta-info {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 0.7rem;
+  color: #94a3b8;
+}
+
+/* Sidebar Viewer Button */
+.sidebar-btn.viewer-btn {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(168, 85, 247, 0.1));
+  border: 1px solid rgba(139, 92, 246, 0.2) !important;
+}
+
+.sidebar-btn.viewer-btn:hover {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(168, 85, 247, 0.2));
+  border-color: rgba(139, 92, 246, 0.4) !important;
+}
+
+.sidebar-btn.viewer-btn.active {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  color: #ffffff;
+  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+}
+
+/* ============================================ */
+/* DATASET VIEWER TABLE                         */
+/* ============================================ */
+
+.dataset-viewer-container {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.dv-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.dv-header-info h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #f8fafc;
+  margin-bottom: 4px;
+}
+
+.dv-subtitle {
+  font-size: 0.9rem;
+  color: #a78bfa;
+}
+
+.dv-subtitle strong {
+  color: #c4b5fd;
+}
+
+.dv-header-stats {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.dv-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(139, 92, 246, 0.1);
+  border: 1px solid rgba(139, 92, 246, 0.2) !important;
+  border-radius: 10px;
+  padding: 8px 14px;
+  min-width: 70px;
+}
+
+.dv-stat-label {
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #94a3b8;
+  margin-bottom: 2px;
+}
+
+.dv-stat-value {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #c4b5fd;
+}
+
+.dv-clear-all-btn {
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+  color: #fca5a5;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.dv-clear-all-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.5) !important;
+}
+
+/* Table Wrapper — horizontal scroll container */
+.dv-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
+  min-height: 380px; /* Asegura espacio vertical suficiente para el dropdown cuando hay 0 filas */
+  max-height: calc(100vh - 220px);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  background: #0a0a0a;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 246, 0.4) transparent;
+  -ms-overflow-style: auto;
+}
+
+.dv-table-wrapper::-webkit-scrollbar {
+  display: block !important;
+  width: 10px;
+  height: 10px;
+}
+
+.dv-table-wrapper::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 5px;
+}
+
+.dv-table-wrapper::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.4);
+  border-radius: 5px;
+}
+
+.dv-table-wrapper::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 92, 246, 0.6);
+}
+
+.dv-table-wrapper::-webkit-scrollbar-corner {
+  background: #0a0a0a;
+}
+
+/* The table — wider than container, scroll to see all columns */
+.dv-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  font-size: 0.8rem;
+  font-family: 'Outfit', monospace;
+  table-layout: fixed;
+}
+
+/* === COLGROUP: enforce identical widths for header & body === */
+.dv-table .dv-col-id1 { width: 80px; }
+.dv-table .dv-col-id2 { width: 160px; }
+.dv-table .dv-col-id3 { width: 80px; }
+.dv-table .dv-col-id4 { width: 160px; }
+.dv-table .dv-col-day { width: 68px; }
+
+/* === HEADER CELLS === */
+.dv-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.dv-table th {
+  padding: 10px 8px;
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.25) !important;
+  border-right: 1px solid rgba(255, 255, 255, 0.1) !important;
+  position: relative;
+}
+
+/* Header content layout — label + filter button */
+.dv-th-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.dv-th-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Purple gradient header — shared by ID and day columns */
+.dv-th-purple {
+  background: linear-gradient(180deg, #7c3aed, #5b21b6, #4c1d95) !important;
+  color: #ffffff !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Filtered header glow */
+.dv-th-filtered {
+  background: linear-gradient(180deg, #a855f7, #7c3aed, #5b21b6) !important;
+  box-shadow: inset 0 -3px 0 0 #fbbf24;
+}
+
+.dv-th-day {
+  text-align: center;
+}
+
+/* Header flex layout for label + filter button */
+.dv-th-content {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.dv-th-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* Filter button */
+.dv-filter-btn {
+  background: rgba(255, 255, 255, 0.12) !important;
+  border: none !important;
+  color: rgba(255, 255, 255, 0.6);
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.55rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+  padding: 0;
+  line-height: 1;
+}
+
+.dv-filter-btn:hover {
+  background: rgba(255, 255, 255, 0.3) !important;
+  color: #fff;
+}
+
+.dv-filter-btn.active {
+  background: #fbbf24 !important;
+  color: #1e1b4b;
+}
+
+/* === BODY CELLS === */
+.dv-table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #e2e8f0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-sizing: border-box;
+}
+
+/* Frozen ID body cells */
+.dv-td-id {
+  background: #0f0f14 !important;
+  font-weight: 500;
+  color: #cbd5e1;
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Day data cells */
+.dv-td-day {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+}
+
+/* Alternating row backgrounds */
+.dv-row-even td { background-color: #0a0a0f; }
+.dv-row-odd td { background-color: #101018; }
+
+/* Override alternating for sticky ID cells */
+.dv-row-even td.dv-td-id { background-color: #0c0c14 !important; }
+.dv-row-odd td.dv-td-id { background-color: #12121c !important; }
+
+/* Hover row */
+.dv-table tbody tr:hover td {
+  background-color: rgba(139, 92, 246, 0.08) !important;
+}
+
+.dv-table tbody tr:hover td.dv-td-id {
+  background-color: #22183b !important;
+}
+
+/* ============================================ */
+/* FILTER DROPDOWN (Excel-style)                */
+/* ============================================ */
+
+.dv-filter-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 220px;
+  max-width: 280px;
+  background: #1a1a2e;
+  border: 1px solid rgba(139, 92, 246, 0.4) !important;
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 20px rgba(139, 92, 246, 0.15);
+  z-index: 100;
+  animation: filterFadeIn 0.15s ease-out;
+  overflow: hidden;
+}
+
+@keyframes filterFadeIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Search bar */
+.dv-filter-search {
+  padding: 8px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.dv-filter-search input {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 6px;
+  padding: 7px 10px;
+  color: #e2e8f0;
+  font-family: inherit;
+  font-size: 0.78rem;
+  outline: none !important;
+  transition: border-color 0.2s;
+}
+
+.dv-filter-search input:focus {
+  border-color: rgba(139, 92, 246, 0.5) !important;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.dv-filter-search input::placeholder {
+  color: #64748b;
+}
+
+/* Action buttons */
+.dv-filter-actions {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.dv-filter-actions button {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  border-radius: 5px;
+  color: #a78bfa;
+  font-family: inherit;
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dv-filter-actions button:hover {
+  background: rgba(139, 92, 246, 0.15);
+  border-color: rgba(139, 92, 246, 0.3) !important;
+  color: #c4b5fd;
+}
+
+/* Checkbox list */
+.dv-filter-list {
+  max-height: 200px;
+  overflow-y: auto;
+  padding: 4px 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 92, 246, 0.3) transparent;
+  -ms-overflow-style: auto;
+}
+
+.dv-filter-list::-webkit-scrollbar {
+  display: block !important;
+  width: 6px;
+}
+
+.dv-filter-list::-webkit-scrollbar-thumb {
+  background: rgba(139, 92, 246, 0.3);
+  border-radius: 3px;
+}
+
+.dv-filter-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-size: 0.75rem;
+  color: #cbd5e1;
+}
+
+.dv-filter-item:hover {
+  background: rgba(139, 92, 246, 0.1);
+}
+
+.dv-filter-item input[type="checkbox"] {
+  accent-color: #7c3aed;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.dv-filter-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dv-filter-empty {
+  padding: 12px;
+  text-align: center;
+  color: #64748b;
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+/* Footer */
+.dv-filter-footer {
+  padding: 6px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08) !important;
+  font-size: 0.65rem;
+  color: #475569;
+  text-align: center;
+}
+
+/* Loading spinner */
+.loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(139, 92, 246, 0.2);
+  border-top-color: #7c3aed;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }

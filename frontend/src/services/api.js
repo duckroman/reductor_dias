@@ -15,6 +15,32 @@ const sheetParams = (sheet, state) => {
   return params;
 };
 
+// ============================================================
+// Dataset Selection
+// ============================================================
+
+export const getDatasets = async (stage = null) => {
+  const params = stage ? { stage } : {};
+  const response = await api.get('/datasets', { params });
+  return response.data;
+};
+
+export const selectDataset = async (filename, stage) => {
+  const response = await api.post('/select-dataset', null, {
+    params: { filename, stage },
+  });
+  return response.data;
+};
+
+export const clearCache = async () => {
+  const response = await api.get('/clear-cache');
+  return response.data;
+};
+
+// ============================================================
+// Existing endpoints
+// ============================================================
+
 export const getActiveFile = async () => {
   const response = await api.get('/active-file');
   return response.data;
@@ -80,6 +106,11 @@ export const getStateSummary = async (sheet = null) => {
   const params = {};
   if (sheet) params.sheet = sheet;
   const response = await api.get('/state-summary', { params });
+  return response.data;
+};
+
+export const getRawData = async (sheet = null, state = null) => {
+  const response = await api.get('/raw-data', { params: sheetParams(sheet, state) });
   return response.data;
 };
 

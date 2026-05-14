@@ -1,15 +1,29 @@
 # CONTEXTO DEL PROYECTO — Reductor de Días (INE)
 
 > **Propósito**: Este archivo permite que cualquier agente AI retome el proyecto donde se dejó.
-> **Última actualización**: 2026-05-06T18:25 CST
+> **Última actualización**: 2026-05-14T15:15 CST
 
 ## Reglas de Negocio Específicas
 
-### 1. Estructura Multi-Etapa
+### 1. Estructura Multi-Etapa con Selección de Datasets
 El sistema se divide en dos fases operativas distintas, seleccionables desde el inicio:
 *   **Etapa 1 (Visitas y Notificaciones)**: Analiza los rubros *Visitas*, *Notificaciones* y *Ciudadanos CR*. El cálculo **Global** promedia estos tres indicadores.
 *   **Etapa 2 (Nombramientos y Capacitación)**: Analiza los rubros *Nombramientos*, *Capacitación* y *Asistencia a Simulacros*. El cálculo **Global** promedia estos tres indicadores.
 *   **Sustituciones de FMDC**: Rubro especializado de la Etapa 2, estrictamente excluido de cálculos globales y del menú principal; accesible vía `/sustituciones`.
+
+### 1b. Datasets Predefinidos por Etapa
+Cada etapa tiene datasets predefinidos almacenados en `datasets/`. El flujo de selección es: **Etapa → Dataset → Análisis**.
+
+| Etapa | Dataset |
+|-------|--------|
+| 1 | `PE_2020-2021_1a.xlsx`, `PEC_2023-2024_1a.xlsx` |
+| 2 | `PE_2020-2021_2a.xlsx`, `PEC_2023-2024_2a.xlsx`, `PEL_2022-2023_Coahuila.xlsx` |
+
+**Reglas críticas**:
+*   Al cambiar de dataset o etapa, se limpia toda la caché del backend.
+*   El sistema adapta automáticamente la cantidad de días y distritos al dataset seleccionado.
+*   Solo se muestran y calculan datos del dataset activo.
+*   Al refrescar la página, se vuelve a la pantalla de selección.
 
 ### 2. Estándar de Comunicación
 *   Toda la interfaz debe utilizar lenguaje **impersonal y profesional** (ej. "se observa", "se evalúa") para garantizar un tono ejecutivo y neutro.
@@ -32,7 +46,12 @@ Analizar el cumplimiento de visitas a ciudadanos en **300 distritos electorales 
 
 ```
 reductor_dias/
-├── cumplimiento_visitas.xlsx       # Datos: 300 distritos × 50 días (porcentajes 0-1)
+├── datasets/                       # Datasets predefinidos por etapa
+│   ├── PE_2020-2021_1a.xlsx        # Etapa 1
+│   ├── PEC_2023-2024_1a.xlsx       # Etapa 1
+│   ├── PE_2020-2021_2a.xlsx        # Etapa 2
+│   ├── PEC_2023-2024_2a.xlsx       # Etapa 2
+│   └── PEL_2022-2023_Coahuila.xlsx # Etapa 2
 ├── generar_datos.py                # Script generador de datos sintéticos
 ├── CONTEXTO_PROYECTO.md            # ESTE ARCHIVO
 ├── backend/
@@ -44,13 +63,14 @@ reductor_dias/
     ├── vite.config.js              # Proxy a backend:8000
     ├── index.html
     └── src/
-        ├── App.jsx                 # Layout principal con 4 tabs
+        ├── App.jsx                 # Layout: Selección Etapa→Dataset→Dashboard
         ├── App.css                 # Estilos premium (dark theme, glassmorphism)
         ├── components/
         │   ├── Dashboard.jsx       # Tab 1: KPIs, heatmap, curvas
         │   ├── Statistical.jsx     # Tab 2: Distribuciones, box plots, correlación
         │   ├── Clustering.jsx      # Tab 3: K-Means, PCA, silueta
         │   ├── Reductor.jsx        # Tab 4: Punto óptimo, escenarios, riesgo
+        │   ├── DatasetViewer.jsx   # Visor de datos crudos con tabla premium
         │   └── SustitucionesPage.jsx # Página especial para el rubro Sustituciones
         └── services/
             └── api.js              # Fetch helpers para el backend
@@ -136,6 +156,8 @@ react, react-dom, recharts, plotly.js, react-plotly.js, axios, lucide-react
 | Etapa 10 | ✅ COMPLETADO | Soporte multi-hoja (4 rubros), sidebar de navegación, mapa interactivo de México por entidad, filtro estatal en todos los paneles |
 | Etapa 11 | ✅ COMPLETADO | Cálculo Global multi-rubro, panel de distritos rezagados y alertas tempranas (flatlines), comparativa de rubros, contexto PCA y exportación PDF |
 | Etapa 12 | ✅ COMPLETADO | Arquitectura multi-etapa: Selección inicial de fase (Etapa 1 vs Etapa 2), filtrado dinámico de rubros y unificación de lógica de procesamiento Global. |
+| Etapa 13 | ✅ COMPLETADO | Sistema de selección de datasets predefinidos por etapa. Visor de datos crudos con tabla premium (headers púrpura, columnas fijas). Limpieza de caché al cambiar etapa/dataset. Adaptación dinámica de días y distritos por dataset. |
+| Etapa 14 | ✅ COMPLETADO | Optimización UI/UX del Visor: Tabla responsiva 100% full-width con scroll horizontal dinámico. Lógica avanzada de filtros tipo Excel (Todo/Ninguno) con corrección de z-index (superposición de capas) y prevención de colapso vertical en búsquedas vacías. |
 
 ## 🚀 Cómo Ejecutar
 
@@ -157,5 +179,8 @@ cd frontend && npm run dev
 
 - El backend usa CORS habilitado para `localhost:5173` (Vite dev server)
 - El frontend tiene proxy configurado en `vite.config.js` hacia `localhost:8000`
-- Los datos del Excel se leen una vez al arrancar el backend y se cachean en memoria
+- Los datos del Excel se leen bajo demanda y se cachean en memoria; la caché se limpia al cambiar de dataset o etapa
 - El Kneedle algorithm se usa para encontrar el "knee point" en la curva de rendimiento marginal
+- **No se cargan datos al arrancar**: El usuario debe seleccionar etapa y dataset primero
+- Los datasets predefinidos se leen directamente de la carpeta `datasets/` sin necesidad de upload
+- Cada dataset puede tener diferente número de días y distritos; el sistema se adapta automáticamente
