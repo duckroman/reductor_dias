@@ -121,7 +121,7 @@ def get_data_matrix(df):
 def filter_by_state(df, state):
     """Filtra el DataFrame por nombre de entidad y devuelve df + matrix."""
     if state and 'Entidad' in df.columns:
-        df_filtered = df[df['Entidad'] == state].copy()
+        df_filtered = df[df['Entidad'].astype(str).str.lower().str.strip() == state.lower().strip()].copy()
     else:
         df_filtered = df.copy()
     matrix, day_cols = get_data_matrix(df_filtered)

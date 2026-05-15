@@ -32,11 +32,13 @@ DATASETS_POR_ETAPA = {
     1: [
         "PE_2020-2021_1a.xlsx",
         "PEC_2023-2024_1a.xlsx",
+        "PEC_2017-2018_1a.xlsx",
     ],
     2: [
         "PE_2020-2021_2a.xlsx",
         "PEC_2023-2024_2a.xlsx",
         "PEL_2022-2023_Coahuila.xlsx",
+        "PEC_2017-2018_2a.xlsx",
     ],
 }
 

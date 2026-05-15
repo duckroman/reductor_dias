@@ -32,17 +32,21 @@ const MexicoMap = ({ sheet, selectedState, onStateClick, dataVersion }) => {
 
   if (!geoJson) return <div style={{ padding: '20px', color: '#94a3b8' }}>Cargando mapa...</div>;
 
-  // Construir mapeo de datos para el choropleth
+  // Construir mapeo de datos para el choropleth (Case-insensitive)
   const stateMap = {};
-  stateData.forEach(s => { stateMap[s.entidad] = s; });
+  stateData.forEach(s => { 
+    if (s.entidad) {
+      stateMap[s.entidad.toLowerCase().trim()] = s; 
+    }
+  });
 
   const locations = geoJson.features.map(f => f.properties.name);
   const values = locations.map(name => {
-    const s = stateMap[name];
+    const s = stateMap[name.toLowerCase().trim()];
     return s ? (s.media_actual || 0) * 100 : 0;
   });
   const hoverTexts = locations.map(name => {
-    const s = stateMap[name];
+    const s = stateMap[name.toLowerCase().trim()];
     if (!s) return `${name}: Sin datos`;
     return `<b>${name}</b><br>Cumplimiento: ${((s.media_actual || 0) * 100).toFixed(1)}%<br>Distritos: ${s.n_distritos}`;
   });
@@ -77,10 +81,10 @@ const MexicoMap = ({ sheet, selectedState, onStateClick, dataVersion }) => {
             marker: {
               line: {
                 color: selectedState ? locations.map(n =>
-                  n === selectedState ? '#ffffff' : 'rgba(255,255,255,0.2)'
+                  n.toLowerCase().trim() === selectedState.toLowerCase().trim() ? '#ffffff' : 'rgba(255,255,255,0.2)'
                 ) : 'rgba(255,255,255,0.2)',
                 width: selectedState ? locations.map(n =>
-                  n === selectedState ? 2 : 0.5
+                  n.toLowerCase().trim() === selectedState.toLowerCase().trim() ? 2 : 0.5
                 ) : 0.5,
               }
             },
@@ -96,7 +100,7 @@ const MexicoMap = ({ sheet, selectedState, onStateClick, dataVersion }) => {
               tickfont: { color: '#94a3b8' },
               len: 0.8,
             },
-            selectedpoints: selectedState ? [locations.indexOf(selectedState)] : undefined,
+            selectedpoints: selectedState ? [locations.findIndex(l => l.toLowerCase().trim() === selectedState.toLowerCase().trim())] : undefined,
           }]}
           layout={{
             geo: {

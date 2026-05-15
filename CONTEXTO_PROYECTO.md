@@ -16,8 +16,8 @@ Cada etapa tiene datasets predefinidos almacenados en `datasets/`. El flujo de s
 
 | Etapa | Dataset |
 |-------|--------|
-| 1 | `PE_2020-2021_1a.xlsx`, `PEC_2023-2024_1a.xlsx` |
-| 2 | `PE_2020-2021_2a.xlsx`, `PEC_2023-2024_2a.xlsx`, `PEL_2022-2023_Coahuila.xlsx` |
+| 1 | `PE_2020-2021_1a.xlsx`, `PEC_2023-2024_1a.xlsx`, `PEC_2017-2018_1a.xlsx` |
+| 2 | `PE_2020-2021_2a.xlsx`, `PEC_2023-2024_2a.xlsx`, `PEL_2022-2023_Coahuila.xlsx`, `PEC_2017-2018_2a.xlsx` |
 
 **Reglas críticas**:
 *   Al cambiar de dataset o etapa, se limpia toda la caché del backend.
@@ -51,7 +51,9 @@ reductor_dias/
 │   ├── PEC_2023-2024_1a.xlsx       # Etapa 1
 │   ├── PE_2020-2021_2a.xlsx        # Etapa 2
 │   ├── PEC_2023-2024_2a.xlsx       # Etapa 2
-│   └── PEL_2022-2023_Coahuila.xlsx # Etapa 2
+│   ├── PEL_2022-2023_Coahuila.xlsx # Etapa 2
+│   ├── PEC_2017-2018_1a.xlsx       # Etapa 1 (Histórico)
+│   └── PEC_2017-2018_2a.xlsx       # Etapa 2 (Histórico)
 ├── generar_datos.py                # Script generador de datos sintéticos
 ├── CONTEXTO_PROYECTO.md            # ESTE ARCHIVO
 ├── backend/
