@@ -569,6 +569,48 @@ body {
   border-radius: 10px;
 }
 
+/* Nuevos estilos para la lista de distritos en riesgo */
+.risk-grid-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.risk-item-new {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  color: #fca5a5;
+}
+
+.risk-number {
+  font-weight: 700;
+  color: #ef4444;
+  min-width: 25px;
+  opacity: 0.8;
+}
+
+.risk-label {
+  flex-grow: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.risk-percent {
+  font-weight: 700;
+  background: rgba(239, 68, 68, 0.2);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
 .loading {
   text-align: center;
   padding: 100px;

@@ -191,8 +191,10 @@ def compute_full_data(df, matrix):
     """Retorna los datos completos para graficar. Topea valores al 100%."""
     n_districts, n_days = matrix.shape
     capped_matrix = np.clip(matrix, 0, 1.0)
+    district_labels = get_district_labels(df) if df is not None else [f"Distrito {i+1}" for i in range(n_districts)]
     return {
         'distritos': list(range(1, n_districts + 1)),
+        'distrito_nombres': district_labels,
         'dias': list(range(1, n_days + 1)),
         'matrix': capped_matrix.tolist(),
     }
@@ -216,14 +218,21 @@ def compute_lagging_districts(matrix, df=None, top_n=20, flatline_days=5):
     for i in range(n_districts):
         # Únicamente los que no han llegado al 100%
         if current_vals[i] < 0.999:
-            # Estado: Estancado (crecimiento < 0.5%) o Avance Lento
-            status = "Estancado" if growth[i] < 0.005 else "Avance Lento"
+            # Nuevos criterios de diagnóstico solicitado:
+            g = round(growth[i], 3)
+            if g <= 0.005:
+                status = "Se estancó"
+            elif g <= 0.02:
+                status = "Avanzó lento"
+            else:
+                status = "Avanzó pero no llegó al 100%"
+                
             lagging.append({
                 'distrito': district_labels[i],
                 'cumplimiento': safe_float(current_vals[i]),
-                'crecimiento_5d': safe_float(growth[i]),
+                'crecimiento_5d': safe_float(g),
                 'estado': status,
-                'estancado': bool(growth[i] < 0.005)
+                'estancado': bool(g <= 0.005)
             })
         
     # Ordenar por el cumplimiento mas bajo (menor porcentaje arriba)
@@ -583,6 +592,8 @@ def compute_reductor(matrix, df=None, threshold=0.90, coverage=0.80, manual_day=
         'scenarios': scenarios,
         'risk_districts': risk_districts,
         'total_risk_districts': len(risk_districts),
+        'total_districts': n_districts,
+        'counts_by_day': [int(np.sum(matrix[:, d] >= threshold)) for d in range(n_days)],
         'efficiency': efficiency,
         'threshold': threshold,
         'coverage': coverage,

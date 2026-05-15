@@ -159,7 +159,10 @@ const Reductor = ({ sheet, state }) => {
             <div className="chart-card">
               <h3>📈 Eficiencia: Análisis de Rendimiento Marginal</h3>
               <p className="explanation-text mb-15">
-                Este gráfico nos ayuda a ver cuándo el esfuerzo extra ya no vale la pena. Las <strong>barras (Incremento Marginal)</strong> muestran cuánto avance ganamos cada día. Por ejemplo, en los primeros días las barras son grandes porque se avanza rápido, pero al final son pequeñas porque cuesta mucho trabajo convencer a los últimos ciudadanos. El día óptimo es cuando estas barras se vuelven muy pequeñas de forma constante.
+                Este gráfico ayuda a visualizar la relación entre el avance total y el esfuerzo diario.
+                La <strong>Línea Azul (Progreso Acumulado)</strong> muestra el promedio nacional de cumplimiento a través del tiempo.
+                Las <strong>Barras Naranja (Rendimiento Marginal)</strong> representan el <strong>avance nuevo</strong> del día (la "velocidad"); muestran cuánto aumentó el promedio nacional hoy respecto al día anterior.
+                El punto óptimo ocurre cuando estas barras se vuelven constantes y pequeñas, indicando que el esfuerzo extra ya no produce resultados significativos.
               </p>
               <div className="chart-wrapper">
                 <Plot
@@ -216,7 +219,10 @@ const Reductor = ({ sheet, state }) => {
             <div className="chart-card">
               <h3>🗺️ Cobertura Probabilística de Distritos</h3>
               <p className="explanation-text mb-15">
-                Aquí vemos cuántos de los 300 distritos ya "cruzaron la meta" de cumplimiento. La <strong>línea verde</strong> sube conforme pasan los días. El objetivo es que esta línea cruce la <strong>línea punteada naranja</strong>, que es el porcentaje mínimo de distritos que queremos que terminen a tiempo. Si la línea verde sube muy lento, significa que hay muchos distritos rezagados frenando el éxito nacional.
+                Este indicador muestra el avance del país basado en el cumplimiento de metas individuales.
+                La <strong>Línea Verde (Distritos en Meta)</strong> representa el porcentaje de los {data.total_districts || 300} distritos que ya alcanzaron el umbral del {(threshold*100).toFixed(0)}%.
+                Esta línea sube porque es una métrica acumulativa: conforme pasan los días, más distritos logran "cruzar la meta" y se suman al grupo de éxito.
+                El objetivo es cruzar la <strong>Línea Punteada Naranja</strong>, que es la cobertura nacional mínima requerida para concluir la etapa.
               </p>
               <div className="chart-wrapper">
                 <Plot
@@ -224,6 +230,8 @@ const Reductor = ({ sheet, state }) => {
                     {
                       x: data.dias,
                       y: data.coverage_by_day.map(v => v * 100),
+                      text: (data.counts_by_day || []).map(c => `(${c} distritos)`),
+                      hovertemplate: 'Día %{x}<br>Cobertura: %{y:.1f}%<br>%{text}<extra></extra>',
                       type: 'scatter',
                       mode: 'lines',
                       name: 'Distritos en Meta (%)',
@@ -295,11 +303,12 @@ const Reductor = ({ sheet, state }) => {
               <div className="chart-card wide alert-card">
                 <h3>⚠️ Top Distritos en Riesgo (Día {data.recommended_day})</h3>
                 <p>Estos distritos no alcanzarán el umbral del {(threshold*100).toFixed(0)}% si se recorta a {data.recommended_day} días.</p>
-                <div className="risk-tags">
-                  {(showAllRisk ? data.risk_districts : data.risk_districts.slice(0, 20)).map((d) => (
-                    <div key={d.distrito} className="risk-tag">
-                      {d.distrito} 
-                      <span className="risk-value">{(d.cumplimiento * 100).toFixed(1)}%</span>
+                <div className="risk-grid-container">
+                  {(showAllRisk ? data.risk_districts : data.risk_districts.slice(0, 20)).map((d, idx) => (
+                    <div key={d.distrito} className="risk-item-new">
+                      <span className="risk-number">{idx + 1}.</span>
+                      <span className="risk-label">{d.distrito}</span>
+                      <span className="risk-percent">{(d.cumplimiento * 100).toFixed(1)}%</span>
                     </div>
                   ))}
                   {!showAllRisk && data.total_risk_districts > 20 && (

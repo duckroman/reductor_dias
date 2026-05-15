@@ -49,6 +49,9 @@ const Dashboard = ({ sheet, state }) => {
   const zValues = fullData ? fullData.matrix : [];
   const xDays = fullData ? fullData.dias : [];
   const yDistricts = fullData ? fullData.distritos : [];
+  const hoverText = (fullData && fullData.distrito_nombres) 
+    ? zValues.map((row, i) => row.map(() => fullData.distrito_nombres[i]))
+    : [];
 
   return (
     <div className="dashboard-container">
@@ -152,9 +155,11 @@ const Dashboard = ({ sheet, state }) => {
                     z: zValues,
                     x: xDays,
                     y: yDistricts,
+                    text: hoverText,
                     type: 'heatmap',
                     colorscale: 'Viridis',
                     colorbar: { title: 'Cumplimiento' },
+                    hovertemplate: 'Día %{x}<br>Distrito: %{text}<br>Cumplimiento: %{z:.1%}<extra></extra>',
                   }
                 ]}
                 layout={{
@@ -192,7 +197,7 @@ const Dashboard = ({ sheet, state }) => {
                   <th>Distrito</th>
                   <th>Cumplimiento Actual</th>
                   <th>Crecimiento (Últimos 5 Días)</th>
-                  <th>Estado</th>
+                  <th>Último diagnóstico</th>
                 </tr>
               </thead>
               <tbody>
@@ -209,11 +214,15 @@ const Dashboard = ({ sheet, state }) => {
                         display: 'inline-flex', 
                         padding: '4px 10px', 
                         fontSize: '0.8rem', 
-                        background: dist.estancado ? '#991b1b' : '#854d0e', 
-                        color: dist.estancado ? '#fecaca' : '#fef9c3', 
+                        background: dist.estado === 'Se estancó' ? '#991b1b' : 
+                                    dist.estado === 'Avanzó lento' ? '#854d0e' : '#166534', 
+                        color: dist.estado === 'Se estancó' ? '#fecaca' : 
+                               dist.estado === 'Avanzó lento' ? '#fef9c3' : '#dcfce7', 
                         border: 'none' 
                       }}>
-                        {dist.estancado ? '⚠️ ' : '⏳ '}{dist.estado}
+                        {dist.estado === 'Se estancó' ? '⚠️ ' : 
+                         dist.estado === 'Avanzó lento' ? '⏳ ' : '✅ '}
+                        {dist.estado}
                       </span>
                     </td>
                   </tr>
