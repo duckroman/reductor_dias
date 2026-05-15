@@ -205,15 +205,16 @@ const Dashboard = ({ sheet, state }) => {
                       {dist.crecimiento_5d < 0 ? ' 📉' : ' 📈'}
                     </td>
                     <td>
-                      {dist.estancado ? (
-                        <span className="risk-tag" style={{ display: 'inline-flex', padding: '4px 10px', fontSize: '0.8rem', background: '#991b1b', color: '#fecaca', border: 'none' }}>
-                          ⚠️ Estancamiento Crítico
-                        </span>
-                      ) : (
-                        <span className="risk-tag more" style={{ display: 'inline-flex', padding: '4px 10px', fontSize: '0.8rem' }}>
-                          Activo
-                        </span>
-                      )}
+                      <span className="risk-tag" style={{ 
+                        display: 'inline-flex', 
+                        padding: '4px 10px', 
+                        fontSize: '0.8rem', 
+                        background: dist.estancado ? '#991b1b' : '#854d0e', 
+                        color: dist.estancado ? '#fecaca' : '#fef9c3', 
+                        border: 'none' 
+                      }}>
+                        {dist.estancado ? '⚠️ ' : '⏳ '}{dist.estado}
+                      </span>
                     </td>
                   </tr>
                 ))}

@@ -78,19 +78,29 @@ const Reductor = ({ sheet, state }) => {
           </label>
         </div>
         <div className="control-group highlight-control" style={{ background: 'rgba(255, 255, 255, 0.05)', padding: '10px', borderRadius: '8px', border: '1px solid #ff7f0e' }}>
-          <label>
-            <strong style={{color: '#ff7f0e'}}>Ajuste de Día de Corte:</strong> {manualDay === 0 ? "Recomendación Sugerida" : `Manual: Día ${manualDay}`}
-            <span className="explanation-text micro" style={{marginBottom: '5px'}}>
-              Desplace este control para simular un cierre en una fecha específica y evaluar el impacto en los indicadores de riesgo.
-            </span>
-            <input 
-              type="range" 
-              min="0" max={data ? data.dias.length : 50} step="1"
-              value={manualDay} 
-              onChange={(e) => setManualDay(parseInt(e.target.value))}
-              className="slider"
-            />
-          </label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label style={{ flex: 1 }}>
+              <strong style={{color: '#ff7f0e'}}>Ajuste de Día de Corte:</strong> {manualDay === 0 ? "Recomendación Sugerida" : `Manual: Día ${manualDay}`}
+              <span className="explanation-text micro" style={{marginBottom: '5px'}}>
+                Desplace este control para simular un cierre en una fecha específica.
+              </span>
+            </label>
+            {manualDay !== 0 && (
+              <button 
+                onClick={() => setManualDay(0)}
+                style={{ padding: '4px 10px', fontSize: '0.75rem', background: '#ff7f0e', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                Resetear a Sugerido
+              </button>
+            )}
+          </div>
+          <input 
+            type="range" 
+            min="0" max={data ? data.dias.length : 50} step="1"
+            value={manualDay} 
+            onChange={(e) => setManualDay(parseInt(e.target.value))}
+            className="slider"
+          />
         </div>
       </div>
 
@@ -114,7 +124,7 @@ const Reductor = ({ sheet, state }) => {
               <div className="kpi-content">
                 <h3>Rendimiento Decreciente</h3>
                 <div className="kpi-value">{data.knee_day ? `Día ${data.knee_day}` : 'N/A'}</div>
-                <span className="micro-text">Punto donde el avance se estanca</span>
+                <span className="micro-text">Punto de codo detectado</span>
               </div>
             </div>
             <div className="kpi-card">
@@ -126,7 +136,7 @@ const Reductor = ({ sheet, state }) => {
                     ? (data.coverage_by_day[data.recommended_day - 1] * 100).toFixed(1) + '%' 
                     : 'N/A'}
                 </div>
-                <span className="micro-text">Distritos que alcanzaron el {(threshold*100).toFixed(0)}%</span>
+                <span className="micro-text">Distritos en meta el Día {data.recommended_day}</span>
               </div>
             </div>
             <div className="kpi-card alert">
@@ -141,15 +151,15 @@ const Reductor = ({ sheet, state }) => {
 
           <div className="panel reasoning-panel" style={{ marginTop: '15px', borderLeft: '4px solid #3A6BC5', background: 'rgba(58, 107, 197, 0.1)' }}>
              <p className="explanation-text" style={{ fontSize: '1rem', color: '#e0e0e0' }}>
-               <strong>💡 Razonamiento:</strong> {data.recommendation_reason}
+               <strong>💡 Por qué se recomienda el Día {data.recommended_day}:</strong> {data.recommendation_reason}
              </p>
           </div>
 
           <div className="charts-grid">
             <div className="chart-card">
               <h3>📈 Eficiencia: Análisis de Rendimiento Marginal</h3>
-              <p className="explanation-text micro" style={{marginBottom: '10px'}}>
-                Este gráfico compara la ganancia diaria de avance (barras) contra el progreso acumulado (línea). El punto de optimización ocurre cuando las barras de crecimiento diario comienzan a disminuir su tamaño de forma sostenida, indicando que el operativo ha entrado en una fase de cierre donde cada día adicional requiere más esfuerzo para obtener el mismo resultado.
+              <p className="explanation-text mb-15">
+                Este gráfico nos ayuda a ver cuándo el esfuerzo extra ya no vale la pena. Las <strong>barras (Incremento Marginal)</strong> muestran cuánto avance ganamos cada día. Por ejemplo, en los primeros días las barras son grandes porque se avanza rápido, pero al final son pequeñas porque cuesta mucho trabajo convencer a los últimos ciudadanos. El día óptimo es cuando estas barras se vuelven muy pequeñas de forma constante.
               </p>
               <div className="chart-wrapper">
                 <Plot
@@ -159,7 +169,7 @@ const Reductor = ({ sheet, state }) => {
                       y: data.mean_by_day.map(v => v * 100),
                       type: 'scatter',
                       mode: 'lines',
-                      name: 'Acumulado Promedio (%)',
+                      name: 'Progreso Acumulado (%)',
                       line: { color: '#3A6BC5', width: 3 },
                       yaxis: 'y1',
                     },
@@ -167,17 +177,17 @@ const Reductor = ({ sheet, state }) => {
                       x: data.dias,
                       y: data.marginal_returns.map(v => v * 100),
                       type: 'bar',
-                      name: 'Incremento Marginal (%)',
+                      name: 'Avance por Día (%)',
                       marker: { color: 'rgba(255, 127, 14, 0.6)' },
                       yaxis: 'y2',
                     }
                   ]}
                   layout={{
-                    margin: { t: 10, r: 50, b: 40, l: 50 },
-                    xaxis: { title: 'Día' },
-                    yaxis: { title: 'Cumplimiento (%)', range: [0, 100] },
+                    margin: { t: 10, r: 50, b: 50, l: 60 },
+                    xaxis: { title: { text: 'Tiempo (Días de Operación)', font: { size: 12 } } },
+                    yaxis: { title: { text: 'Cumplimiento Total (%)', font: { size: 12 } }, range: [0, 100] },
                     yaxis2: { 
-                      title: 'Incremento (%)', 
+                      title: { text: 'Avance Diario (%)', font: { size: 12 } }, 
                       overlaying: 'y', 
                       side: 'right',
                       range: [0, Math.max(...data.marginal_returns) * 120] 
@@ -185,7 +195,7 @@ const Reductor = ({ sheet, state }) => {
                     paper_bgcolor: 'rgba(0,0,0,0)',
                     plot_bgcolor: 'rgba(0,0,0,0)',
                     font: { color: '#e0e0e0' },
-                    legend: { orientation: 'h', y: -0.2 },
+                    legend: { orientation: 'h', y: -0.3 },
                     shapes: [
                       {
                         type: 'line',
@@ -194,20 +204,6 @@ const Reductor = ({ sheet, state }) => {
                         y0: 0,
                         y1: 100,
                         line: { color: '#ff3333', width: 2, dash: 'dot' }
-                      }
-                    ],
-                    annotations: [
-                      {
-                        x: data.recommended_day,
-                        y: 100,
-                        xref: 'x',
-                        yref: 'y1',
-                        text: 'Punto de Corte',
-                        showarrow: true,
-                        arrowhead: 2,
-                        ax: -40,
-                        ay: -40,
-                        font: { color: '#ff3333', size: 10 }
                       }
                     ]
                   }}
@@ -219,8 +215,8 @@ const Reductor = ({ sheet, state }) => {
 
             <div className="chart-card">
               <h3>🗺️ Cobertura Probabilística de Distritos</h3>
-              <p className="explanation-text micro" style={{marginBottom: '10px'}}>
-                Muestra la progresión de los 300 distritos conforme superan el umbral establecido. La intersección de la curva de cobertura con la línea de meta (naranja) define el día técnico de cumplimiento. Si la curva tiene una pendiente muy baja, significa que hay un grupo de distritos rezagados que están retrasando la conclusión general del operativo nacional.
+              <p className="explanation-text mb-15">
+                Aquí vemos cuántos de los 300 distritos ya "cruzaron la meta" de cumplimiento. La <strong>línea verde</strong> sube conforme pasan los días. El objetivo es que esta línea cruce la <strong>línea punteada naranja</strong>, que es el porcentaje mínimo de distritos que queremos que terminen a tiempo. Si la línea verde sube muy lento, significa que hay muchos distritos rezagados frenando el éxito nacional.
               </p>
               <div className="chart-wrapper">
                 <Plot
@@ -230,17 +226,18 @@ const Reductor = ({ sheet, state }) => {
                       y: data.coverage_by_day.map(v => v * 100),
                       type: 'scatter',
                       mode: 'lines',
-                      name: '% Distritos que cumplen',
+                      name: 'Distritos en Meta (%)',
                       line: { color: '#2ca02c', width: 3 },
                     }
                   ]}
                   layout={{
-                    margin: { t: 10, r: 10, b: 40, l: 50 },
-                    xaxis: { title: 'Día' },
-                    yaxis: { title: 'Cobertura (%)', range: [0, 100] },
+                    margin: { t: 10, r: 20, b: 50, l: 60 },
+                    xaxis: { title: { text: 'Tiempo (Días de Operación)', font: { size: 12 } } },
+                    yaxis: { title: { text: 'Porcentaje de Distritos en Meta (%)', font: { size: 12 } }, range: [0, 100] },
                     paper_bgcolor: 'rgba(0,0,0,0)',
                     plot_bgcolor: 'rgba(0,0,0,0)',
                     font: { color: '#e0e0e0' },
+                    legend: { orientation: 'h', y: -0.3 },
                     shapes: [
                       {
                         type: 'line',
@@ -273,10 +270,9 @@ const Reductor = ({ sheet, state }) => {
                   <tr>
                     <th>Si cortamos el Día...</th>
                     <th>Cumplimiento Medio</th>
-                    <th>Mediana</th>
-                    <th>Distritos &gt; 80%</th>
-                    <th>Distritos &gt; 90%</th>
-                    <th>Distritos en Riesgo ({'<'} {(threshold*100).toFixed(0)}%)</th>
+                    <th>Distritos &gt; Umbral de cumplimiento establecido</th>
+                    <th>Distritos con 100%</th>
+                    <th>Distritos en riesgo de llegar al Umbral establecido</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -284,9 +280,8 @@ const Reductor = ({ sheet, state }) => {
                     <tr key={s.dia} className={s.dia === data.recommended_day ? 'highlight-row' : ''}>
                       <td>Día {s.dia} {s.dia === data.recommended_day && '🎯'}</td>
                       <td>{(s.media * 100).toFixed(1)}%</td>
-                      <td>{(s.mediana * 100).toFixed(1)}%</td>
-                      <td>{s.pct_above_80.toFixed(1)}%</td>
-                      <td>{s.pct_above_90.toFixed(1)}%</td>
+                      <td>{s.pct_above_threshold.toFixed(1)}% ({s.count_above_threshold})</td>
+                      <td>{s.pct_at_100.toFixed(1)}% ({s.count_at_100})</td>
                       <td className={s.distritos_en_riesgo > 50 ? 'danger-text' : ''}>
                         {s.distritos_en_riesgo}
                       </td>

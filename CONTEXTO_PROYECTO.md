@@ -158,6 +158,7 @@ react, react-dom, recharts, plotly.js, react-plotly.js, axios, lucide-react
 | Etapa 12 | ✅ COMPLETADO | Arquitectura multi-etapa: Selección inicial de fase (Etapa 1 vs Etapa 2), filtrado dinámico de rubros y unificación de lógica de procesamiento Global. |
 | Etapa 13 | ✅ COMPLETADO | Sistema de selección de datasets predefinidos por etapa. Visor de datos crudos con tabla premium (headers púrpura, columnas fijas). Limpieza de caché al cambiar etapa/dataset. Adaptación dinámica de días y distritos por dataset. |
 | Etapa 14 | ✅ COMPLETADO | Optimización UI/UX del Visor: Tabla responsiva 100% full-width con scroll horizontal dinámico. Lógica avanzada de filtros tipo Excel (Todo/Ninguno) con corrección de z-index (superposición de capas) y prevención de colapso vertical en búsquedas vacías. |
+| Etapa 15 | ✅ COMPLETADO | Fase de Perfeccionamiento: Responsividad móvil (iPhone 11), tipografía profesional (justificada), explicaciones técnicas coloquiales (Ajuste Beta/Normal), lógica de Focos Rojos (<100% y Estancamiento), y simulación de escenarios con métricas absolutas. |
 
 ## 🚀 Cómo Ejecutar
 

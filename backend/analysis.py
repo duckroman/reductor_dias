@@ -188,17 +188,18 @@ def compute_summary_stats(matrix):
 
 
 def compute_full_data(df, matrix):
-    """Retorna los datos completos para graficar."""
+    """Retorna los datos completos para graficar. Topea valores al 100%."""
     n_districts, n_days = matrix.shape
+    capped_matrix = np.clip(matrix, 0, 1.0)
     return {
         'distritos': list(range(1, n_districts + 1)),
         'dias': list(range(1, n_days + 1)),
-        'matrix': matrix.tolist(),
+        'matrix': capped_matrix.tolist(),
     }
 
 
 def compute_lagging_districts(matrix, df=None, top_n=20, flatline_days=5):
-    """Calcula los distritos con mayor rezago y detecta estancamientos."""
+    """Calcula los distritos con mayor rezago (< 100%) y detecta estancamientos."""
     n_districts, n_days = matrix.shape
     district_labels = get_district_labels(df) if df is not None else [f"Distrito {i+1}" for i in range(n_districts)]
     
@@ -209,18 +210,23 @@ def compute_lagging_districts(matrix, df=None, top_n=20, flatline_days=5):
         past_vals = matrix[:, current_day_idx - flatline_days]
         growth = current_vals - past_vals
     else:
-        growth = np.zeros(n_districts)
+        growth = current_vals
         
     lagging = []
     for i in range(n_districts):
-        lagging.append({
-            'distrito': district_labels[i],
-            'cumplimiento': safe_float(current_vals[i]),
-            'crecimiento_5d': safe_float(growth[i]),
-            'estancado': bool(growth[i] < 0.01) # Menos de 1% de crecimiento
-        })
+        # Únicamente los que no han llegado al 100%
+        if current_vals[i] < 0.999:
+            # Estado: Estancado (crecimiento < 0.5%) o Avance Lento
+            status = "Estancado" if growth[i] < 0.005 else "Avance Lento"
+            lagging.append({
+                'distrito': district_labels[i],
+                'cumplimiento': safe_float(current_vals[i]),
+                'crecimiento_5d': safe_float(growth[i]),
+                'estado': status,
+                'estancado': bool(growth[i] < 0.005)
+            })
         
-    # Ordenar por el cumplimiento mas bajo
+    # Ordenar por el cumplimiento mas bajo (menor porcentaje arriba)
     lagging.sort(key=lambda x: x['cumplimiento'])
     
     return lagging[:top_n]
@@ -532,17 +538,17 @@ def compute_reductor(matrix, df=None, threshold=0.90, coverage=0.80, manual_day=
     for sd in scenario_days:
         idx = sd - 1
         col = matrix[:, idx]
+        above_threshold = col >= threshold
+        at_100 = col >= 0.999
         scenarios.append({
             'dia': sd,
             'media': float(col.mean()),
             'mediana': float(np.median(col)),
-            'pct_above_80': float(np.mean(col >= 0.80) * 100),
-            'pct_above_85': float(np.mean(col >= 0.85) * 100),
-            'pct_above_90': float(np.mean(col >= 0.90) * 100),
-            'pct_above_95': float(np.mean(col >= 0.95) * 100),
-            'min': float(col.min()),
-            'max': float(col.max()),
-            'distritos_en_riesgo': int(np.sum(col < threshold)),
+            'pct_above_threshold': float(np.mean(above_threshold) * 100),
+            'count_above_threshold': int(np.sum(above_threshold)),
+            'pct_at_100': float(np.mean(at_100) * 100),
+            'count_at_100': int(np.sum(at_100)),
+            'distritos_en_riesgo': int(np.sum(~above_threshold)),
         })
 
     # --- 6. Distritos en riesgo en el dia optimo ---

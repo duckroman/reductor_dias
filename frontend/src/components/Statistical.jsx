@@ -76,7 +76,10 @@ const Statistical = ({ sheet, state }) => {
             <div className="chart-card">
               <h3>Distribución de Distritos (Día {day})</h3>
               <p className="explanation-text mb-15">
-                Este gráfico permite observar la homogeneidad del avance en un momento específico del operativo. Las barras azules agrupan a los distritos según su nivel de cumplimiento, mientras que las curvas de ajuste (Normal y Beta) actúan como modelos de referencia para detectar comportamientos atípicos. Si las barras se concentran en un solo bloque, significa que el trabajo de campo avanza de forma sincronizada a nivel nacional.
+                Este gráfico nos muestra cuántos distritos se encuentran en cada nivel de avance. Las <strong>barras azules (Frecuencia)</strong> indican el número de distritos; por ejemplo, si una barra es alta en el 80%, significa que muchos distritos tienen ese nivel de cumplimiento.
+              </p>
+              <p className="explanation-text mb-15">
+                El <strong>Ajuste Normal (línea roja)</strong> representa el "comportamiento ideal" o promedio: lo que esperaríamos si todos los distritos avanzaran a un ritmo constante y similar. Por otro lado, el <strong>Ajuste Beta (línea verde)</strong> es más realista; nos dice si los datos están "sesgados", por ejemplo, cuando la mayoría ya terminó (acumulados a la derecha) o cuando un grupo grande está muy rezagado (acumulados a la izquierda).
               </p>
               <div className="chart-wrapper">
                 <Plot

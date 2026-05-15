@@ -36,6 +36,10 @@ body {
   min-height: 100vh;
 }
 
+.explanation-text {
+  text-align: justify;
+}
+
 /* Ocultar scrollbars por completo para eliminar lineas verticales */
 * {
   -ms-overflow-style: none;  /* IE and Edge */
@@ -780,6 +784,18 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .stage-options {
+    grid-template-columns: 1fr;
+  }
+  .stage-selection-card {
+    padding: 32px 20px;
+  }
+  .stage-selection-card h1 {
+    font-size: 1.8rem;
+  }
 }
 
 .stage-option-btn {
