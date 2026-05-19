@@ -5,6 +5,25 @@ import { AlertTriangle, TrendingDown, Target, CheckCircle2 } from 'lucide-react'
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
+const getDeterministicJitter = (distrito, clusterName) => {
+  let hash = 0;
+  for (let i = 0; i < distrito.length; i++) {
+    hash = distrito.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const rawJitter = Math.abs(hash % 100) / 100; // entre 0 y 1
+  
+  if (clusterName === 'muy_lejos') {
+    // Grupo crítico: parte inferior (como los puntos verdes abajo) -> Y entre 10 y 35
+    return 10 + rawJitter * 25;
+  } else if (clusterName === 'medio') {
+    // Grupo medio: parte superior/media (como los puntos naranjas) -> Y entre 40 y 85
+    return 40 + rawJitter * 45;
+  } else {
+    // Grupo cercano: parte superior/media derecha (como los puntos azules) -> Y entre 40 y 85
+    return 40 + rawJitter * 45;
+  }
+};
+
 const Reductor = ({ sheet, state }) => {
   const [threshold, setThreshold] = useState(0.90);
   const [coverage, setCoverage] = useState(0.80);
@@ -429,60 +448,110 @@ const Reductor = ({ sheet, state }) => {
                             📊 Barras
                           </button>
                           <button 
-                            onClick={() => setClusterChartType('scatter')}
+                            onClick={() => setClusterChartType('scatter1')}
                             style={{
                               padding: '5px 10px', 
-                              background: clusterChartType === 'scatter' ? '#3A6BC5' : 'transparent', 
-                              color: clusterChartType === 'scatter' ? 'white' : (theme3 === 'light' ? '#475569' : '#aaa'), 
+                              background: clusterChartType === 'scatter1' ? '#3A6BC5' : 'transparent', 
+                              color: clusterChartType === 'scatter1' ? 'white' : (theme3 === 'light' ? '#475569' : '#aaa'), 
                               border: 'none', 
                               borderRadius: '3px', 
                               cursor: 'pointer',
                               fontWeight: '500'
                             }}
                           >
-                            🔵 Dispersión
+                            🔵 Dispersión 1
+                          </button>
+                          <button 
+                            onClick={() => setClusterChartType('scatter2')}
+                            style={{
+                              padding: '5px 10px', 
+                              background: clusterChartType === 'scatter2' ? '#3A6BC5' : 'transparent', 
+                              color: clusterChartType === 'scatter2' ? 'white' : (theme3 === 'light' ? '#475569' : '#aaa'), 
+                              border: 'none', 
+                              borderRadius: '3px', 
+                              cursor: 'pointer',
+                              fontWeight: '500'
+                            }}
+                          >
+                            🟢 Dispersión 2
                           </button>
                         </div>
                       </div>
                       <Plot
                         data={[
                           {
-                            x: data.risk_clusters.muy_lejos.distritos.map(d => d.distrito),
-                            y: data.risk_clusters.muy_lejos.distritos.map(d => (d.cumplimiento * 100).toFixed(1)),
-                            type: clusterChartType,
-                            mode: clusterChartType === 'scatter' ? 'markers' : undefined,
+                            x: clusterChartType === 'scatter2'
+                              ? data.risk_clusters.muy_lejos.distritos.map(d => (d.cumplimiento * 100).toFixed(1))
+                              : data.risk_clusters.muy_lejos.distritos.map(d => d.distrito),
+                            y: clusterChartType === 'scatter2'
+                              ? data.risk_clusters.muy_lejos.distritos.map(d => getDeterministicJitter(d.distrito, 'muy_lejos'))
+                              : data.risk_clusters.muy_lejos.distritos.map(d => (d.cumplimiento * 100).toFixed(1)),
+                            text: data.risk_clusters.muy_lejos.distritos.map(d => d.distrito),
+                            hovertemplate: clusterChartType === 'scatter2' ? 'Distrito: %{text}<br>Cumplimiento: %{x}%<extra></extra>' : undefined,
+                            type: (clusterChartType === 'scatter1' || clusterChartType === 'scatter2') ? 'scatter' : 'bar',
+                            mode: (clusterChartType === 'scatter1' || clusterChartType === 'scatter2') ? 'markers' : undefined,
                             name: 'Muy alejado',
-                            marker: { color: '#ff3333', size: clusterChartType === 'scatter' ? 12 : undefined, line: clusterChartType === 'scatter' ? { color: 'white', width: 1 } : undefined }
+                            marker: { 
+                              color: '#ff3333', 
+                              size: clusterChartType === 'scatter1' ? 12 : (clusterChartType === 'scatter2' ? 14 : undefined), 
+                              opacity: clusterChartType === 'scatter2' ? 0.75 : undefined,
+                              line: (clusterChartType === 'scatter1' || clusterChartType === 'scatter2') ? { color: 'white', width: 1 } : undefined 
+                            }
                           },
                           {
-                            x: data.risk_clusters.medio.distritos.map(d => d.distrito),
-                            y: data.risk_clusters.medio.distritos.map(d => (d.cumplimiento * 100).toFixed(1)),
-                            type: clusterChartType,
-                            mode: clusterChartType === 'scatter' ? 'markers' : undefined,
+                            x: clusterChartType === 'scatter2'
+                              ? data.risk_clusters.medio.distritos.map(d => (d.cumplimiento * 100).toFixed(1))
+                              : data.risk_clusters.medio.distritos.map(d => d.distrito),
+                            y: clusterChartType === 'scatter2'
+                              ? data.risk_clusters.medio.distritos.map(d => getDeterministicJitter(d.distrito, 'medio'))
+                              : data.risk_clusters.medio.distritos.map(d => (d.cumplimiento * 100).toFixed(1)),
+                            text: data.risk_clusters.medio.distritos.map(d => d.distrito),
+                            hovertemplate: clusterChartType === 'scatter2' ? 'Distrito: %{text}<br>Cumplimiento: %{x}%<extra></extra>' : undefined,
+                            type: (clusterChartType === 'scatter1' || clusterChartType === 'scatter2') ? 'scatter' : 'bar',
+                            mode: (clusterChartType === 'scatter1' || clusterChartType === 'scatter2') ? 'markers' : undefined,
                             name: 'Medio',
-                            marker: { color: '#ff7f0e', size: clusterChartType === 'scatter' ? 12 : undefined, line: clusterChartType === 'scatter' ? { color: 'white', width: 1 } : undefined }
+                            marker: { 
+                              color: '#ff7f0e', 
+                              size: clusterChartType === 'scatter1' ? 12 : (clusterChartType === 'scatter2' ? 14 : undefined), 
+                              opacity: clusterChartType === 'scatter2' ? 0.75 : undefined,
+                              line: (clusterChartType === 'scatter1' || clusterChartType === 'scatter2') ? { color: 'white', width: 1 } : undefined 
+                            }
                           },
                           {
-                            x: data.risk_clusters.muy_cerca.distritos.map(d => d.distrito),
-                            y: data.risk_clusters.muy_cerca.distritos.map(d => (d.cumplimiento * 100).toFixed(1)),
-                            type: clusterChartType,
-                            mode: clusterChartType === 'scatter' ? 'markers' : undefined,
+                            x: clusterChartType === 'scatter2'
+                              ? data.risk_clusters.muy_cerca.distritos.map(d => (d.cumplimiento * 100).toFixed(1))
+                              : data.risk_clusters.muy_cerca.distritos.map(d => d.distrito),
+                            y: clusterChartType === 'scatter2'
+                              ? data.risk_clusters.muy_cerca.distritos.map(d => getDeterministicJitter(d.distrito, 'muy_cerca'))
+                              : data.risk_clusters.muy_cerca.distritos.map(d => (d.cumplimiento * 100).toFixed(1)),
+                            text: data.risk_clusters.muy_cerca.distritos.map(d => d.distrito),
+                            hovertemplate: clusterChartType === 'scatter2' ? 'Distrito: %{text}<br>Cumplimiento: %{x}%<extra></extra>' : undefined,
+                            type: (clusterChartType === 'scatter1' || clusterChartType === 'scatter2') ? 'scatter' : 'bar',
+                            mode: (clusterChartType === 'scatter1' || clusterChartType === 'scatter2') ? 'markers' : undefined,
                             name: 'Muy cerca',
-                            marker: { color: '#eab308', size: clusterChartType === 'scatter' ? 12 : undefined, line: clusterChartType === 'scatter' ? { color: 'white', width: 1 } : undefined }
+                            marker: { 
+                              color: '#eab308', 
+                              size: clusterChartType === 'scatter1' ? 12 : (clusterChartType === 'scatter2' ? 14 : undefined), 
+                              opacity: clusterChartType === 'scatter2' ? 0.75 : undefined,
+                              line: (clusterChartType === 'scatter1' || clusterChartType === 'scatter2') ? { color: 'white', width: 1 } : undefined 
+                            }
                           }
                         ]}
                         layout={{
                           margin: { t: 20, r: 20, b: 80, l: 50 },
                           xaxis: { 
-                            title: '', 
-                            tickangle: -45, 
+                            title: { text: clusterChartType === 'scatter2' ? 'Cumplimiento (%)' : '', font: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' } }, 
+                            tickangle: clusterChartType === 'scatter2' ? 0 : -45, 
                             font: { size: 10, color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' },
-                            tickfont: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' }
+                            tickfont: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' },
+                            gridcolor: theme3 === 'light' ? '#cbd5e1' : '#444'
                           },
                           yaxis: { 
-                            title: { text: 'Cumplimiento (%)', font: { size: 12, color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                            title: { text: clusterChartType === 'scatter2' ? '' : 'Cumplimiento (%)', font: { size: 12, color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' } },
                             tickfont: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' },
-                            gridcolor: theme3 === 'light' ? '#cbd5e1' : '#444' 
+                            showticklabels: clusterChartType !== 'scatter2',
+                            gridcolor: clusterChartType === 'scatter2' ? 'rgba(0,0,0,0)' : (theme3 === 'light' ? '#cbd5e1' : '#444'),
+                            showgrid: clusterChartType !== 'scatter2'
                           },
                           paper_bgcolor: 'rgba(0,0,0,0)',
                           plot_bgcolor: 'rgba(0,0,0,0)',
