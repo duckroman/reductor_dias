@@ -582,6 +582,40 @@ def compute_reductor(matrix, df=None, threshold=0.90, coverage=0.80, manual_day=
                 })
         risk_districts.sort(key=lambda x: x['cumplimiento'])
 
+    # --- 6.b Clusterizacion de distritos en riesgo ---
+    risk_clusters = {
+        'muy_cerca': {'distritos': [], 'promedio_deficit': 0},
+        'medio': {'distritos': [], 'promedio_deficit': 0},
+        'muy_lejos': {'distritos': [], 'promedio_deficit': 0}
+    }
+    
+    if len(risk_districts) >= 3:
+        deficits = np.array([d['deficit'] for d in risk_districts]).reshape(-1, 1)
+        kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+        labels = kmeans.fit_predict(deficits)
+        
+        centers = kmeans.cluster_centers_.flatten()
+        sorted_indices = np.argsort(centers)
+        
+        mapping = {
+            sorted_indices[0]: 'muy_cerca',
+            sorted_indices[1]: 'medio',
+            sorted_indices[2]: 'muy_lejos'
+        }
+        
+        for i, d in enumerate(risk_districts):
+            cluster_name = mapping[labels[i]]
+            risk_clusters[cluster_name]['distritos'].append(d)
+            
+        for key in risk_clusters:
+            if len(risk_clusters[key]['distritos']) > 0:
+                avg = np.mean([d['deficit'] for d in risk_clusters[key]['distritos']])
+                risk_clusters[key]['promedio_deficit'] = float(avg)
+    elif len(risk_districts) > 0:
+        risk_clusters['muy_cerca']['distritos'] = risk_districts
+        avg = np.mean([d['deficit'] for d in risk_districts])
+        risk_clusters['muy_cerca']['promedio_deficit'] = float(avg)
+
     # --- 7. Analisis de eficiencia (rendimiento acumulado vs dias) ---
     efficiency = []
     for d in range(n_days):
@@ -599,6 +633,7 @@ def compute_reductor(matrix, df=None, threshold=0.90, coverage=0.80, manual_day=
         'coverage_by_day': coverage_by_day,
         'scenarios': scenarios,
         'risk_districts': risk_districts,
+        'risk_clusters': risk_clusters,
         'total_risk_districts': len(risk_districts),
         'total_districts': n_districts,
         'counts_by_day': [int(np.sum(matrix[:, d] >= eff_threshold)) for d in range(n_days)],

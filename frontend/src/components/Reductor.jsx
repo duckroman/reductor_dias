@@ -12,6 +12,8 @@ const Reductor = ({ sheet, state }) => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showAllRisk, setShowAllRisk] = useState(false);
+  const [showCluster, setShowCluster] = useState(false);
+  const [clusterChartType, setClusterChartType] = useState('bar');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -305,9 +307,19 @@ const Reductor = ({ sheet, state }) => {
             </div>
 
             {data.risk_districts.length > 0 && (
-              <div className="chart-card wide alert-card">
-                <h3>⚠️ Top Distritos en Riesgo (Día {data.recommended_day})</h3>
-                <p>Estos distritos no alcanzarán el umbral del {(threshold*100).toFixed(0)}% si se recorta a {data.recommended_day} días.</p>
+              <div className="chart-card wide alert-card" style={{marginTop: '20px'}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '10px', marginBottom: '15px'}}>
+                  <div>
+                    <h3 style={{marginTop: 0}}>⚠️ Top Distritos en Riesgo (Día {data.recommended_day})</h3>
+                    <p style={{margin: 0}}>Estos distritos no alcanzarán el umbral del {(threshold*100).toFixed(0)}% si se recorta a {data.recommended_day} días.</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowCluster(!showCluster)}
+                    style={{padding: '8px 15px', background: '#3A6BC5', color: 'white', border: 'none', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold'}}
+                  >
+                    {showCluster ? 'Ocultar Análisis de Perfiles' : '📊 Analizar Perfiles de Riesgo'}
+                  </button>
+                </div>
                 <div className="risk-grid-container">
                   {(showAllRisk ? data.risk_districts : data.risk_districts.slice(0, 20)).map((d, idx) => (
                     <div key={d.distrito} className="risk-item-new">
@@ -336,6 +348,119 @@ const Reductor = ({ sheet, state }) => {
                     </div>
                   )}
                 </div>
+
+                {showCluster && data.risk_clusters && (
+                  <div className="cluster-panel" style={{marginTop: '25px', padding: '20px', background: 'rgba(20, 20, 25, 0.4)', borderRadius: '8px', border: '1px solid #333'}}>
+                    <h4 style={{marginTop: 0, color: '#4da6ff', borderBottom: '1px solid #444', paddingBottom: '10px'}}>
+                      Agrupación Inteligente (1D K-Means Clustering)
+                    </h4>
+                    <p className="micro-text" style={{marginBottom: '20px'}}>
+                      El algoritmo K-Means ha analizado matemáticamente la varianza en el déficit de estos distritos para clasificarlos en 3 perfiles de riesgo natural, permitiendo focalizar la atención donde es más urgente.
+                    </p>
+
+                    <div style={{marginBottom: '20px'}}>
+                      <div style={{display: 'flex', justifyContent: 'flex-end', marginBottom: '10px'}}>
+                        <div style={{background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '4px', display: 'inline-flex'}}>
+                          <button 
+                            onClick={() => setClusterChartType('bar')}
+                            style={{padding: '5px 10px', background: clusterChartType === 'bar' ? '#3A6BC5' : 'transparent', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer'}}
+                          >
+                            📊 Barras
+                          </button>
+                          <button 
+                            onClick={() => setClusterChartType('scatter')}
+                            style={{padding: '5px 10px', background: clusterChartType === 'scatter' ? '#3A6BC5' : 'transparent', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer'}}
+                          >
+                            🔵 Dispersión
+                          </button>
+                        </div>
+                      </div>
+                      <Plot
+                        data={[
+                          {
+                            x: data.risk_clusters.muy_lejos.distritos.map(d => d.distrito),
+                            y: data.risk_clusters.muy_lejos.distritos.map(d => (d.cumplimiento * 100).toFixed(1)),
+                            type: clusterChartType,
+                            mode: clusterChartType === 'scatter' ? 'markers' : undefined,
+                            name: 'Muy alejado',
+                            marker: { color: '#ff3333', size: clusterChartType === 'scatter' ? 12 : undefined, line: clusterChartType === 'scatter' ? { color: 'white', width: 1 } : undefined }
+                          },
+                          {
+                            x: data.risk_clusters.medio.distritos.map(d => d.distrito),
+                            y: data.risk_clusters.medio.distritos.map(d => (d.cumplimiento * 100).toFixed(1)),
+                            type: clusterChartType,
+                            mode: clusterChartType === 'scatter' ? 'markers' : undefined,
+                            name: 'Medio',
+                            marker: { color: '#ff7f0e', size: clusterChartType === 'scatter' ? 12 : undefined, line: clusterChartType === 'scatter' ? { color: 'white', width: 1 } : undefined }
+                          },
+                          {
+                            x: data.risk_clusters.muy_cerca.distritos.map(d => d.distrito),
+                            y: data.risk_clusters.muy_cerca.distritos.map(d => (d.cumplimiento * 100).toFixed(1)),
+                            type: clusterChartType,
+                            mode: clusterChartType === 'scatter' ? 'markers' : undefined,
+                            name: 'Muy cerca',
+                            marker: { color: '#ffcc00', size: clusterChartType === 'scatter' ? 12 : undefined, line: clusterChartType === 'scatter' ? { color: 'white', width: 1 } : undefined }
+                          }
+                        ]}
+                        layout={{
+                          margin: { t: 20, r: 20, b: 80, l: 50 },
+                          xaxis: { title: '', tickangle: -45, font: { size: 10 } },
+                          yaxis: { title: 'Cumplimiento (%)', gridcolor: '#444' },
+                          paper_bgcolor: 'rgba(0,0,0,0)',
+                          plot_bgcolor: 'rgba(0,0,0,0)',
+                          font: { color: '#e0e0e0' },
+                          legend: { orientation: 'h', y: 1.15 }
+                        }}
+                        useResizeHandler={true}
+                        style={{ width: '100%', height: '300px' }}
+                      />
+                    </div>
+                    
+                    <div style={{display: 'flex', gap: '15px', flexWrap: 'wrap'}}>
+                      {/* Muy Alejado */}
+                      <div style={{flex: 1, minWidth: '200px', background: 'rgba(255, 51, 51, 0.05)', padding: '15px', borderRadius: '5px', borderLeft: '4px solid #ff3333'}}>
+                        <h5 style={{margin: '0 0 10px 0', color: '#ff8080'}}>🔴 Muy alejado de la marca ({data.risk_clusters.muy_lejos.distritos.length})</h5>
+                        <div style={{fontSize: '0.85em', color: '#ccc', marginBottom: '10px'}}>
+                          Promedio faltante: <strong>{(data.risk_clusters.muy_lejos.promedio_deficit * 100).toFixed(1)}%</strong>
+                        </div>
+                        <ul style={{margin: 0, paddingLeft: '20px', fontSize: '0.85em', color: '#e0e0e0'}}>
+                          {data.risk_clusters.muy_lejos.distritos.map(d => (
+                            <li key={d.distrito}>{d.distrito} ({(d.cumplimiento * 100).toFixed(1)}%)</li>
+                          ))}
+                          {data.risk_clusters.muy_lejos.distritos.length === 0 && <li>-</li>}
+                        </ul>
+                      </div>
+                      
+                      {/* Medio */}
+                      <div style={{flex: 1, minWidth: '200px', background: 'rgba(255, 127, 14, 0.05)', padding: '15px', borderRadius: '5px', borderLeft: '4px solid #ff7f0e'}}>
+                        <h5 style={{margin: '0 0 10px 0', color: '#ffaa55'}}>🟠 Medianamente alejado ({data.risk_clusters.medio.distritos.length})</h5>
+                        <div style={{fontSize: '0.85em', color: '#ccc', marginBottom: '10px'}}>
+                          Promedio faltante: <strong>{(data.risk_clusters.medio.promedio_deficit * 100).toFixed(1)}%</strong>
+                        </div>
+                        <ul style={{margin: 0, paddingLeft: '20px', fontSize: '0.85em', color: '#e0e0e0'}}>
+                          {data.risk_clusters.medio.distritos.map(d => (
+                            <li key={d.distrito}>{d.distrito} ({(d.cumplimiento * 100).toFixed(1)}%)</li>
+                          ))}
+                          {data.risk_clusters.medio.distritos.length === 0 && <li>-</li>}
+                        </ul>
+                      </div>
+                      
+                      {/* Muy Cerca */}
+                      <div style={{flex: 1, minWidth: '200px', background: 'rgba(255, 204, 0, 0.05)', padding: '15px', borderRadius: '5px', borderLeft: '4px solid #ffcc00'}}>
+                        <h5 style={{margin: '0 0 10px 0', color: '#ffe680'}}>🟡 Muy cerca de la marca ({data.risk_clusters.muy_cerca.distritos.length})</h5>
+                        <div style={{fontSize: '0.85em', color: '#ccc', marginBottom: '10px'}}>
+                          Promedio faltante: <strong>{(data.risk_clusters.muy_cerca.promedio_deficit * 100).toFixed(1)}%</strong>
+                        </div>
+                        <ul style={{margin: 0, paddingLeft: '20px', fontSize: '0.85em', color: '#e0e0e0'}}>
+                          {data.risk_clusters.muy_cerca.distritos.map(d => (
+                            <li key={d.distrito}>{d.distrito} ({(d.cumplimiento * 100).toFixed(1)}%)</li>
+                          ))}
+                          {data.risk_clusters.muy_cerca.distritos.length === 0 && <li>-</li>}
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
