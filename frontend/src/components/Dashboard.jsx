@@ -12,6 +12,9 @@ const Dashboard = ({ sheet, state }) => {
   const [lagging, setLagging] = useState([]);
   const [comparative, setComparative] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [theme1, setTheme1] = useState('dark');
+  const [theme2, setTheme2] = useState('dark');
+  const [theme3, setTheme3] = useState('dark');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -99,19 +102,30 @@ const Dashboard = ({ sheet, state }) => {
       </div>
 
       <div className="charts-grid">
-        <div className="chart-card wide">
-          <h3>Evolución del Cumplimiento Promedio (Curva de Aprendizaje)</h3>
+        <div className={`chart-card wide ${theme1 === 'light' ? 'light-theme' : ''}`}>
+          <div className="chart-card-header">
+            <h3>Evolución del Cumplimiento Promedio (Curva de Aprendizaje)</h3>
+            <button 
+              className={`theme-toggle-btn ${theme1 === 'light' ? 'light' : 'dark'}`}
+              onClick={() => setTheme1(theme1 === 'light' ? 'dark' : 'light')}
+            >
+              {theme1 === 'light' ? '☀️ Claro' : '🌙 Oscuro'}
+            </button>
+          </div>
           <p className="explanation-text mb-15">
             Esta línea de tiempo describe la inercia del operativo. Se espera observar una curva con una pendiente pronunciada en los primeros días, lo que representa un arranque sólido. Una curva que se aplana prematuramente sugiere fatiga en el trabajo de campo o dificultades técnicas que están impidiendo el cierre de los distritos más complejos.
           </p>
           <div className="chart-wrapper">
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={stats}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#444" />
-                <XAxis dataKey="dia" stroke="#888" label={{ value: 'Días', position: 'insideBottom', offset: -5 }} />
-                <YAxis stroke="#888" tickFormatter={(val) => `${(val * 100).toFixed(0)}%`} />
-                <RechartsTooltip formatter={(val) => `${(val * 100).toFixed(1)}%`} />
-                <Legend />
+                <CartesianGrid strokeDasharray="3 3" stroke={theme1 === 'light' ? '#cbd5e1' : '#444'} />
+                <XAxis dataKey="dia" stroke={theme1 === 'light' ? '#0f172a' : '#888'} tick={{ fill: theme1 === 'light' ? '#0f172a' : '#888' }} label={{ value: 'Días', position: 'insideBottom', offset: -5, fill: theme1 === 'light' ? '#0f172a' : '#888' }} />
+                <YAxis stroke={theme1 === 'light' ? '#0f172a' : '#888'} tick={{ fill: theme1 === 'light' ? '#0f172a' : '#888' }} tickFormatter={(val) => `${(val * 100).toFixed(0)}%`} />
+                <RechartsTooltip 
+                  formatter={(val) => `${(val * 100).toFixed(1)}%`}
+                  contentStyle={theme1 === 'light' ? { backgroundColor: '#ffffff', borderColor: '#cbd5e1', color: '#0f172a' } : { backgroundColor: 'rgba(15, 23, 42, 0.95)', borderColor: '#3b82f6', color: '#f8fafc' }}
+                />
+                <Legend wrapperStyle={{ color: theme1 === 'light' ? '#0f172a' : '#fff' }} />
                 <Line type="monotone" dataKey="media" name="Media" stroke="#3A6BC5" strokeWidth={3} dot={false} />
                 <Line type="monotone" dataKey="mediana" name="Mediana" stroke="#2B579A" strokeWidth={2} strokeDasharray="5 5" dot={false} />
               </LineChart>
@@ -120,20 +134,28 @@ const Dashboard = ({ sheet, state }) => {
         </div>
 
         {comparative.length > 0 && (
-          <div className="chart-card">
-            <h3>📊 Comparativa de Rubros</h3>
+          <div className={`chart-card ${theme2 === 'light' ? 'light-theme' : ''}`}>
+            <div className="chart-card-header">
+              <h3>📊 Comparativa de Rubros</h3>
+              <button 
+                className={`theme-toggle-btn ${theme2 === 'light' ? 'light' : 'dark'}`}
+                onClick={() => setTheme2(theme2 === 'light' ? 'dark' : 'light')}
+              >
+                {theme2 === 'light' ? '☀️ Claro' : '🌙 Oscuro'}
+              </button>
+            </div>
             <p className="explanation-text micro mb-15">
               Promedio de avance por cada actividad. Ayuda a identificar rápidamente cuál es el cuello de botella.
             </p>
             <div className="chart-wrapper">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={comparative} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-                  <XAxis dataKey="rubro" stroke="#94a3b8" tick={{ fontSize: 11 }} />
-                  <YAxis domain={[0, 1]} tickFormatter={(tick) => `${(tick * 100).toFixed(0)}%`} stroke="#94a3b8" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme2 === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.1)'} />
+                  <XAxis dataKey="rubro" stroke={theme2 === 'light' ? '#0f172a' : '#94a3b8'} tick={{ fontSize: 11, fill: theme2 === 'light' ? '#0f172a' : '#94a3b8' }} />
+                  <YAxis domain={[0, 1]} tickFormatter={(tick) => `${(tick * 100).toFixed(0)}%`} stroke={theme2 === 'light' ? '#0f172a' : '#94a3b8'} tick={{ fill: theme2 === 'light' ? '#0f172a' : '#94a3b8' }} />
                   <RechartsTooltip 
                     formatter={(value) => [`${(value * 100).toFixed(1)}%`, 'Avance Promedio']}
-                    contentStyle={{ backgroundColor: 'rgba(15, 23, 42, 0.95)', borderColor: '#3b82f6', color: '#f8fafc' }} 
+                    contentStyle={theme2 === 'light' ? { backgroundColor: '#ffffff', borderColor: '#cbd5e1', color: '#0f172a' } : { backgroundColor: 'rgba(15, 23, 42, 0.95)', borderColor: '#3b82f6', color: '#f8fafc' }} 
                   />
                   <Bar dataKey="avance" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                 </BarChart>
@@ -142,8 +164,16 @@ const Dashboard = ({ sheet, state }) => {
           </div>
         )}
 
-        <div className="chart-card wide">
-          <h3>Mapa de Calor: Intensidad Operativa por Distrito</h3>
+        <div className={`chart-card wide ${theme3 === 'light' ? 'light-theme' : ''}`}>
+          <div className="chart-card-header">
+            <h3>Mapa de Calor: Intensidad Operativa por Distrito</h3>
+            <button 
+              className={`theme-toggle-btn ${theme3 === 'light' ? 'light' : 'dark'}`}
+              onClick={() => setTheme3(theme3 === 'light' ? 'dark' : 'light')}
+            >
+              {theme3 === 'light' ? '☀️ Claro' : '🌙 Oscuro'}
+            </button>
+          </div>
           <p className="explanation-text mb-15">
             Esta matriz visual es el "termómetro" del cumplimiento. Cada fila es un distrito y cada columna un día de operación. Los colores brillantes (amarillo/verde) representan el éxito, mientras que los tonos oscuros (morado) señalan inactividad o rezago. La aparición de líneas oscuras persistentes hacia el final de la matriz es una señal de alerta máxima sobre distritos que podrían no cumplir con la meta en el tiempo estipulado.
           </p>
@@ -158,17 +188,31 @@ const Dashboard = ({ sheet, state }) => {
                     text: hoverText,
                     type: 'heatmap',
                     colorscale: 'Viridis',
-                    colorbar: { title: 'Cumplimiento' },
+                    colorbar: { 
+                      title: {
+                        text: 'Cumplimiento',
+                        font: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' }
+                      },
+                      tickfont: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' }
+                    },
                     hovertemplate: 'Día %{x}<br>Distrito: %{text}<br>Cumplimiento: %{z:.1%}<extra></extra>',
                   }
                 ]}
                 layout={{
                   margin: { t: 10, r: 10, b: 40, l: 50 },
-                  xaxis: { title: 'Día' },
-                  yaxis: { title: 'Distrito' },
+                  xaxis: { 
+                    title: { text: 'Día', font: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                    tickfont: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' },
+                    gridcolor: theme3 === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.05)'
+                  },
+                  yaxis: { 
+                    title: { text: 'Distrito', font: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                    tickfont: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' },
+                    gridcolor: theme3 === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.05)'
+                  },
                   paper_bgcolor: 'rgba(0,0,0,0)',
                   plot_bgcolor: 'rgba(0,0,0,0)',
-                  font: { color: '#e0e0e0' },
+                  font: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' },
                   autosize: true
                 }}
                 useResizeHandler={true}

@@ -10,6 +10,8 @@ const Statistical = ({ sheet, state }) => {
   const [boxData, setBoxData] = useState(null);
   const [corrData, setCorrData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [theme1, setTheme1] = useState('dark');
+  const [theme2, setTheme2] = useState('dark');
 
   useEffect(() => {
     const fetchStaticData = async () => {
@@ -73,8 +75,16 @@ const Statistical = ({ sheet, state }) => {
       ) : (
         <div className="charts-grid">
           {distData ? (
-            <div className="chart-card">
-              <h3>Distribución de Distritos (Día {day})</h3>
+            <div className={`chart-card ${theme1 === 'light' ? 'light-theme' : ''}`}>
+              <div className="chart-card-header">
+                <h3>Distribución de Distritos (Día {day})</h3>
+                <button 
+                  className={`theme-toggle-btn ${theme1 === 'light' ? 'light' : 'dark'}`}
+                  onClick={() => setTheme1(theme1 === 'light' ? 'dark' : 'light')}
+                >
+                  {theme1 === 'light' ? '☀️ Claro' : '🌙 Oscuro'}
+                </button>
+              </div>
               <p className="explanation-text mb-15">
                 Este gráfico nos muestra cuántos distritos se encuentran en cada nivel de avance. Las <strong>barras azules (Frecuencia)</strong> indican el número de distritos; por ejemplo, si una barra es alta en el 80%, significa que muchos distritos tienen ese nivel de cumplimiento.
               </p>
@@ -110,11 +120,20 @@ const Statistical = ({ sheet, state }) => {
                   ]}
                   layout={{
                     margin: { t: 10, r: 10, b: 40, l: 40 },
-                    xaxis: { title: 'Cumplimiento (%)', tickformat: '.0%' },
-                    yaxis: { title: 'Cantidad de Distritos' },
+                    xaxis: { 
+                      title: { text: 'Cumplimiento (%)', font: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                      tickformat: '.0%',
+                      tickfont: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' },
+                      gridcolor: theme1 === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.05)'
+                    },
+                    yaxis: { 
+                      title: { text: 'Cantidad de Distritos', font: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                      tickfont: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' },
+                      gridcolor: theme1 === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.05)'
+                    },
                     paper_bgcolor: 'rgba(0,0,0,0)',
                     plot_bgcolor: 'rgba(0,0,0,0)',
-                    font: { color: '#e0e0e0' },
+                    font: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' },
                     legend: { orientation: 'h', y: -0.2 }
                   }}
                   useResizeHandler={true}
@@ -127,8 +146,16 @@ const Statistical = ({ sheet, state }) => {
           )}
 
           {boxData ? (
-            <div className="chart-card wide">
-              <h3>Evolución de la Variabilidad (Cajas y Bigotes)</h3>
+            <div className={`chart-card wide ${theme2 === 'light' ? 'light-theme' : ''}`}>
+              <div className="chart-card-header">
+                <h3>Evolución de la Variabilidad (Cajas y Bigotes)</h3>
+                <button 
+                  className={`theme-toggle-btn ${theme2 === 'light' ? 'light' : 'dark'}`}
+                  onClick={() => setTheme2(theme2 === 'light' ? 'dark' : 'light')}
+                >
+                  {theme2 === 'light' ? '☀️ Claro' : '🌙 Oscuro'}
+                </button>
+              </div>
               <p className="explanation-text mb-15">
                 Este diagrama es fundamental para entender la estabilidad del operativo a través del tiempo. Cada "caja" representa un día completo de trabajo para los distritos. El tamaño de la caja (rango intercuartílico) muestra qué tan dispersos están los resultados del 50% central de los distritos. Los "bigotes" o líneas extendidas indican los valores extremos; si los bigotes inferiores se mantienen muy abajo conforme pasan los días, se tiene una señal clara de rezago estructural en ciertos distritos que requieren atención inmediata.
               </p>
@@ -150,17 +177,19 @@ const Statistical = ({ sheet, state }) => {
                   layout={{
                     margin: { t: 30, r: 20, b: 60, l: 60 },
                     xaxis: { 
-                      title: 'Tiempo (Días)',
-                      gridcolor: 'rgba(255,255,255,0.1)'
+                      title: { text: 'Tiempo (Días)', font: { color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                      tickfont: { color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' },
+                      gridcolor: theme2 === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.1)'
                     },
                     yaxis: { 
-                      title: 'Rango de Cumplimiento (0.0 - 1.0)',
+                      title: { text: 'Rango de Cumplimiento (0.0 - 1.0)', font: { color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                      tickfont: { color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' },
                       range: [0, 1.05],
-                      gridcolor: 'rgba(255,255,255,0.1)'
+                      gridcolor: theme2 === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.1)'
                     },
                     paper_bgcolor: 'rgba(0,0,0,0)',
                     plot_bgcolor: 'rgba(0,0,0,0)',
-                    font: { color: '#e0e0e0' },
+                    font: { color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' },
                     shapes: [
                       {
                         type: 'rect',

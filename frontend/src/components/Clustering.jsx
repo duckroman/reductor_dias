@@ -8,6 +8,8 @@ const Clustering = ({ sheet, state }) => {
   const [clusterData, setClusterData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [k, setK] = useState(0); // 0 means automatic
+  const [theme1, setTheme1] = useState('dark');
+  const [theme2, setTheme2] = useState('dark');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -68,8 +70,16 @@ const Clustering = ({ sheet, state }) => {
       </div>
 
       <div className="charts-grid">
-        <div className="chart-card">
-          <h3>Comportamiento Promedio por Grupo (Tendencias Dinámicas)</h3>
+        <div className={`chart-card ${theme1 === 'light' ? 'light-theme' : ''}`}>
+          <div className="chart-card-header">
+            <h3>Comportamiento Promedio por Grupo (Tendencias Dinámicas)</h3>
+            <button 
+              className={`theme-toggle-btn ${theme1 === 'light' ? 'light' : 'dark'}`}
+              onClick={() => setTheme1(theme1 === 'light' ? 'dark' : 'light')}
+            >
+              {theme1 === 'light' ? '☀️ Claro' : '🌙 Oscuro'}
+            </button>
+          </div>
           <p className="explanation-text mb-15">
             Este gráfico de líneas no representa a distritos individuales, sino a "familias de comportamiento". Cada línea es el promedio matemático de un grupo de distritos que han trabajado a ritmos similares. Se busca observar trayectorias ascendentes constantes; cualquier "plateau" o estancamiento en una de estas líneas indica un problema sistémico que afecta a todo ese grupo. Comparar estas curvas permite identificar qué grupos lograron un despegue rápido y cuáles están experimentando una desaceleración crítica en las etapas finales del operativo.
           </p>
@@ -85,11 +95,20 @@ const Clustering = ({ sheet, state }) => {
               }))}
               layout={{
                 margin: { t: 10, r: 10, b: 40, l: 40 },
-                xaxis: { title: 'Día del Operativo' },
-                yaxis: { title: 'Nivel de Cumplimiento (%)', tickformat: '.0%' },
+                xaxis: { 
+                  title: { text: 'Día del Operativo', font: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                  tickfont: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' },
+                  gridcolor: theme1 === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.05)'
+                },
+                yaxis: { 
+                  title: { text: 'Nivel de Cumplimiento (%)', font: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                  tickformat: '.0%',
+                  tickfont: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' },
+                  gridcolor: theme1 === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.05)'
+                },
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
-                font: { color: '#e0e0e0' },
+                font: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' },
                 legend: { orientation: 'h', y: -0.2 }
               }}
               useResizeHandler={true}
@@ -98,13 +117,21 @@ const Clustering = ({ sheet, state }) => {
           </div>
         </div>
 
-        <div className="chart-card">
-          <h3>Mapa de Similitud y Posicionamiento Estratégico</h3>
+        <div className={`chart-card ${theme2 === 'light' ? 'light-theme' : ''}`}>
+          <div className="chart-card-header">
+            <h3>Mapa de Similitud y Posicionamiento Estratégico</h3>
+            <button 
+              className={`theme-toggle-btn ${theme2 === 'light' ? 'light' : 'dark'}`}
+              onClick={() => setTheme2(theme2 === 'light' ? 'dark' : 'light')}
+            >
+              {theme2 === 'light' ? '☀️ Claro' : '🌙 Oscuro'}
+            </button>
+          </div>
           <p className="explanation-text mb-15" style={{ fontSize: '0.9rem' }}>
             Este mapa de dispersión utiliza una técnica de reducción de dimensionalidad (PCA) para proyectar el comportamiento de 50 días en un plano de dos ejes. Es una herramienta diagnóstica poderosa para visualizar la estructura del cumplimiento nacional.<br/><br/>
             <strong>Eje Horizontal (Cumplimiento):</strong> Los puntos hacia la derecha representan distritos con un desempeño superior al promedio nacional. Los puntos a la izquierda señalan distritos en zona de riesgo.<br/>
             <strong>Eje Vertical (Dinámica de Trabajo):</strong> Este eje separa a los distritos según su "ritmo". Los distritos en la parte superior suelen ser aquellos con un arranque explosivo que luego se estabilizan, mientras que los de la parte inferior pueden tener un crecimiento más tardío o irregular.<br/><br/>
-            <span style={{ color: '#818cf8', fontSize: '0.85rem' }}>
+            <span style={{ color: theme2 === 'light' ? '#4f46e5' : '#818cf8', fontSize: '0.85rem' }}>
               💡 <strong>Interpretación:</strong> La formación de "nubes" de puntos muy compactas indica una alta estandarización en los procesos de esos distritos. Los puntos aislados (outliers) representan distritos con comportamientos únicos que ameritan una auditoría o supervisión especial.
             </span>
           </p>
@@ -128,11 +155,19 @@ const Clustering = ({ sheet, state }) => {
               })}
               layout={{
                 margin: { t: 10, r: 10, b: 40, l: 40 },
-                xaxis: { title: 'Eje de Cumplimiento (PCA 1)', showgrid: false },
-                yaxis: { title: 'Eje de Dinámica (PCA 2)', showgrid: false },
+                xaxis: { 
+                  title: { text: 'Eje de Cumplimiento (PCA 1)', font: { color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                  tickfont: { color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' },
+                  showgrid: false 
+                },
+                yaxis: { 
+                  title: { text: 'Eje de Dinámica (PCA 2)', font: { color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                  tickfont: { color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' },
+                  showgrid: false 
+                },
                 paper_bgcolor: 'rgba(0,0,0,0)',
                 plot_bgcolor: 'rgba(0,0,0,0)',
-                font: { color: '#e0e0e0' },
+                font: { color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' },
                 legend: { orientation: 'h', y: -0.2 }
               }}
               useResizeHandler={true}

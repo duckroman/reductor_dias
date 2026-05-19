@@ -14,6 +14,9 @@ const Reductor = ({ sheet, state }) => {
   const [showAllRisk, setShowAllRisk] = useState(false);
   const [showCluster, setShowCluster] = useState(false);
   const [clusterChartType, setClusterChartType] = useState('bar');
+  const [theme1, setTheme1] = useState('dark');
+  const [theme2, setTheme2] = useState('dark');
+  const [theme3, setTheme3] = useState('dark');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -163,8 +166,16 @@ const Reductor = ({ sheet, state }) => {
           </div>
 
           <div className="charts-grid">
-            <div className="chart-card">
-              <h3>📈 Eficiencia: Análisis de Rendimiento Marginal</h3>
+            <div className={`chart-card ${theme1 === 'light' ? 'light-theme' : ''}`}>
+              <div className="chart-card-header">
+                <h3>📈 Eficiencia: Análisis de Rendimiento Marginal</h3>
+                <button 
+                  className={`theme-toggle-btn ${theme1 === 'light' ? 'light' : 'dark'}`}
+                  onClick={() => setTheme1(theme1 === 'light' ? 'dark' : 'light')}
+                >
+                  {theme1 === 'light' ? '☀️ Claro' : '🌙 Oscuro'}
+                </button>
+              </div>
               <p className="explanation-text mb-15">
                 Este gráfico ayuda a visualizar la relación entre el avance total y el esfuerzo diario.
                 La <strong>Línea Azul (Progreso Acumulado)</strong> muestra el promedio nacional de cumplimiento a través del tiempo.
@@ -194,17 +205,27 @@ const Reductor = ({ sheet, state }) => {
                   ]}
                   layout={{
                     margin: { t: 10, r: 50, b: 50, l: 60 },
-                    xaxis: { title: { text: 'Tiempo (Días de Operación)', font: { size: 12 } } },
-                    yaxis: { title: { text: 'Cumplimiento Total (%)', font: { size: 12 } }, range: [0, 100] },
+                    xaxis: { 
+                      title: { text: 'Tiempo (Días de Operación)', font: { size: 12, color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                      tickfont: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' },
+                      gridcolor: theme1 === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.05)'
+                    },
+                    yaxis: { 
+                      title: { text: 'Cumplimiento Total (%)', font: { size: 12, color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                      tickfont: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' },
+                      range: [0, 100],
+                      gridcolor: theme1 === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.05)'
+                    },
                     yaxis2: { 
-                      title: { text: 'Avance Diario (%)', font: { size: 12 } }, 
+                      title: { text: 'Avance Diario (%)', font: { size: 12, color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                      tickfont: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' },
                       overlaying: 'y', 
                       side: 'right',
                       range: [0, Math.max(...data.marginal_returns) * 120] 
                     },
                     paper_bgcolor: 'rgba(0,0,0,0)',
                     plot_bgcolor: 'rgba(0,0,0,0)',
-                    font: { color: '#e0e0e0' },
+                    font: { color: theme1 === 'light' ? '#0f172a' : '#e0e0e0' },
                     legend: { orientation: 'h', y: -0.3 },
                     shapes: [
                       {
@@ -223,8 +244,16 @@ const Reductor = ({ sheet, state }) => {
               </div>
             </div>
 
-            <div className="chart-card">
-              <h3>🗺️ Cobertura Probabilística de Distritos</h3>
+            <div className={`chart-card ${theme2 === 'light' ? 'light-theme' : ''}`}>
+              <div className="chart-card-header">
+                <h3>🗺️ Cobertura Probabilística de Distritos</h3>
+                <button 
+                  className={`theme-toggle-btn ${theme2 === 'light' ? 'light' : 'dark'}`}
+                  onClick={() => setTheme2(theme2 === 'light' ? 'dark' : 'light')}
+                >
+                  {theme2 === 'light' ? '☀️ Claro' : '🌙 Oscuro'}
+                </button>
+              </div>
               <p className="explanation-text mb-15">
                 Este indicador muestra el avance del país basado en el cumplimiento de metas individuales.
                 La <strong>Línea Verde (Distritos en Meta)</strong> representa el porcentaje de los {data.total_districts || 300} distritos que ya alcanzaron el umbral del {(threshold*100).toFixed(0)}%.
@@ -247,11 +276,20 @@ const Reductor = ({ sheet, state }) => {
                   ]}
                   layout={{
                     margin: { t: 10, r: 20, b: 50, l: 60 },
-                    xaxis: { title: { text: 'Tiempo (Días de Operación)', font: { size: 12 } } },
-                    yaxis: { title: { text: 'Porcentaje de Distritos en Meta (%)', font: { size: 12 } }, range: [0, 100] },
+                    xaxis: { 
+                      title: { text: 'Tiempo (Días de Operación)', font: { size: 12, color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                      tickfont: { color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' },
+                      gridcolor: theme2 === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.05)'
+                    },
+                    yaxis: { 
+                      title: { text: 'Porcentaje de Distritos en Meta (%)', font: { size: 12, color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                      tickfont: { color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' },
+                      range: [0, 100],
+                      gridcolor: theme2 === 'light' ? '#cbd5e1' : 'rgba(255,255,255,0.05)'
+                    },
                     paper_bgcolor: 'rgba(0,0,0,0)',
                     plot_bgcolor: 'rgba(0,0,0,0)',
-                    font: { color: '#e0e0e0' },
+                    font: { color: theme2 === 'light' ? '#0f172a' : '#e0e0e0' },
                     legend: { orientation: 'h', y: -0.3 },
                     shapes: [
                       {
@@ -350,26 +388,57 @@ const Reductor = ({ sheet, state }) => {
                 </div>
 
                 {showCluster && data.risk_clusters && (
-                  <div className="cluster-panel" style={{marginTop: '25px', padding: '20px', background: 'rgba(20, 20, 25, 0.4)', borderRadius: '8px', border: '1px solid #333'}}>
-                    <h4 style={{marginTop: 0, color: '#4da6ff', borderBottom: '1px solid #444', paddingBottom: '10px'}}>
-                      Agrupación Inteligente (1D K-Means Clustering)
-                    </h4>
-                    <p className="micro-text" style={{marginBottom: '20px'}}>
+                  <div className="cluster-panel" style={{
+                    marginTop: '25px', 
+                    padding: '20px', 
+                    background: theme3 === 'light' ? '#ffffff' : 'rgba(20, 20, 25, 0.4)', 
+                    borderRadius: '8px', 
+                    border: theme3 === 'light' ? '1px solid #cbd5e1' : '1px solid #333',
+                    color: theme3 === 'light' ? '#0f172a' : '#e0e0e0'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: theme3 === 'light' ? '1px solid #cbd5e1' : '1px solid #444', paddingBottom: '10px', marginBottom: '15px' }}>
+                      <h4 style={{ margin: 0, color: theme3 === 'light' ? '#1e3a8a' : '#4da6ff' }}>
+                        Agrupación Inteligente (1D K-Means Clustering)
+                      </h4>
+                      <button 
+                        className={`theme-toggle-btn ${theme3 === 'light' ? 'light' : 'dark'}`}
+                        onClick={() => setTheme3(theme3 === 'light' ? 'dark' : 'light')}
+                      >
+                        {theme3 === 'light' ? '☀️ Claro' : '🌙 Oscuro'}
+                      </button>
+                    </div>
+                    <p className="micro-text" style={{ marginBottom: '20px', color: theme3 === 'light' ? '#475569' : '#888' }}>
                       El algoritmo K-Means ha analizado matemáticamente la varianza en el déficit de estos distritos para clasificarlos en 3 perfiles de riesgo natural, permitiendo focalizar la atención donde es más urgente.
                     </p>
 
                     <div style={{marginBottom: '20px'}}>
                       <div style={{display: 'flex', justifyContent: 'flex-end', marginBottom: '10px'}}>
-                        <div style={{background: 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '4px', display: 'inline-flex'}}>
+                        <div style={{background: theme3 === 'light' ? '#f1f5f9' : 'rgba(0,0,0,0.2)', padding: '4px', borderRadius: '4px', display: 'inline-flex', border: theme3 === 'light' ? '1px solid #cbd5e1' : 'none'}}>
                           <button 
                             onClick={() => setClusterChartType('bar')}
-                            style={{padding: '5px 10px', background: clusterChartType === 'bar' ? '#3A6BC5' : 'transparent', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer'}}
+                            style={{
+                              padding: '5px 10px', 
+                              background: clusterChartType === 'bar' ? '#3A6BC5' : 'transparent', 
+                              color: clusterChartType === 'bar' ? 'white' : (theme3 === 'light' ? '#475569' : '#aaa'), 
+                              border: 'none', 
+                              borderRadius: '3px', 
+                              cursor: 'pointer',
+                              fontWeight: '500'
+                            }}
                           >
                             📊 Barras
                           </button>
                           <button 
                             onClick={() => setClusterChartType('scatter')}
-                            style={{padding: '5px 10px', background: clusterChartType === 'scatter' ? '#3A6BC5' : 'transparent', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer'}}
+                            style={{
+                              padding: '5px 10px', 
+                              background: clusterChartType === 'scatter' ? '#3A6BC5' : 'transparent', 
+                              color: clusterChartType === 'scatter' ? 'white' : (theme3 === 'light' ? '#475569' : '#aaa'), 
+                              border: 'none', 
+                              borderRadius: '3px', 
+                              cursor: 'pointer',
+                              fontWeight: '500'
+                            }}
                           >
                             🔵 Dispersión
                           </button>
@@ -399,16 +468,25 @@ const Reductor = ({ sheet, state }) => {
                             type: clusterChartType,
                             mode: clusterChartType === 'scatter' ? 'markers' : undefined,
                             name: 'Muy cerca',
-                            marker: { color: '#ffcc00', size: clusterChartType === 'scatter' ? 12 : undefined, line: clusterChartType === 'scatter' ? { color: 'white', width: 1 } : undefined }
+                            marker: { color: '#eab308', size: clusterChartType === 'scatter' ? 12 : undefined, line: clusterChartType === 'scatter' ? { color: 'white', width: 1 } : undefined }
                           }
                         ]}
                         layout={{
                           margin: { t: 20, r: 20, b: 80, l: 50 },
-                          xaxis: { title: '', tickangle: -45, font: { size: 10 } },
-                          yaxis: { title: 'Cumplimiento (%)', gridcolor: '#444' },
+                          xaxis: { 
+                            title: '', 
+                            tickangle: -45, 
+                            font: { size: 10, color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' },
+                            tickfont: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' }
+                          },
+                          yaxis: { 
+                            title: { text: 'Cumplimiento (%)', font: { size: 12, color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' } },
+                            tickfont: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' },
+                            gridcolor: theme3 === 'light' ? '#cbd5e1' : '#444' 
+                          },
                           paper_bgcolor: 'rgba(0,0,0,0)',
                           plot_bgcolor: 'rgba(0,0,0,0)',
-                          font: { color: '#e0e0e0' },
+                          font: { color: theme3 === 'light' ? '#0f172a' : '#e0e0e0' },
                           legend: { orientation: 'h', y: 1.15 }
                         }}
                         useResizeHandler={true}
@@ -418,12 +496,21 @@ const Reductor = ({ sheet, state }) => {
                     
                     <div style={{display: 'flex', gap: '15px', flexWrap: 'wrap'}}>
                       {/* Muy Alejado */}
-                      <div style={{flex: 1, minWidth: '200px', background: 'rgba(255, 51, 51, 0.05)', padding: '15px', borderRadius: '5px', borderLeft: '4px solid #ff3333'}}>
-                        <h5 style={{margin: '0 0 10px 0', color: '#ff8080'}}>🔴 Muy alejado de la marca ({data.risk_clusters.muy_lejos.distritos.length})</h5>
-                        <div style={{fontSize: '0.85em', color: '#ccc', marginBottom: '10px'}}>
+                      <div style={{
+                        flex: 1, 
+                        minWidth: '200px', 
+                        background: theme3 === 'light' ? '#fef2f2' : 'rgba(255, 51, 51, 0.05)', 
+                        padding: '15px', 
+                        borderRadius: '5px', 
+                        borderLeft: '4px solid #ff3333',
+                        border: theme3 === 'light' ? '1px solid #fee2e2' : 'none',
+                        borderLeftWidth: '4px'
+                      }}>
+                        <h5 style={{margin: '0 0 10px 0', color: theme3 === 'light' ? '#b91c1c' : '#ff8080'}}>🔴 Muy alejado de la marca ({data.risk_clusters.muy_lejos.distritos.length})</h5>
+                        <div style={{fontSize: '0.85em', color: theme3 === 'light' ? '#4b5563' : '#ccc', marginBottom: '10px'}}>
                           Promedio faltante: <strong>{(data.risk_clusters.muy_lejos.promedio_deficit * 100).toFixed(1)}%</strong>
                         </div>
-                        <ul style={{margin: 0, paddingLeft: '20px', fontSize: '0.85em', color: '#e0e0e0'}}>
+                        <ul style={{margin: 0, paddingLeft: '20px', fontSize: '0.85em', color: theme3 === 'light' ? '#374151' : '#e0e0e0'}}>
                           {data.risk_clusters.muy_lejos.distritos.map(d => (
                             <li key={d.distrito}>{d.distrito} ({(d.cumplimiento * 100).toFixed(1)}%)</li>
                           ))}
@@ -432,12 +519,21 @@ const Reductor = ({ sheet, state }) => {
                       </div>
                       
                       {/* Medio */}
-                      <div style={{flex: 1, minWidth: '200px', background: 'rgba(255, 127, 14, 0.05)', padding: '15px', borderRadius: '5px', borderLeft: '4px solid #ff7f0e'}}>
-                        <h5 style={{margin: '0 0 10px 0', color: '#ffaa55'}}>🟠 Medianamente alejado ({data.risk_clusters.medio.distritos.length})</h5>
-                        <div style={{fontSize: '0.85em', color: '#ccc', marginBottom: '10px'}}>
+                      <div style={{
+                        flex: 1, 
+                        minWidth: '200px', 
+                        background: theme3 === 'light' ? '#fff7ed' : 'rgba(255, 127, 14, 0.05)', 
+                        padding: '15px', 
+                        borderRadius: '5px', 
+                        borderLeft: '4px solid #ff7f0e',
+                        border: theme3 === 'light' ? '1px solid #ffedd5' : 'none',
+                        borderLeftWidth: '4px'
+                      }}>
+                        <h5 style={{margin: '0 0 10px 0', color: theme3 === 'light' ? '#c2410c' : '#ffaa55'}}>🟠 Medianamente alejado ({data.risk_clusters.medio.distritos.length})</h5>
+                        <div style={{fontSize: '0.85em', color: theme3 === 'light' ? '#4b5563' : '#ccc', marginBottom: '10px'}}>
                           Promedio faltante: <strong>{(data.risk_clusters.medio.promedio_deficit * 100).toFixed(1)}%</strong>
                         </div>
-                        <ul style={{margin: 0, paddingLeft: '20px', fontSize: '0.85em', color: '#e0e0e0'}}>
+                        <ul style={{margin: 0, paddingLeft: '20px', fontSize: '0.85em', color: theme3 === 'light' ? '#374151' : '#e0e0e0'}}>
                           {data.risk_clusters.medio.distritos.map(d => (
                             <li key={d.distrito}>{d.distrito} ({(d.cumplimiento * 100).toFixed(1)}%)</li>
                           ))}
@@ -446,12 +542,21 @@ const Reductor = ({ sheet, state }) => {
                       </div>
                       
                       {/* Muy Cerca */}
-                      <div style={{flex: 1, minWidth: '200px', background: 'rgba(255, 204, 0, 0.05)', padding: '15px', borderRadius: '5px', borderLeft: '4px solid #ffcc00'}}>
-                        <h5 style={{margin: '0 0 10px 0', color: '#ffe680'}}>🟡 Muy cerca de la marca ({data.risk_clusters.muy_cerca.distritos.length})</h5>
-                        <div style={{fontSize: '0.85em', color: '#ccc', marginBottom: '10px'}}>
+                      <div style={{
+                        flex: 1, 
+                        minWidth: '200px', 
+                        background: theme3 === 'light' ? '#fefce8' : 'rgba(255, 204, 0, 0.05)', 
+                        padding: '15px', 
+                        borderRadius: '5px', 
+                        borderLeft: '4px solid #eab308',
+                        border: theme3 === 'light' ? '1px solid #fef08a' : 'none',
+                        borderLeftWidth: '4px'
+                      }}>
+                        <h5 style={{margin: '0 0 10px 0', color: theme3 === 'light' ? '#854d0e' : '#ffe680'}}>🟡 Muy cerca de la marca ({data.risk_clusters.muy_cerca.distritos.length})</h5>
+                        <div style={{fontSize: '0.85em', color: theme3 === 'light' ? '#4b5563' : '#ccc', marginBottom: '10px'}}>
                           Promedio faltante: <strong>{(data.risk_clusters.muy_cerca.promedio_deficit * 100).toFixed(1)}%</strong>
                         </div>
-                        <ul style={{margin: 0, paddingLeft: '20px', fontSize: '0.85em', color: '#e0e0e0'}}>
+                        <ul style={{margin: 0, paddingLeft: '20px', fontSize: '0.85em', color: theme3 === 'light' ? '#374151' : '#e0e0e0'}}>
                           {data.risk_clusters.muy_cerca.distritos.map(d => (
                             <li key={d.distrito}>{d.distrito} ({(d.cumplimiento * 100).toFixed(1)}%)</li>
                           ))}

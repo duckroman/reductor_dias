@@ -1,21 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  TrendingUp, 
-  Clock, 
-  ShieldCheck, 
-  Activity, 
-  Award, 
-  Zap, 
-  Maximize2, 
-  Minimize2, 
-  ChevronLeft, 
-  ChevronRight, 
-  Play, 
-  Pause, 
-  Layers, 
-  Compass, 
-  Target, 
-  CheckCircle2, 
+import {
+  TrendingUp,
+  Clock,
+  ShieldCheck,
+  Activity,
+  Award,
+  Zap,
+  Maximize2,
+  Minimize2,
+  ChevronLeft,
+  ChevronRight,
+  Play,
+  Pause,
+  Layers,
+  Compass,
+  Target,
+  CheckCircle2,
   AlertTriangle,
   Info,
   Calendar,
@@ -183,7 +183,7 @@ const Presentation = () => {
         <div className="presentation-controls-group">
           {/* View Mode Selector */}
           <div className="view-toggle">
-            <button 
+            <button
               className={`view-toggle-btn ${viewMode === 'prezi' ? 'active' : ''}`}
               onClick={() => { setViewMode('prezi'); setCanvasZoom(false); }}
               title="Modo Lienzo Espacial (Prezi)"
@@ -191,7 +191,7 @@ const Presentation = () => {
               <Layers size={16} />
               <span>Lienzo Espacial</span>
             </button>
-            <button 
+            <button
               className={`view-toggle-btn ${viewMode === 'slide' ? 'active' : ''}`}
               onClick={() => { setViewMode('slide'); }}
               title="Modo Diapositivas Guiado"
@@ -202,7 +202,7 @@ const Presentation = () => {
           </div>
 
           {/* Autoplay Toggle */}
-          <button 
+          <button
             className={`action-pill-btn ${isPlaying ? 'active-pulse' : ''}`}
             onClick={() => setIsPlaying(!isPlaying)}
             title={isPlaying ? "Pausar avance automático" : "Reproducción automática (7s)"}
@@ -231,15 +231,15 @@ const Presentation = () => {
                   <stop offset="100%" stopColor="#ec4899" stopOpacity="0.6" />
                 </linearGradient>
               </defs>
-              <path 
+              <path
                 d={`M ${NODES_DATA[0].position.x} ${NODES_DATA[0].position.y} 
                     Q 25 80, ${NODES_DATA[1].position.x} ${NODES_DATA[1].position.y} 
                     T ${NODES_DATA[2].position.x} ${NODES_DATA[2].position.y} 
                     T ${NODES_DATA[3].position.x} ${NODES_DATA[3].position.y} 
-                    T ${NODES_DATA[4].position.x} ${NODES_DATA[4].position.y}`} 
-                fill="none" 
-                stroke="url(#lineGrad)" 
-                strokeWidth="0.8" 
+                    T ${NODES_DATA[4].position.x} ${NODES_DATA[4].position.y}`}
+                fill="none"
+                stroke="url(#lineGrad)"
+                strokeWidth="0.8"
                 strokeDasharray="2,1"
                 className="animated-connector-path"
               />
@@ -278,7 +278,7 @@ const Presentation = () => {
           {/* Tarjeta Modal Detallada al hacer Zoom */}
           {canvasZoom && (
             <div className="zoomed-modal-overlay" onClick={() => setCanvasZoom(false)}>
-              <div 
+              <div
                 className="zoomed-detail-card glow-premium"
                 style={{ '--card-glow': currentNode.color }}
                 onClick={(e) => e.stopPropagation()}
@@ -357,8 +357,8 @@ const Presentation = () => {
                   </button>
                   <div className="step-dots">
                     {NODES_DATA.map((_, i) => (
-                      <span 
-                        key={i} 
+                      <span
+                        key={i}
                         className={`step-dot ${activeNode === i ? 'active' : ''}`}
                         onClick={() => handleNodeSelect(i)}
                         style={{ backgroundColor: activeNode === i ? currentNode.color : '#334155' }}
@@ -470,17 +470,17 @@ const Presentation = () => {
 
               <div className="progress-timeline-container">
                 <div className="timeline-track">
-                  <div 
-                    className="timeline-fill" 
-                    style={{ 
+                  <div
+                    className="timeline-fill"
+                    style={{
                       width: `${((activeNode + 1) / NODES_DATA.length) * 100}%`,
-                      backgroundColor: currentNode.color 
+                      backgroundColor: currentNode.color
                     }}
                   />
                 </div>
                 <div className="timeline-labels">
                   {NODES_DATA.map((node, i) => (
-                    <button 
+                    <button
                       key={node.id}
                       className={`timeline-label-item ${activeNode === i ? 'active' : ''}`}
                       onClick={() => { setActiveNode(i); setIsPlaying(false); }}
