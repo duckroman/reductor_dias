@@ -55,7 +55,7 @@ const Reductor = ({ sheet, state }) => {
             </span>
             <input 
               type="range" 
-              min="0.50" max="0.99" step="0.01"
+              min="0.50" max="1.00" step="0.01"
               value={threshold} 
               onChange={(e) => setThreshold(parseFloat(e.target.value))}
               className="slider"
@@ -144,7 +144,12 @@ const Reductor = ({ sheet, state }) => {
               <div className="kpi-content">
                 <h3>Distritos con Rezago</h3>
                 <div className="kpi-value">{data.total_risk_districts}</div>
-                <span className="micro-text">No llegan a la meta el Día {data.recommended_day}</span>
+                <span className="micro-text">
+                  No llegan a la meta el Día {data.recommended_day}
+                  {data.risk_districts && data.risk_districts.length > 0 && (
+                    <><br /><strong>Rango:</strong> {(data.risk_districts[0].cumplimiento * 100).toFixed(1)}% - {(data.risk_districts[data.risk_districts.length - 1].cumplimiento * 100).toFixed(1)}%</>
+                  )}
+                </span>
               </div>
             </div>
           </div>

@@ -6,6 +6,7 @@ import Reductor from './components/Reductor';
 import MexicoMap from './components/MexicoMap';
 import SustitucionesPage from './components/SustitucionesPage';
 import DatasetViewer from './components/DatasetViewer';
+import Presentation from './components/Presentation';
 import { getSheets, uploadDataFile, getActiveFile, getDatasets, selectDataset, clearCache } from './services/api';
 import './App.css';
 
@@ -303,6 +304,18 @@ function App() {
               <span className="sidebar-icon">📋</span>
               <span className="sidebar-label">Ver Dataset</span>
             </button>
+            <button
+              className={`sidebar-btn ${activeTab === 'presentation' ? 'active' : ''}`}
+              onClick={() => { setActiveTab('presentation'); }}
+              style={{
+                background: activeTab === 'presentation' ? 'var(--accent-color)' : 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(99, 102, 241, 0.15))',
+                border: '1px solid rgba(139, 92, 246, 0.3)',
+                marginTop: '8px'
+              }}
+            >
+              <span className="sidebar-icon">📽️</span>
+              <span className="sidebar-label" style={{ fontWeight: '600', color: activeTab === 'presentation' ? '#fff' : '#c084fc' }}>Presentación Ejecutiva</span>
+            </button>
           </div>
         )}
 
@@ -350,21 +363,23 @@ function App() {
           </main>
         ) : (
           <>
-            {/* Mapa siempre visible */}
-            <div className="map-panel">
-              <MexicoMap
-                key={`map-${dataVersion}-${activeSheet}`}
-                sheet={hasData ? activeSheet : null}
-                selectedState={selectedState}
-                onStateClick={handleStateClick}
-                dataVersion={dataVersion}
-              />
-              {!hasData && (
-                <div className="map-overlay-message">
-                  <p>Esperando carga de datos para visualizar el mapa de cumplimiento...</p>
-                </div>
-              )}
-            </div>
+            {/* Mapa visible excepto en presentación */}
+            {activeTab !== 'presentation' && (
+              <div className="map-panel">
+                <MexicoMap
+                  key={`map-${dataVersion}-${activeSheet}`}
+                  sheet={hasData ? activeSheet : null}
+                  selectedState={selectedState}
+                  onStateClick={handleStateClick}
+                  dataVersion={dataVersion}
+                />
+                {!hasData && (
+                  <div className="map-overlay-message">
+                    <p>Esperando carga de datos para visualizar el mapa de cumplimiento...</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             {!hasData ? (
               <div className="empty-state-container" style={{ minHeight: '300px' }}>
@@ -390,6 +405,9 @@ function App() {
                   <button className={`tab-btn highlight-tab ${activeTab === 'reductor' ? 'active' : ''}`} onClick={() => setActiveTab('reductor')}>
                     🎯 Reductor
                   </button>
+                  <button className={`tab-btn ${activeTab === 'presentation' ? 'active' : ''}`} style={{ background: activeTab === 'presentation' ? 'var(--panel-bg)' : 'linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(109, 40, 217, 0.2))', border: '1px solid rgba(139, 92, 246, 0.4)', color: '#e0e7ff', fontWeight: '600' }} onClick={() => setActiveTab('presentation')}>
+                    📽️ Presentación Ejecutiva
+                  </button>
                 </nav>
 
                 {/* Content */}
@@ -399,6 +417,7 @@ function App() {
                     {activeTab === 'statistical' && <Statistical sheet={activeSheet} state={selectedState} />}
                     {activeTab === 'clustering' && <Clustering sheet={activeSheet} state={selectedState} />}
                     {activeTab === 'reductor' && <Reductor sheet={activeSheet} state={selectedState} />}
+                    {activeTab === 'presentation' && <Presentation />}
                   </div>
                 </main>
               </>

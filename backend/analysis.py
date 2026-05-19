@@ -501,6 +501,9 @@ def compute_reductor(matrix, df=None, threshold=0.90, coverage=0.80, manual_day=
     district_labels = get_district_labels(df) if df is not None else [f"Distrito {i+1}" for i in range(n_districts)]
     dias = np.arange(1, n_days + 1)
 
+    # Tolerancia para coincidir con el redondeo visual del frontend (0.05%)
+    eff_threshold = threshold - 0.0005
+
     # --- 1. Rendimiento marginal ---
     mean_by_day = matrix.mean(axis=0)
     marginal = np.diff(mean_by_day)
@@ -520,14 +523,14 @@ def compute_reductor(matrix, df=None, threshold=0.90, coverage=0.80, manual_day=
             curve='concave', direction='increasing',
             S=1.0
         )
-        knee_day = int(kn.knee) if kn.knee else (int(dias[0]) if mean_by_day[0] > threshold else None)
+        knee_day = int(kn.knee) if kn.knee else (int(dias[0]) if mean_by_day[0] > eff_threshold else None)
     except Exception:
         knee_day = None
 
     # --- 4. Analisis por umbral y cobertura ---
     coverage_by_day = []
     for d in range(n_days):
-        pct_above = float(np.mean(matrix[:, d] >= threshold))
+        pct_above = float(np.mean(matrix[:, d] >= eff_threshold))
         coverage_by_day.append(pct_above)
 
     # Encontrar dia donde se alcanza la cobertura deseada
@@ -538,17 +541,23 @@ def compute_reductor(matrix, df=None, threshold=0.90, coverage=0.80, manual_day=
             break
 
     # --- 5. Simulacion de escenarios dinámicos ---
+    opt_day = manual_day or optimal_day_coverage or knee_day or 35
+
     # Generar escenarios cada 5 días, empezando en 15, hasta el total de días
     scenario_days = list(range(15, n_days + 1, 5))
     if n_days not in scenario_days and n_days >= 15:
         scenario_days.append(n_days)
+    if opt_day <= n_days and opt_day not in scenario_days:
+        scenario_days.append(opt_day)
+    
+    scenario_days.sort()
     
     scenarios = []
     for sd in scenario_days:
         idx = sd - 1
         col = matrix[:, idx]
-        above_threshold = col >= threshold
-        at_100 = col >= 0.999
+        above_threshold = col >= eff_threshold
+        at_100 = col >= 0.9995
         scenarios.append({
             'dia': sd,
             'media': float(col.mean()),
@@ -557,20 +566,19 @@ def compute_reductor(matrix, df=None, threshold=0.90, coverage=0.80, manual_day=
             'count_above_threshold': int(np.sum(above_threshold)),
             'pct_at_100': float(np.mean(at_100) * 100),
             'count_at_100': int(np.sum(at_100)),
-            'distritos_en_riesgo': int(np.sum(~above_threshold)),
+            'distritos_en_riesgo': int(np.sum((~above_threshold) & (~at_100))),
         })
 
     # --- 6. Distritos en riesgo en el dia optimo ---
     risk_districts = []
-    opt_day = manual_day or optimal_day_coverage or knee_day or 35
     if opt_day <= n_days:
         col = matrix[:, opt_day - 1]
         for i in range(n_districts):
-            if col[i] < threshold:
+            if col[i] < eff_threshold and col[i] < 0.9995:
                 risk_districts.append({
                     'distrito': district_labels[i],
                     'cumplimiento': float(col[i]),
-                    'deficit': float(threshold - col[i]),
+                    'deficit': float(eff_threshold - col[i]),
                 })
         risk_districts.sort(key=lambda x: x['cumplimiento'])
 
@@ -593,7 +601,7 @@ def compute_reductor(matrix, df=None, threshold=0.90, coverage=0.80, manual_day=
         'risk_districts': risk_districts,
         'total_risk_districts': len(risk_districts),
         'total_districts': n_districts,
-        'counts_by_day': [int(np.sum(matrix[:, d] >= threshold)) for d in range(n_days)],
+        'counts_by_day': [int(np.sum(matrix[:, d] >= eff_threshold)) for d in range(n_days)],
         'efficiency': efficiency,
         'threshold': threshold,
         'coverage': coverage,
