@@ -733,40 +733,6 @@ body {
   }
 }
 
-@media (max-width: 768px) {
-  .app-layout {
-    flex-direction: column;
-  }
-  .app-sidebar {
-    position: relative;
-    width: 100%;
-    height: auto;
-    flex-direction: row;
-    padding: 10px;
-    overflow-x: auto;
-    gap: 10px;
-    border-bottom: 1px solid var(--panel-border);
-  }
-  .sidebar-header, .sidebar-section-title {
-    display: none;
-  }
-  .sidebar-section {
-    flex-direction: row;
-    display: flex;
-    gap: 5px;
-  }
-  .app-content {
-    margin-left: 0;
-    width: 100%;
-  }
-  .charts-grid {
-    grid-template-columns: 1fr;
-  }
-  .controls.panel {
-    flex-direction: column;
-    gap: 20px;
-  }
-}
 
 /* ============================================ */
 /* EMPTY STATE / LANDING PAGE                  */
