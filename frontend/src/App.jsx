@@ -8,6 +8,7 @@ import SustitucionesPage from './components/SustitucionesPage';
 import DatasetViewer from './components/DatasetViewer';
 import Presentation from './components/Presentation';
 import { getSheets, uploadDataFile, getActiveFile, getDatasets, selectDataset, clearCache } from './services/api';
+import { Menu, X } from 'lucide-react';
 import './App.css';
 
 const SHEET_ICONS = {
@@ -37,6 +38,7 @@ const DATASET_LABELS = {
 
 function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [activeSheet, setActiveSheet] = useState('Global');
   const [availableSheets, setAvailableSheets] = useState([]);
   const [selectedState, setSelectedState] = useState(null);
@@ -254,8 +256,13 @@ function App() {
   // ============================================
   return (
     <div className="app-layout">
+      {/* Backdrop overlay for mobile menu */}
+      {mobileMenuOpen && (
+        <div className="sidebar-backdrop" onClick={() => setMobileMenuOpen(false)}></div>
+      )}
+
       {/* Sidebar */}
-      <aside className="app-sidebar">
+      <aside className={`app-sidebar ${mobileMenuOpen ? 'sidebar-open' : ''}`}>
         <div className="sidebar-header">
           <div className="logo-icon">INE</div>
           <h2>Reductor de Días</h2>
@@ -283,7 +290,11 @@ function App() {
               <button
                 key={sheet}
                 className={`sidebar-btn ${activeSheet === sheet && activeTab !== 'viewer' ? 'active' : ''}`}
-                onClick={() => { setActiveSheet(sheet); setActiveTab('dashboard'); }}
+                onClick={() => { 
+                  setActiveSheet(sheet); 
+                  setActiveTab('dashboard'); 
+                  setMobileMenuOpen(false);
+                }}
               >
                 <span className="sidebar-icon">{SHEET_ICONS[sheet] || '📄'}</span>
                 <span className="sidebar-label" style={{ fontSize: '0.8rem', lineHeight: '1.2' }}>
@@ -299,14 +310,20 @@ function App() {
             <h3 className="sidebar-section-title">Datos</h3>
             <button
               className={`sidebar-btn viewer-btn ${activeTab === 'viewer' ? 'active' : ''}`}
-              onClick={() => setActiveTab('viewer')}
+              onClick={() => { 
+                setActiveTab('viewer'); 
+                setMobileMenuOpen(false);
+              }}
             >
               <span className="sidebar-icon">📋</span>
               <span className="sidebar-label">Ver Dataset</span>
             </button>
             <button
               className={`sidebar-btn ${activeTab === 'presentation' ? 'active' : ''}`}
-              onClick={() => { setActiveTab('presentation'); }}
+              onClick={() => { 
+                setActiveTab('presentation'); 
+                setMobileMenuOpen(false);
+              }}
               style={{
                 background: activeTab === 'presentation' ? 'var(--accent-color)' : 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(99, 102, 241, 0.15))',
                 border: '1px solid rgba(139, 92, 246, 0.3)',
@@ -327,14 +344,17 @@ function App() {
               type="file"
               accept=".xlsx, .xls"
               style={{ display: 'none' }}
-              onChange={handleFileUpload}
+              onChange={(e) => {
+                handleFileUpload(e);
+                setMobileMenuOpen(false);
+              }}
               disabled={uploading}
             />
           </label>
-          <button className="sidebar-btn secondary" onClick={handleChangeDataset}>
+          <button className="sidebar-btn secondary" onClick={() => { handleChangeDataset(); setMobileMenuOpen(false); }}>
             📁 Cambiar Dataset
           </button>
-          <button className="sidebar-btn secondary" onClick={handleChangeStage}>
+          <button className="sidebar-btn secondary" onClick={() => { handleChangeStage(); setMobileMenuOpen(false); }}>
             🔄 Cambiar Etapa
           </button>
         </div>
@@ -344,7 +364,7 @@ function App() {
             <h3 className="sidebar-section-title">Filtro Activo</h3>
             <div className="state-badge">
               <span>🏛️ {selectedState}</span>
-              <button className="clear-filter-btn" onClick={() => setSelectedState(null)}>✕</button>
+              <button className="clear-filter-btn" onClick={() => { setSelectedState(null); setMobileMenuOpen(false); }}>✕</button>
             </div>
           </div>
         )}
@@ -352,6 +372,18 @@ function App() {
 
       {/* Main Content Area */}
       <div className="app-content">
+        {/* Mobile top navigation bar */}
+        <header className="mobile-header">
+          <button className="menu-toggle-btn" onClick={() => setMobileMenuOpen(prev => !prev)} title="Abrir Menú">
+            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+          </button>
+          <div className="mobile-header-title">
+            <span className="logo-icon small">INE</span>
+            <span>Reductor de Días</span>
+          </div>
+          <div style={{ width: 22 }}></div>
+        </header>
+
         {/* Dataset Viewer Tab */}
         {activeTab === 'viewer' ? (
           <main className="app-main">

@@ -1546,3 +1546,211 @@ body {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ============================================ */
+/* RESPONSIVE LAYOUT AND MOBILE OPTIMIZATIONS   */
+/* ============================================ */
+
+/* Top bar style on mobile */
+.mobile-header {
+  display: none;
+}
+
+@media (max-width: 1024px) {
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    position: sticky;
+    top: 0;
+    z-index: 99;
+  }
+  
+  .mobile-header-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 700;
+    color: #ffffff;
+    font-size: 1.1rem;
+  }
+  
+  .mobile-header-title .logo-icon.small {
+    padding: 4px 8px;
+    font-size: 0.75rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
+    border-radius: 6px;
+    color: white;
+  }
+
+  .menu-toggle-btn {
+    background: transparent;
+    border: none;
+    color: #ffffff;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px;
+    border-radius: 6px;
+    transition: background 0.2s;
+  }
+  
+  .menu-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  /* Adjust sidebar for mobile drawer style */
+  .app-sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: var(--sidebar-width);
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
+    box-shadow: 20px 0 30px rgba(0, 0, 0, 0.7);
+  }
+
+  .app-sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    z-index: 999;
+  }
+
+  .app-content {
+    margin-left: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .app-main {
+    padding: 16px !important;
+  }
+
+  /* Grid adaptations */
+  .charts-grid {
+    grid-template-columns: 1fr !important;
+    gap: 16px;
+  }
+
+  .kpi-grid {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+
+  .kpi-card {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .kpi-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+  }
+
+  .kpi-value {
+    font-size: 1.5rem;
+  }
+
+  .controls.panel {
+    flex-direction: column !important;
+    gap: 16px;
+    padding: 16px;
+  }
+
+  /* Ensure cards shrink properly and Plotly can resize */
+  .chart-card {
+    min-width: 0 !important;
+    width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .chart-wrapper {
+    min-width: 0 !important;
+    width: 100% !important;
+  }
+  
+  .risk-grid-container {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)) !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .tab-navigation {
+    padding: 8px 12px !important;
+    gap: 6px;
+    display: flex;
+    overflow-x: auto !important;
+    white-space: nowrap !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none !important;
+  }
+  
+  .tab-navigation::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .tab-btn {
+    padding: 8px 14px !important;
+    font-size: 0.85rem !important;
+    flex-shrink: 0 !important;
+  }
+
+  /* Tables responsiveness */
+  .data-table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .data-table th, .data-table td {
+    padding: 10px 12px;
+    font-size: 0.8rem;
+  }
+
+  /* Presentation adjustments */
+  .presentation-slide {
+    padding: 20px !important;
+  }
+
+  .presentation-slide h2 {
+    font-size: 1.4rem !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .stage-selection-card {
+    padding: 24px 12px !important;
+  }
+  .stage-selection-card h1 {
+    font-size: 1.5rem !important;
+  }
+  .dataset-grid {
+    grid-template-columns: 1fr !important;
+    gap: 12px;
+  }
+  .dataset-card {
+    padding: 16px !important;
+    border-radius: 12px !important;
+  }
+  .chart-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+}

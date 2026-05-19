@@ -75,7 +75,7 @@ const Statistical = ({ sheet, state }) => {
       ) : (
         <div className="charts-grid">
           {distData ? (
-            <div className={`chart-card ${theme1 === 'light' ? 'light-theme' : ''}`}>
+            <div className={`chart-card wide ${theme1 === 'light' ? 'light-theme' : ''}`}>
               <div className="chart-card-header">
                 <h3>Distribución de Distritos (Día {day})</h3>
                 <button 
