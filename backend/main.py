@@ -482,6 +482,10 @@ def export_reductor_report(
 
                 n_districts, n_days = matrix.shape
                 eff_threshold = threshold - 0.0005
+                threshold_pct_label = f"{threshold * 100:.0f}%"
+
+                # Construir nombres descriptivos de distrito para el listado
+                district_labels = analysis.get_district_labels(df)
 
                 # Generar escenarios del día 25 al último
                 start_day = 25
@@ -517,14 +521,30 @@ def export_reductor_report(
                     min_val_str = f"{min_val * 100:.1f}%"
                     max_below_str = f"{max_below * 100:.1f}%" if max_below is not None else "N/A"
 
+                    # Listar nombres de distritos > umbral
+                    above_indices = np.where(above_threshold)[0]
+                    distritos_above_names = ", ".join([district_labels[i] for i in above_indices]) if len(above_indices) > 0 else "Ninguno"
+
+                    # Listar nombres de distritos con 100%
+                    at100_indices = np.where(at_100)[0]
+                    distritos_100_names = ", ".join([district_labels[i] for i in at100_indices]) if len(at100_indices) > 0 else "Ninguno"
+
+                    # Listar nombres de distritos en riesgo (ni sobre umbral ni al 100%)
+                    risk_mask = (~above_threshold) & (~at_100)
+                    risk_indices = np.where(risk_mask)[0]
+                    distritos_riesgo_names = ", ".join([district_labels[i] for i in risk_indices]) if len(risk_indices) > 0 else "Ninguno"
+
                     scenarios_data.append({
                         "Si cortamos el Día...": f"Día {sd}",
                         "Cumplimiento Medio": media_str,
-                        "Distritos > Umbral (%)": pct_above_str,
-                        "Distritos > Umbral (Cantidad)": count_above,
+                        f"Porcentaje de Distritos > Umbral ({threshold_pct_label})": pct_above_str,
+                        f"Distritos > Umbral ({threshold_pct_label}) (Cantidad)": count_above,
+                        f"Distritos > Umbral ({threshold_pct_label}) (Nombres)": distritos_above_names,
                         "Distritos con 100% (%)": pct_100_str,
                         "Distritos con 100% (Cantidad)": count_100,
+                        "Distritos con 100% (Nombres)": distritos_100_names,
                         "Distritos en Riesgo": distritos_riesgo,
+                        "Distritos en Riesgo (Nombres)": distritos_riesgo_names,
                         "Mínimo Cumplimiento": min_val_str,
                         "Máximo Cumplimiento bajo Umbral": max_below_str
                     })
