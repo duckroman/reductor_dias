@@ -6,10 +6,15 @@ Soporta seleccion de datasets predefinidos por etapa operativa.
 """
 
 from fastapi import FastAPI, Query, File, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 import analysis
 import os
+import io
+import openpyxl
+from openpyxl.utils import get_column_letter
+import pandas as pd
+import numpy as np
 
 app = FastAPI(title="Reductor de Dias - INE", version="3.0.0")
 
@@ -399,6 +404,158 @@ def get_reductor(
     """Analisis de punto optimo para reduccion de dias."""
     df, matrix, _ = get_data(sheet, state)
     return analysis.compute_reductor(matrix, df=df, threshold=threshold, coverage=coverage, manual_day=manual_day)
+
+
+@app.get("/api/reductor/report")
+def export_reductor_report(
+    threshold: float = Query(0.90, ge=0.0, le=1.0),
+    coverage: float = Query(0.80, ge=0.0, le=1.0)
+):
+    """Genera un reporte Excel con la Simulación de Escenarios del día 25 al final,
+    con columnas adicionales de cumplimiento mínimo y máximo bajo umbral.
+    Una hoja por rubro para la etapa actual."""
+    global _active_stage, _active_filename, _available_sheets
+    
+    fp = _get_filepath()
+    if not fp or not _active_stage:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail="No hay ningún dataset activo cargado o la sesión expiró.")
+
+    # Definir rubros según la etapa
+    if _active_stage == 1:
+        rubros_to_export = [
+            ("Global", "Global"),
+            ("Visitados", "Visitados"),
+            ("CCRL Optimo", "CCRL Optimo")
+        ]
+    else:
+        rubros_to_export = [
+            ("Global", "Global"),
+            ("Nombramientos", "Nombramientos"),
+            ("Capacitados", "Capacitación"),
+            ("Asistencia a Simulacros", "Asistencia a Simulacros")
+        ]
+
+    output_buffer = io.BytesIO()
+    
+    # Crear Excel Writer
+    with pd.ExcelWriter(output_buffer, engine='openpyxl') as writer:
+        for sheet_label, dataset_sheet in rubros_to_export:
+            # Buscar el origen real en el dataset
+            real_sheet = None
+            if dataset_sheet == "Global":
+                real_sheet = "Global"
+            else:
+                for s in _available_sheets:
+                    if s.strip().lower() == dataset_sheet.strip().lower():
+                        real_sheet = s
+                        break
+                
+                # Fallback de CCRL
+                if not real_sheet and dataset_sheet == "CCRL Optimo":
+                    for s in _available_sheets:
+                        if "requeridos" in s.lower() or "requerido" in s.lower() or "ccrl" in s.lower():
+                            real_sheet = s
+                            break
+                
+                # Fallback de Capacitación
+                if not real_sheet and dataset_sheet == "Capacitación":
+                    for s in _available_sheets:
+                        if "capacita" in s.lower():
+                            real_sheet = s
+                            break
+
+            # Si no se encuentra, omitimos o creamos una hoja vacía/informativa
+            if not real_sheet:
+                print(f"[WARN] No se pudo encontrar hoja para {dataset_sheet}")
+                df_err = pd.DataFrame({"Mensaje": [f"El rubro '{sheet_label}' no está disponible en este dataset." ]})
+                df_err.to_excel(writer, sheet_name=sheet_label, index=False)
+                continue
+
+            try:
+                # Obtener df y matrix
+                df, matrix, day_cols = get_data(real_sheet)
+                if matrix is None or matrix.shape[1] == 0:
+                    df_err = pd.DataFrame({"Mensaje": [f"No hay datos para calcular la simulación." ]})
+                    df_err.to_excel(writer, sheet_name=sheet_label, index=False)
+                    continue
+
+                n_districts, n_days = matrix.shape
+                eff_threshold = threshold - 0.0005
+
+                # Generar escenarios del día 25 al último
+                start_day = 25
+                if n_days < 25:
+                    start_day = 1 # Si el dataset tiene menos de 25 días, empezamos del 1
+
+                scenarios_data = []
+                for sd in range(start_day, n_days + 1):
+                    idx = sd - 1
+                    col = matrix[:, idx]
+
+                    above_threshold = col >= eff_threshold
+                    at_100 = col >= 0.9995
+
+                    # Porcentaje del distrito con menor cumplimiento
+                    min_val = float(np.min(col))
+
+                    # Porcentaje del distrito con mayor cumplimiento por debajo del umbral
+                    below_threshold_vals = col[col < eff_threshold]
+                    if len(below_threshold_vals) > 0:
+                        max_below = float(np.max(below_threshold_vals))
+                    else:
+                        max_below = None
+
+                    # Formatear valores
+                    media_str = f"{col.mean() * 100:.1f}%"
+                    pct_above_str = f"{np.mean(above_threshold) * 100:.1f}%"
+                    count_above = int(np.sum(above_threshold))
+                    pct_100_str = f"{np.mean(at_100) * 100:.1f}%"
+                    count_100 = int(np.sum(at_100))
+                    distritos_riesgo = int(np.sum((~above_threshold) & (~at_100)))
+
+                    min_val_str = f"{min_val * 100:.1f}%"
+                    max_below_str = f"{max_below * 100:.1f}%" if max_below is not None else "N/A"
+
+                    scenarios_data.append({
+                        "Si cortamos el Día...": f"Día {sd}",
+                        "Cumplimiento Medio": media_str,
+                        "Distritos > Umbral (%)": pct_above_str,
+                        "Distritos > Umbral (Cantidad)": count_above,
+                        "Distritos con 100% (%)": pct_100_str,
+                        "Distritos con 100% (Cantidad)": count_100,
+                        "Distritos en Riesgo": distritos_riesgo,
+                        "Mínimo Cumplimiento": min_val_str,
+                        "Máximo Cumplimiento bajo Umbral": max_below_str
+                    })
+
+                df_scenarios = pd.DataFrame(scenarios_data)
+                
+                # Escribir en la hoja correspondiente
+                df_scenarios.to_excel(writer, sheet_name=sheet_label, index=False)
+                
+                # Ajustar anchos de columnas
+                worksheet = writer.sheets[sheet_label]
+                for col_idx, col_name in enumerate(df_scenarios.columns, 1):
+                    max_len = max(df_scenarios[col_name].astype(str).map(len).max(), len(col_name)) + 3
+                    worksheet.column_dimensions[get_column_letter(col_idx)].width = max_len
+
+            except Exception as e:
+                print(f"[ERROR] Error generando hoja {sheet_label}: {e}")
+                df_err = pd.DataFrame({"Error": [str(e)]})
+                df_err.to_excel(writer, sheet_name=sheet_label, index=False)
+
+    output_buffer.seek(0)
+    
+    # Nombre del archivo
+    clean_filename = _active_filename.replace(".xlsx", "") if _active_filename else "dataset"
+    download_name = f"Reporte_Escenarios_Etapa{_active_stage}_{clean_filename}.xlsx"
+
+    return StreamingResponse(
+        output_buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={download_name}"}
+    )
 
 
 @app.get("/api/comparative")

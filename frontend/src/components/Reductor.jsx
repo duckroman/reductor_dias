@@ -55,6 +55,16 @@ const Reductor = ({ sheet, state }) => {
     return () => clearTimeout(timer);
   }, [threshold, coverage, manualDay, sheet, state]);
 
+  const handleDownloadReport = () => {
+    const url = `/api/reductor/report?threshold=${threshold}&coverage=${coverage}`;
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', '');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <div className="dashboard-container">
       <h2>🎯 Reductor de Días - Análisis de Punto Óptimo</h2>
@@ -336,7 +346,40 @@ const Reductor = ({ sheet, state }) => {
             </div>
 
             <div className="chart-card wide">
-              <h3>Simulación de Escenarios (Comparativa)</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                <h3 style={{ margin: 0 }}>Simulación de Escenarios (Comparativa)</h3>
+                {sheet === 'Global' && (
+                  <button 
+                    onClick={handleDownloadReport}
+                    className="download-report-btn"
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '8px 16px',
+                      background: 'linear-gradient(135deg, #10B981, #059669)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontWeight: '600',
+                      fontSize: '0.9rem',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      transition: 'transform 0.2s, box-shadow 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                      e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.15)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.transform = 'none';
+                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+                    }}
+                  >
+                    <span>📥</span> Descargar Reporte Excel
+                  </button>
+                )}
+              </div>
               <table className="data-table">
                 <thead>
                   <tr>
