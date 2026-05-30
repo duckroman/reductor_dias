@@ -49,6 +49,27 @@ El sistema ofrece dos modalidades de agrupamiento:
 ### 3.3. Reducción de Dimensionalidad (PCA)
 Para visualizar 50 dimensiones (días) en un plano 2D, se utiliza el **Análisis de Componentes Principales (PCA)**, proyectando los datos en los autovectores que maximizan la varianza explicada.
 
+### 3.4. Agrupación Inteligente (1D K-Means Clustering)
+En el contexto de la supervisión de campo, el rendimiento no es homogéneo. Para facilitar la toma de decisiones tácticas, la herramienta implementa un modelo de agrupamiento unidimensional (1D K-Means) enfocado específicamente en la métrica del **déficit** de cumplimiento.
+
+Imaginemos que cada distrito tiene una "calificación" de qué tan atrasado va (su déficit). El objetivo del algoritmo es agrupar a los distritos de forma que aquellos con un nivel de atraso similar queden juntos. Matemáticamente, si llamamos $D$ al conjunto de estos déficits, el modelo busca organizarlos utilizando la siguiente fórmula:
+
+$$ \arg\min_{S} \sum_{i=1}^{K} \sum_{d_j \in S_i} (d_j - \mu_i)^2 $$
+
+Para entenderlo de forma más amigable, desglosamos los términos de la ecuación:
+
+*   **$K$ (Número de grupos):** Es la cantidad de "cajones" o perfiles en los que queremos clasificar a los distritos. En nuestro caso, el sistema está configurado para buscar $K=3$ niveles de riesgo.
+*   **$\arg\min$ (Argumento del mínimo):** Es una instrucción matemática que le dice al algoritmo: *"De todas las formas posibles en las que podrías agrupar a los distritos, elige aquella configuración ($S$) que haga que el resultado de esta cuenta sea lo más pequeño posible"*.
+*   **WCSS (Suma de Cuadrados Dentro del Grupo):** Es toda la parte derecha de la fórmula ($\sum \sum \dots$). Básicamente, mide qué tan "dispersos" o diferentes son los distritos dentro de un mismo grupo. Lo hace calculando la distancia entre el déficit de un distrito ($d_j$) y el promedio de su grupo ($\mu_i$). Al buscar que este número sea el mínimo, el algoritmo asegura que los distritos dentro de un mismo grupo sean lo más idénticos posible.
+
+Al resolver esta ecuación iterativamente, el modelo logra segmentar de manera automática y sin sesgos humanos a los distritos en **3 perfiles de riesgo natural**:
+
+1. **Riesgo Bajo (Avance Sólido):** Distritos con déficit mínimo o nulo. Se encuentran dentro de los márgenes óptimos de cumplimiento y requieren únicamente supervisión ordinaria.
+2. **Riesgo Medio (Atención Preventiva):** Distritos que comienzan a rezagarse frente al promedio aceptable. Requieren monitoreo activo y ligeros ajustes operativos para corregir su trayectoria y evitar que se conviertan en focos rojos.
+3. **Riesgo Alto (Prioritarios):** Distritos con la desviación en déficit más pronunciada y alarmante. Representan las áreas de mayor retraso, requiriendo intervención inmediata o inyección de recursos extraordinarios para no comprometer el logro institucional.
+
+La principal ventaja operativa de este panel es que elimina la subjetividad al definir "qué es un distrito rezagado". Esto permite focalizar la atención institucional y los recursos donde es verdaderamente más urgente, con un respaldo estadístico incuestionable.
+
 ---
 
 ## 4. Algoritmo de Reducción de Días
