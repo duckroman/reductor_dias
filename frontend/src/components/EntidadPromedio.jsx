@@ -16,12 +16,13 @@ const GROUP_COLORS = [
   '#0ea5e9', // Azul cyan limpio
   '#14b8a6', // Teal fresco
 ];
+
 const NO_DATA_COLOR = '#f1f5f9';
 
 const STATE_ALIASES = {
   'estado de mexico': 'mexico',
   'edo de mexico': 'mexico',
-  'edomex': 'mexico',
+  edomex: 'mexico',
   cdmx: 'ciudad de mexico',
   'ciudad mexico': 'ciudad de mexico',
   'ciudad de mexico': 'ciudad de mexico',
@@ -52,9 +53,16 @@ const getStageAverage = (row, stage) => {
   return toNumber(row[field] ?? row.promedio ?? row.value, 0);
 };
 
+const getStageLabel = (stage) => (
+  stage === 1 ? '1ª Etapa de Capacitación' : '2ª Etapa de Nombramientos'
+);
+
+const getStageShortLabel = (stage) => (
+  stage === 1 ? 'Etapa 1' : 'Etapa 2'
+);
+
 const buildGradientColorscale = (colors) => {
   const maxIndex = Math.max(colors.length - 1, 1);
-
   return colors.map((color, index) => [index / maxIndex, color]);
 };
 
@@ -66,21 +74,15 @@ const EntidadPromedio = () => {
   const [uploading, setUploading] = useState(false);
   const [showTable, setShowTable] = useState(false);
 
-  // Map & selected state state
+  // Map state
   const [geoJson, setGeoJson] = useState(null);
-  const [selectedState, setSelectedState] = useState(null);
-  const [mapStage, setMapStage] = useState(1);
+  const [selectedStates, setSelectedStates] = useState({ 1: null, 2: null });
 
   // Clustering state
   const [clusterK1, setClusterK1] = useState(3);
   const [clusterK2, setClusterK2] = useState(3);
   const [clustersStage1, setClustersStage1] = useState([]);
   const [clustersStage2, setClustersStage2] = useState([]);
-
-  const activeClusters = mapStage === 1 ? clustersStage1 : clustersStage2;
-  const activeK = mapStage === 1 ? clusterK1 : clusterK2;
-  const activeStageLabel = mapStage === 1 ? '1ª Etapa de Capacitación' : '2ª Etapa de Nombramientos';
-  const activeStageShortLabel = mapStage === 1 ? 'Etapa 1' : 'Etapa 2';
 
   // Load averages dataset and Mexico GeoJSON on mount
   useEffect(() => {
@@ -172,29 +174,42 @@ const EntidadPromedio = () => {
     return lookup;
   };
 
-  const getSelectedStateInfo = () => {
+  const getSelectedStateInfo = (stage, clusters) => {
+    const selectedState = selectedStates[stage];
     if (!selectedState) return null;
 
     const stateMap = buildEntityMap();
-    const clusterLookup = buildClusterLookup(activeClusters);
+    const clusterLookup = buildClusterLookup(clusters);
     const key = normalizeText(selectedState);
     const stateData = stateMap[key];
     const clusterData = clusterLookup[key];
 
     return {
-      promedio: getStageAverage(stateData, mapStage),
+      promedio: getStageAverage(stateData, stage),
       grupo: clusterData?.group || null,
       color: clusterData?.color || NO_DATA_COLOR,
       hasData: Boolean(stateData),
     };
   };
 
-  // Prepare map data. The map now follows the active stage/K from the clustering tool.
-  const getMapPlot = () => {
-    if (!geoJson || entidadesData.length === 0) return null;
+  const handleStateClick = (stage, clickedState) => {
+    setSelectedStates(prev => ({
+      ...prev,
+      [stage]: prev[stage] === clickedState ? null : clickedState,
+    }));
+  };
+
+  const clearSelectedState = (stage) => {
+    setSelectedStates(prev => ({ ...prev, [stage]: null }));
+  };
+
+  const getMapPlot = ({ stage, clusters, activeK }) => {
+    if (!geoJson || entidadesData.length === 0 || clusters.length === 0) return null;
 
     const stateMap = buildEntityMap();
-    const clusterLookup = buildClusterLookup(activeClusters);
+    const clusterLookup = buildClusterLookup(clusters);
+    const selectedState = selectedStates[stage];
+    const stageLabel = getStageLabel(stage);
 
     const locations = geoJson.features.map(f => f.properties.name);
 
@@ -210,10 +225,10 @@ const EntidadPromedio = () => {
 
       if (!stateData) return `<b>${name}</b><br>Sin datos`;
 
-      const average = getStageAverage(stateData, mapStage);
+      const average = getStageAverage(stateData, stage);
       const groupText = clusterInfo?.group ? `Grupo ${clusterInfo.group}` : 'Sin grupo asignado';
 
-      return `<b>${name}</b><br>${activeStageLabel}: ${average.toFixed(2)} días<br>${groupText}<br>K=${activeK}`;
+      return `<b>${name}</b><br>${stageLabel}: ${average.toFixed(2)} días<br>${groupText}<br>K=${activeK}`;
     });
 
     const colorscale = buildGradientColorscale([
@@ -259,23 +274,23 @@ const EntidadPromedio = () => {
             },
             colorbar: {
               title: {
-                text: '<b>Grupos</b>',
+                text: `<b>Grupos<br>${getStageShortLabel(stage)}</b>`,
                 side: 'top',
-                font: { color: '#6b0040', size: 13 },
+                font: { color: '#6b0040', size: 12 },
               },
               tickmode: 'array',
               tickvals: Array.from({ length: activeK }, (_, idx) => idx + 1),
-              ticktext: Array.from({ length: activeK }, (_, idx) => `Grupo ${idx + 1}`),
+              ticktext: Array.from({ length: activeK }, (_, idx) => `G${idx + 1}`),
               tickfont: {
                 color: '#6b0040',
                 size: 11,
                 family: 'Outfit, sans-serif',
               },
               thickness: 16,
-              len: 0.72,
-              xpad: 12,
+              len: 0.7,
+              xpad: 10,
               ypad: 8,
-              bgcolor: 'rgba(255,255,255,0.72)',
+              bgcolor: 'rgba(255,255,255,0.76)',
               bordercolor: 'rgba(213,0,127,0.18)',
               borderwidth: 1,
               outlinewidth: 0,
@@ -298,12 +313,12 @@ const EntidadPromedio = () => {
             lataxis: { range: [14, 33] },
             bgcolor: '#fdf2fa',
           },
-          margin: { t: 0, r: 20, b: 0, l: 0 },
+          margin: { t: 0, r: 18, b: 0, l: 0 },
           paper_bgcolor: '#fdf2fa',
           plot_bgcolor: '#fdf2fa',
           font: { color: '#6b0040' },
           dragmode: false,
-          height: 380,
+          height: 400,
         }}
         useResizeHandler={true}
         style={{ width: '100%' }}
@@ -311,22 +326,374 @@ const EntidadPromedio = () => {
           if (event && event.points && event.points[0]) {
             const clickedState = event.points[0].location;
             if (clickedState) {
-              setSelectedState(prev => (prev === clickedState ? null : clickedState));
+              handleStateClick(stage, clickedState);
             }
           }
         }}
-        config={{ displayModeBar: false, scrollZoom: false }}
+        config={{ displayModeBar: false, scrollZoom: false, responsive: true }}
       />
     );
   };
 
-  const selectedStateInfo = getSelectedStateInfo();
+  const renderClusterCards = ({ stage, clusters }) => (
+    <div className="ep-stage-cluster-grid">
+      {clusters.map((c, idx) => (
+        <div
+          key={`${stage}-${idx}`}
+          className="ep-cluster-col"
+          style={{
+            borderTop: `3px solid ${GROUP_COLORS[idx % GROUP_COLORS.length]}`,
+            boxShadow: `0 10px 24px rgba(107, 0, 64, 0.06)`,
+          }}
+        >
+          <div className="ep-cluster-header" style={{ color: GROUP_COLORS[idx % GROUP_COLORS.length] }}>
+            <strong>Grupo {idx + 1}</strong>
+            <span className="ep-cluster-range">
+              {toNumber(c.min_val).toFixed(2)}–{toNumber(c.max_val).toFixed(2)} días
+            </span>
+          </div>
+          <ul className="ep-cluster-list">
+            {(c.estados || []).map(est => (
+              <li key={est.Entidad} className="ep-cluster-item">
+                <span className="ep-cluster-state">{est.Entidad}</span>
+                <span className="ep-cluster-days">{getStageAverage(est, stage).toFixed(2)} d</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+
+  const renderMapCard = ({ stage, clusters, activeK }) => {
+    const selectedState = selectedStates[stage];
+    const selectedStateInfo = getSelectedStateInfo(stage, clusters);
+    const stageLabel = getStageLabel(stage);
+
+    return (
+      <div className="ep-stage-map-card">
+        <div className="ep-stage-map-header">
+          <h4>
+            <Map size={17} /> Mapa de Clusters
+          </h4>
+          <span className="ep-stage-pill">{getStageShortLabel(stage)} · K={activeK}</span>
+        </div>
+
+        <div className="ep-map-shell">
+          {geoJson && !loadingData && clusters.length > 0 ? getMapPlot({ stage, clusters, activeK }) : (
+            <div className="ep-map-loading">Cargando mapa y grupos...</div>
+          )}
+        </div>
+
+        {selectedState && (
+          <div className="ep-selected-state-card">
+            <div>
+              <span className="ep-selected-state-title">🏛️ {selectedState}</span>
+              <span className="ep-selected-state-detail">
+                {selectedStateInfo?.hasData
+                  ? `${stageLabel}: ${selectedStateInfo.promedio.toFixed(2)} días · ${selectedStateInfo.grupo ? `Grupo ${selectedStateInfo.grupo}` : 'Sin grupo asignado'}`
+                  : 'Sin datos para esta etapa'}
+              </span>
+            </div>
+            <button onClick={() => clearSelectedState(stage)}>Quitar selección ✕</button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderStageSection = ({ stage, title, activeK, setActiveK, clusters }) => (
+    <div className="ep-panel ep-stage-card">
+      <div className="ep-stage-titlebar">
+        <div>
+          <h3>
+            <Layers size={18} /> {title}
+          </h3>
+        </div>
+        <div className="ep-k-control" aria-label={`Selector de K para ${title}`}>
+          {[2, 3, 4, 5].map(k => (
+            <button
+              key={k}
+              onClick={() => setActiveK(k)}
+              className={`ep-k-btn ${activeK === k ? 'active' : ''}`}
+            >
+              K={k}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="ep-stage-layout">
+        {renderMapCard({ stage, clusters, activeK })}
+
+        <div className="ep-stage-clusters-panel">
+          <div className="ep-side-label">Agrupamiento</div>
+          {clusters.length > 0 ? renderClusterCards({ stage, clusters }) : (
+            <div className="ep-empty-state">Cargando grupos...</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   return (
     <div className="dashboard-container ep-light" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h2 style={{ color: '#d5007f' }}>📊 Análisis de Promedios por Entidad y Clustering</h2>
-        <div style={{ display: 'flex', gap: '10px' }}>
+      <style>{`
+        .ep-topbar {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+          margin-bottom: 20px;
+        }
+
+        .ep-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+
+        .ep-stage-card {
+          padding: 20px;
+          margin-bottom: 24px;
+        }
+
+        .ep-stage-titlebar {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 16px;
+          margin-bottom: 18px;
+        }
+
+        .ep-stage-titlebar h3 {
+          margin: 0 0 6px 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #d5007f;
+        }
+
+        .ep-stage-titlebar p {
+          margin: 0;
+        }
+
+        .ep-k-control {
+          display: flex;
+          gap: 6px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+          min-width: 190px;
+        }
+
+        .ep-stage-layout {
+          display: flex;
+          flex-direction: column;
+          gap: 18px;
+          align-items: stretch;
+        }
+
+        .ep-stage-clusters-panel,
+        .ep-stage-map-card {
+          min-width: 0;
+        }
+
+        .ep-side-label {
+          display: inline-flex;
+          align-items: center;
+          margin-bottom: 10px;
+          padding: 5px 10px;
+          border-radius: 999px;
+          background: rgba(213, 0, 127, 0.08);
+          border: 1px solid rgba(213, 0, 127, 0.18);
+          color: #8b004f;
+          font-size: 0.78rem;
+          font-weight: 700;
+          letter-spacing: 0.02em;
+          text-transform: uppercase;
+        }
+
+        .ep-stage-cluster-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+          gap: 12px;
+          align-items: start;
+        }
+
+        .ep-stage-card .ep-cluster-item {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 10px;
+          align-items: flex-start;
+        }
+
+        .ep-stage-card .ep-cluster-state {
+          min-width: 0;
+          font-size: calc(0.85rem - 2pt);
+          line-height: 1.25;
+          white-space: normal;
+          overflow: visible;
+          text-overflow: clip;
+          overflow-wrap: normal;
+          word-break: normal;
+          hyphens: none;
+        }
+
+        .ep-stage-card .ep-cluster-days {
+          justify-self: end;
+          font-size: calc(0.80rem - 2pt);
+          white-space: nowrap;
+        }
+
+        .ep-general-description {
+            width: 100%;
+            max-width: none;
+            margin: 20px 0 24px 0;
+            padding: 0;
+            border: none;
+            border-radius: 0;
+            background: transparent;
+            color: #6b0040;
+            font-size: 0.94rem;
+            line-height: 1.5;
+        }
+
+        .ep-stage-map-card {
+          border-radius: 16px;
+          background: linear-gradient(180deg, #fff7fc 0%, #fdf2fa 100%);
+          border: 1px solid rgba(213, 0, 127, 0.12);
+          padding: 14px;
+          box-shadow: 0 14px 30px rgba(107, 0, 64, 0.07);
+        }
+
+        .ep-stage-map-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 10px;
+        }
+
+        .ep-stage-map-header h4 {
+          margin: 0;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          color: #8b004f;
+        }
+
+        .ep-stage-pill {
+          display: inline-flex;
+          align-items: center;
+          padding: 6px 10px;
+          border-radius: 999px;
+          background: rgba(213, 0, 127, 0.09);
+          border: 1px solid rgba(213, 0, 127, 0.22);
+          color: #8b004f;
+          font-size: 0.82rem;
+          font-weight: 700;
+          white-space: nowrap;
+        }
+
+        .ep-map-shell {
+          min-height: 400px;
+          overflow: hidden;
+          border-radius: 12px;
+          background: #fdf2fa;
+        }
+
+        .ep-map-loading,
+        .ep-empty-state {
+          min-height: 180px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #9b5982;
+          border-radius: 12px;
+          background: rgba(213, 0, 127, 0.04);
+          border: 1px dashed rgba(213, 0, 127, 0.18);
+        }
+
+        .ep-map-loading {
+          min-height: 400px;
+        }
+
+        .ep-selected-state-card {
+          margin-top: 12px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 12px;
+          background: rgba(213, 0, 127, 0.08);
+          border: 1px solid rgba(213, 0, 127, 0.26);
+          border-radius: 10px;
+        }
+
+        .ep-selected-state-card > div {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+
+        .ep-selected-state-title {
+          color: #8b004f;
+          font-weight: 800;
+          font-size: 0.92rem;
+        }
+
+        .ep-selected-state-detail {
+          color: #8b004f;
+          font-size: 0.84rem;
+        }
+
+        .ep-selected-state-card button {
+          border: none;
+          background: transparent;
+          color: #d5007f;
+          cursor: pointer;
+          font-weight: 700;
+          white-space: nowrap;
+        }
+
+        @media (max-width: 760px) {
+          .ep-topbar,
+          .ep-stage-titlebar {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .ep-actions,
+          .ep-k-control {
+            width: 100%;
+            justify-content: flex-start;
+          }
+
+          .ep-stage-card {
+            padding: 14px;
+          }
+
+          .ep-stage-cluster-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .ep-stage-map-header,
+          .ep-selected-state-card {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+
+          .ep-map-shell,
+          .ep-map-loading {
+            min-height: 360px;
+          }
+        }
+      `}</style>
+
+      <div className="ep-topbar">
+        <h2 style={{ color: '#d5007f', margin: 0 }}>📊 Análisis de Promedios por Entidad y Clustering</h2>
+        <div className="ep-actions">
           <button
             className="sidebar-btn ep-action-btn"
             onClick={() => setShowTable(!showTable)}
@@ -342,10 +709,16 @@ const EntidadPromedio = () => {
       </div>
 
       {filename && (
-        <div className="ep-file-indicator" style={{ marginBottom: '20px', maxWidth: '350px' }}>
-          <div className="ep-file-label">Archivo de Promedios Estatal</div>
-          <span>{filename}</span>
-        </div>
+        <>
+          <div className="ep-file-indicator" style={{ marginBottom: '12px', maxWidth: '350px' }}>
+            <div className="ep-file-label">Archivo de Promedios Estatal</div>
+            <span>{filename}</span>
+          </div>
+
+          <p className="ep-general-description">
+            La herramienta permite agrupar los estados en 2, 3, 4 y 5 grupos, con base en la velocidad que se alcanzan las metas en una etapa de capacitación determinada.
+          </p>
+        </>
       )}
 
       {/* Visor de Dataset en formato Tabla Premium */}
@@ -369,156 +742,47 @@ const EntidadPromedio = () => {
               </tr>
             </thead>
             <tbody>
-              {entidadesData.map((row, idx) => (
-                <tr key={idx} className={normalizeText(selectedState) === normalizeText(row.Entidad) ? 'highlight-row' : ''}>
-                  <td>{row.Circunscripción}</td>
-                  <td>{row['ID Estado']}</td>
-                  <td>{row.Entidad}</td>
-                  <td>{row.E1_2017_2018}</td>
-                  <td>{row.E1_2020_2021}</td>
-                  <td>{row.E1_2023_2024}</td>
-                  <td style={{ fontWeight: '600' }}>{toNumber(row.E1_Promedio).toFixed(2)}</td>
-                  <td>{row.E2_2017_2018}</td>
-                  <td>{row.E2_2020_2021}</td>
-                  <td>{row.E2_2023_2024}</td>
-                  <td style={{ fontWeight: '600' }}>{toNumber(row.E2_Promedio).toFixed(2)}</td>
-                </tr>
-              ))}
+              {entidadesData.map((row, idx) => {
+                const isSelected = [selectedStates[1], selectedStates[2]].some(
+                  state => normalizeText(state) === normalizeText(row.Entidad)
+                );
+
+                return (
+                  <tr key={idx} className={isSelected ? 'highlight-row' : ''}>
+                    <td>{row.Circunscripción}</td>
+                    <td>{row['ID Estado']}</td>
+                    <td>{row.Entidad}</td>
+                    <td>{row.E1_2017_2018}</td>
+                    <td>{row.E1_2020_2021}</td>
+                    <td>{row.E1_2023_2024}</td>
+                    <td style={{ fontWeight: '600' }}>{toNumber(row.E1_Promedio).toFixed(2)}</td>
+                    <td>{row.E2_2017_2018}</td>
+                    <td>{row.E2_2020_2021}</td>
+                    <td>{row.E2_2023_2024}</td>
+                    <td style={{ fontWeight: '600' }}>{toNumber(row.E2_Promedio).toFixed(2)}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
 
-      {/* Mapa de México — dinámico por etapa y K activo */}
-      <div className="ep-panel" style={{ padding: '20px', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px', gap: '12px', flexWrap: 'wrap' }}>
-          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#d5007f' }}>
-            <Map size={18} /> Mapa de Clusters Estatales
-          </h3>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '0.85rem', color: '#8b004f', background: 'rgba(213,0,127,0.08)', border: '1px solid rgba(213,0,127,0.25)', padding: '6px 10px', borderRadius: '999px', fontWeight: 600 }}>
-              Visualizando: {activeStageShortLabel} · K={activeK}
-            </span>
-          </div>
-        </div>
-        <p className="explanation-text micro ep-text-muted" style={{ marginBottom: '15px' }}>
-          El mapa se actualiza con la etapa y el valor K que manipules en la herramienta de agrupamiento. Cada color representa un grupo; al pasar el cursor se muestra únicamente el promedio de la etapa activa.
-        </p>
-        <div style={{ background: '#fdf2fa', borderRadius: '12px', overflow: 'hidden' }}>
-          {geoJson && !loadingData ? getMapPlot() : (
-            <div style={{ height: '350px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#9b5982' }}>
-              Cargando mapa de México...
-            </div>
-          )}
-        </div>
-        {selectedState && (
-          <div style={{ marginTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: 'rgba(213,0,127,0.08)', border: '1px solid rgba(213,0,127,0.3)', borderRadius: '6px', gap: '12px', flexWrap: 'wrap' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <span style={{ fontSize: '0.9rem', color: '#8b004f' }}>
-                🏛️ Estado seleccionado: <strong style={{ color: '#d5007f' }}>{selectedState}</strong>
-              </span>
-              <span style={{ fontSize: '0.85rem', color: '#8b004f' }}>
-                {selectedStateInfo?.hasData
-                  ? `${activeStageLabel}: ${selectedStateInfo.promedio.toFixed(2)} días · ${selectedStateInfo.grupo ? `Grupo ${selectedStateInfo.grupo}` : 'Sin grupo asignado'}`
-                  : 'Sin datos para la etapa activa'}
-              </span>
-            </div>
-            <button onClick={() => setSelectedState(null)} style={{ border: 'none', background: 'transparent', color: '#d5007f', cursor: 'pointer', fontWeight: 600 }}>
-              Quitar selección ✕
-            </button>
-          </div>
-        )}
-      </div>
+      {renderStageSection({
+        stage: 1,
+        title: '1ª Etapa de Capacitación',
+        activeK: clusterK1,
+        setActiveK: setClusterK1,
+        clusters: clustersStage1,
+      })}
 
-      {/* Panel de Clustering — ancho completo, debajo del mapa */}
-      <div className="ep-panel" style={{ padding: '20px', marginBottom: '25px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
-        <div>
-          <h3 style={{ marginTop: 0, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px', color: '#d5007f' }}>
-            <Layers size={18} /> Herramienta de Agrupamiento (Clusters)
-          </h3>
-          <p className="explanation-text micro ep-text-muted" style={{ margin: 0 }}>
-            Permite agrupar los estados en 2, 3, 4 y 5 grupos, con base en la velocidad que se alcanzan las metas en la etapa de capacitacion seleccionada.
-          </p>
-        </div>
-
-        {/* Clusters Etapa 1 */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '12px', flexWrap: 'wrap' }}>
-            <h4 style={{ margin: 0, color: '#8b004f' }}>1ª Etapa de Capacitación</h4>
-            <div style={{ display: 'flex', gap: '5px' }}>
-              {[2, 3, 4, 5].map(k => (
-                <button
-                  key={k}
-                  onClick={() => {
-                    setMapStage(1);
-                    setClusterK1(k);
-                  }}
-                  className={`ep-k-btn ${clusterK1 === k && mapStage === 1 ? 'active' : ''}`}
-                >
-                  K={k}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${clusterK1}, minmax(0, 1fr))`, gap: '10px', alignItems: 'start' }}>
-            {clustersStage1.map((c, idx) => (
-              <div key={idx} className="ep-cluster-col" style={{ borderTop: `3px solid ${GROUP_COLORS[idx % GROUP_COLORS.length]}` }}>
-                <div className="ep-cluster-header" style={{ color: GROUP_COLORS[idx % GROUP_COLORS.length] }}>
-                  <strong>Grupo {idx + 1}</strong>
-                  <span className="ep-cluster-range">{toNumber(c.min_val).toFixed(1)}–{toNumber(c.max_val).toFixed(1)} días</span>
-                </div>
-                <ul className="ep-cluster-list">
-                  {(c.estados || []).map(est => (
-                    <li key={est.Entidad} className="ep-cluster-item">
-                      <span className="ep-cluster-state">{est.Entidad}</span>
-                      <span className="ep-cluster-days">{getStageAverage(est, 1).toFixed(2)} d</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Clusters Etapa 2 */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', gap: '12px', flexWrap: 'wrap' }}>
-            <h4 style={{ margin: 0, color: '#8b004f' }}>2ª Etapa de Nombramientos</h4>
-            <div style={{ display: 'flex', gap: '5px' }}>
-              {[2, 3, 4, 5].map(k => (
-                <button
-                  key={k}
-                  onClick={() => {
-                    setMapStage(2);
-                    setClusterK2(k);
-                  }}
-                  className={`ep-k-btn ${clusterK2 === k && mapStage === 2 ? 'active' : ''}`}
-                >
-                  K={k}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${clusterK2}, minmax(0, 1fr))`, gap: '10px', alignItems: 'start' }}>
-            {clustersStage2.map((c, idx) => (
-              <div key={idx} className="ep-cluster-col" style={{ borderTop: `3px solid ${GROUP_COLORS[idx % GROUP_COLORS.length]}` }}>
-                <div className="ep-cluster-header" style={{ color: GROUP_COLORS[idx % GROUP_COLORS.length] }}>
-                  <strong>Grupo {idx + 1}</strong>
-                  <span className="ep-cluster-range">{toNumber(c.min_val).toFixed(1)}–{toNumber(c.max_val).toFixed(1)} días</span>
-                </div>
-                <ul className="ep-cluster-list">
-                  {(c.estados || []).map(est => (
-                    <li key={est.Entidad} className="ep-cluster-item">
-                      <span className="ep-cluster-state">{est.Entidad}</span>
-                      <span className="ep-cluster-days">{getStageAverage(est, 2).toFixed(2)} d</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+      {renderStageSection({
+        stage: 2,
+        title: '2ª Etapa de Nombramientos',
+        activeK: clusterK2,
+        setActiveK: setClusterK2,
+        clusters: clustersStage2,
+      })}
     </div>
   );
 };
