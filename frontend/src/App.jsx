@@ -7,6 +7,7 @@ import MexicoMap from './components/MexicoMap';
 import SustitucionesPage from './components/SustitucionesPage';
 import DatasetViewer from './components/DatasetViewer';
 import Presentation from './components/Presentation';
+import EntidadPromedio from './components/EntidadPromedio';
 import { getSheets, uploadDataFile, getActiveFile, getDatasets, selectDataset, clearCache } from './services/api';
 import { Menu, X } from 'lucide-react';
 import './App.css';
@@ -57,8 +58,19 @@ function App() {
       setCurrentPath(window.location.pathname);
     };
     window.addEventListener('popstate', handleLocationChange);
+    // Sync route to EntidadPromedio tab
+    if (window.location.pathname === '/grupos') {
+      setActiveTab('entidadPromedio');
+    }
     return () => window.removeEventListener('popstate', handleLocationChange);
   }, []);
+
+  // Update URL when navigating via sidebar buttons
+  const navigateTo = (path, tab) => {
+    window.history.pushState(null, '', path);
+    setCurrentPath(path);
+    setActiveTab(tab);
+  };
 
   // Cuando se selecciona una etapa, cargar la lista de datasets disponibles
   useEffect(() => {
@@ -163,11 +175,18 @@ function App() {
   if (currentPath === '/sustituciones') {
     return <SustitucionesPage />;
   }
-
+// Nueva ruta para Análisis Entidad Promedio
+if (currentPath === '/grupos') {
+  return (
+    <div className="app-layout">
+      <EntidadPromedio activeSheet={activeSheet} />
+    </div>
+  );
+}
   // ============================================
   // PANTALLA 1: Selección de Etapa
   // ============================================
-  if (!selectedStage) {
+  if (!selectedStage && currentPath !== '/grupos') {
     return (
       <div className="stage-selection-container">
         <div className="stage-selection-card">
@@ -190,6 +209,11 @@ function App() {
                 <h3>Etapa 2: Nombramientos y Capacitación</h3>
                 <p>Análisis de Nombramientos, Capacitación y Simulacros.</p>
               </div>
+            </button>
+          </div>
+          <div style={{ marginTop: '20px', textAlign: 'center' }}>
+            <button className="sidebar-btn" onClick={() => navigateTo('/grupos', 'entidadPromedio')} style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: '#fff' }}>
+              Acceder a Análisis Entidad Promedio
             </button>
           </div>
         </div>
@@ -319,9 +343,24 @@ function App() {
               <span className="sidebar-label">Ver Dataset</span>
             </button>
             <button
+              className={`sidebar-btn ${activeTab === 'entidadPromedio' ? 'active' : ''}`}
+              onClick={() => { 
+                navigateTo('/grupos', 'entidadPromedio');
+                setMobileMenuOpen(false);
+              }}
+              style={{
+                background: activeTab === 'entidadPromedio' ? 'var(--accent-color)' : 'linear-gradient(135deg, rgba(139, 92, 246, 0.1), rgba(99, 102, 241, 0.1))',
+                border: '1px solid rgba(139, 92, 246, 0.25)',
+                marginTop: '8px'
+              }}
+            >
+              <span className="sidebar-icon">🏛️</span>
+              <span className="sidebar-label" style={{ fontWeight: '600', color: activeTab === 'entidadPromedio' ? '#fff' : '#c084fc' }}>Análisis Entidad Promedio</span>
+            </button>
+            <button
               className={`sidebar-btn ${activeTab === 'presentation' ? 'active' : ''}`}
               onClick={() => { 
-                setActiveTab('presentation'); 
+                navigateTo('/presentation', 'presentation');
                 setMobileMenuOpen(false);
               }}
               style={{
@@ -391,6 +430,12 @@ function App() {
               key={`viewer-${dataVersion}-${activeSheet}`}
               sheet={activeSheet === 'Global' ? null : activeSheet}
               state={selectedState}
+            />
+          </main>
+        ) : activeTab === 'entidadPromedio' ? (
+          <main className="app-main">
+            <EntidadPromedio 
+              activeSheet={activeSheet}
             />
           </main>
         ) : (

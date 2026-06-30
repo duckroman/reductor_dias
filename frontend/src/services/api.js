@@ -124,3 +124,35 @@ export const uploadDataFile = async (file, stage = null) => {
   });
   return response.data;
 };
+
+// ============================================================
+// Promedios por Entidad y Clustering
+// ============================================================
+
+export const getEntidadesData = async () => {
+  const response = await api.get('/entidades/data');
+  return response.data;
+};
+
+export const uploadEntidadesFile = async (file) => {
+  const formData = new FormData();
+  formData.append('file', file);
+  const response = await api.post('/entidades/upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  });
+  return response.data;
+};
+
+export const getEntidadesClustering = async (stage, k) => {
+  const response = await api.get('/entidades/clustering', { params: { stage, k } });
+  return response.data;
+};
+
+export const getEstadoDistritos = async (state, sheet = null, day = null) => {
+  const params = { state };
+  if (sheet) params.sheet = sheet;
+  if (day) params.day = day;
+  const response = await api.get('/entidades/estado-distritos', { params });
+  return response.data;
+};
+

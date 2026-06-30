@@ -698,3 +698,87 @@ def compute_boxplot_data(matrix):
             'outliers': outliers.tolist(),
         })
     return result
+
+
+def load_entidad_promedio(filepath):
+    """Carga los promedios por entidad del archivo Excel."""
+    df_raw = pd.read_excel(filepath, header=None)
+    
+    rows = []
+    for idx, row in df_raw.iterrows():
+        # La columna 2 (ID Estado) contiene números de 1 a 32
+        val_id_estado = pd.to_numeric(row[2], errors='coerce')
+        if pd.notna(val_id_estado) and 1 <= val_id_estado <= 32:
+            rows.append(row)
+            
+    if not rows:
+        raise ValueError("No se encontraron registros de entidades válidos (ID Estado entre 1 y 32)")
+        
+    df_clean = pd.DataFrame(rows)
+    df_clean.columns = [
+        'Unnamed_0',
+        'Circunscripción',
+        'ID Estado',
+        'Entidad',
+        'E1_2017_2018',
+        'E1_2020_2021',
+        'E1_2023_2024',
+        'E1_Promedio',
+        'E2_2017_2018',
+        'E2_2020_2021',
+        'E2_2023_2024',
+        'E2_Promedio',
+        'Unnamed_12'
+    ]
+    
+    # Dropear las columnas que no sirven
+    df_clean = df_clean.drop(columns=['Unnamed_0', 'Unnamed_12'], errors='ignore')
+    
+    # Convertir a tipos de datos numéricos
+    numeric_cols = [
+        'Circunscripción', 'ID Estado',
+        'E1_2017_2018', 'E1_2020_2021', 'E1_2023_2024', 'E1_Promedio',
+        'E2_2017_2018', 'E2_2020_2021', 'E2_2023_2024', 'E2_Promedio'
+    ]
+    for col in numeric_cols:
+        df_clean[col] = pd.to_numeric(df_clean[col], errors='coerce')
+        
+    df_clean['Entidad'] = df_clean['Entidad'].astype(str).str.strip()
+    return df_clean
+
+
+def compute_entidades_clustering(df, stage, k):
+    """Agrupa estados por cercanía de promedios en la etapa indicada (1 o 2)."""
+    col_name = 'E1_Promedio' if stage == 1 else 'E2_Promedio'
+    
+    df_valid = df[['ID Estado', 'Entidad', col_name]].dropna().copy()
+    if len(df_valid) < k:
+        k = max(2, len(df_valid))
+        
+    values = df_valid[col_name].values.reshape(-1, 1)
+    
+    kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+    labels = kmeans.fit_predict(values)
+    df_valid['cluster'] = labels
+    
+    # Ordenar los clusters para que el cluster con promedio más bajo sea el 0
+    centers = kmeans.cluster_centers_.flatten()
+    sorted_cluster_indices = np.argsort(centers)
+    rank_map = {old_label: new_label for new_label, old_label in enumerate(sorted_cluster_indices)}
+    df_valid['cluster'] = df_valid['cluster'].map(rank_map)
+    
+    # Construir respuesta
+    cluster_profiles = []
+    for c in range(k):
+        sub_df = df_valid[df_valid['cluster'] == c]
+        cluster_profiles.append({
+            'cluster': int(c),
+            'n_estados': int(len(sub_df)),
+            'estados': sub_df[['ID Estado', 'Entidad', col_name]].rename(columns={col_name: 'promedio'}).to_dict(orient='records'),
+            'min_val': float(sub_df[col_name].min()) if len(sub_df) > 0 else 0.0,
+            'max_val': float(sub_df[col_name].max()) if len(sub_df) > 0 else 0.0,
+            'mean_val': float(sub_df[col_name].mean()) if len(sub_df) > 0 else 0.0,
+        })
+        
+    return cluster_profiles
+

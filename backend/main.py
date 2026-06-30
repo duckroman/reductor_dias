@@ -687,6 +687,231 @@ def health():
     return {"status": "ok", "message": "Backend activo v3 — Dataset Selector"}
 
 
+# ============================================================
+# NUEVA FUNCIONALIDAD: PROMEDIOS POR ENTIDAD Y CLUSTERING
+# ============================================================
+
+_entidades_df_cache = None
+_entidades_filepath = os.path.join(DATASETS_DIR, "Analisis_entidad_promedio.xlsx")
+_entidades_filename = "Analisis_entidad_promedio.xlsx"
+
+
+def get_entidades_df():
+    global _entidades_df_cache, _entidades_filepath
+    if _entidades_df_cache is None:
+        if os.path.exists(_entidades_filepath):
+            _entidades_df_cache = analysis.load_entidad_promedio(_entidades_filepath)
+        else:
+            fallback_path = os.path.join(DATASETS_DIR, "Analisis_entidad_promedio.xlsx")
+            if os.path.exists(fallback_path):
+                _entidades_filepath = fallback_path
+                _entidades_df_cache = analysis.load_entidad_promedio(fallback_path)
+            else:
+                raise FileNotFoundError("No se encuentra el archivo Analisis_entidad_promedio.xlsx")
+    return _entidades_df_cache
+
+
+@app.get("/api/entidades/data")
+def get_entidades_data():
+    try:
+        df = get_entidades_df()
+        df_clean = df.replace({np.nan: None})
+        return {
+            "filename": _entidades_filename,
+            "data": df_clean.to_dict(orient="records")
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.post("/api/entidades/upload")
+async def upload_entidades_file(file: UploadFile = File(...)):
+    global _entidades_df_cache, _entidades_filepath, _entidades_filename
+    try:
+        filepath = os.path.join(DATASETS_DIR, "Analisis_entidad_promedio_custom.xlsx")
+        contents = await file.read()
+        if not contents:
+            raise ValueError("El archivo está vacío")
+            
+        with open(filepath, "wb") as f:
+            f.write(contents)
+            
+        # Validar
+        df_validated = analysis.load_entidad_promedio(filepath)
+        
+        _entidades_filepath = filepath
+        _entidades_filename = file.filename
+        _entidades_df_cache = df_validated
+        
+        return {
+            "message": "Archivo de promedios por entidad cargado y procesado exitosamente",
+            "filename": file.filename
+        }
+    except Exception as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=f"Error al procesar el archivo de entidades: {str(e)}")
+
+
+@app.get("/api/entidades/clustering")
+def get_entidades_clustering(stage: int = Query(1, ge=1, le=2), k: int = Query(3, ge=2, le=5)):
+    try:
+        df = get_entidades_df()
+        profiles = analysis.compute_entidades_clustering(df, stage, k)
+        return {"profiles": profiles, "stage": stage, "k": k}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@app.get("/api/entidades/estado-distritos")
+def get_estado_distritos(
+    state: str = Query(...),
+    sheet: str = Query(None),
+    day: int = Query(None)
+):
+    try:
+        target_sheet = sheet
+        if not target_sheet:
+            filtered = _get_filtered_sheets(_active_stage)
+            target_sheet = filtered[1] if len(filtered) > 1 else (filtered[0] if filtered else None)
+            
+        df, matrix, day_cols = get_data(target_sheet, state)
+        if matrix is None or matrix.shape[0] == 0:
+            return {
+                "state": state,
+                "sheet": target_sheet,
+                "total_districts": 0,
+                "risk_districts": [],
+                "risk_clusters": {
+                    "muy_cerca": {"distritos": [], "promedio_deficit": 0.0},
+                    "medio": {"distritos": [], "promedio_deficit": 0.0},
+                    "muy_lejos": {"distritos": [], "promedio_deficit": 0.0}
+                },
+                "mean_by_day": [],
+                "marginal_returns": [],
+                "dias": []
+            }
+            
+        n_districts, n_days = matrix.shape
+        dias = list(range(1, n_days + 1))
+        
+        eval_day = day
+        if not eval_day:
+            general_reductor = analysis.compute_reductor(matrix, df=df, threshold=0.95, coverage=0.80)
+            eval_day = general_reductor["recommended_day"]
+            
+        if eval_day < 1 or eval_day > n_days:
+            eval_day = n_days
+            
+        threshold = 0.95
+        eff_threshold = threshold - 0.0005
+        
+        col = matrix[:, eval_day - 1]
+        district_labels = analysis.get_district_labels(df)
+        
+        muy_cerca_o_encima = []
+        below_districts = []
+        
+        for idx in range(n_districts):
+            val = col[idx]
+            if val >= eff_threshold:
+                muy_cerca_o_encima.append({
+                    'distrito': district_labels[idx],
+                    'cumplimiento': float(val),
+                    'deficit': 0.0,
+                    'status': 'Cumple o por encima'
+                })
+            else:
+                below_districts.append({
+                    'distrito': district_labels[idx],
+                    'cumplimiento': float(val),
+                    'deficit': float(threshold - val),
+                })
+                
+        risk_clusters = {
+            'muy_cerca': {'distritos': [], 'promedio_deficit': 0.0},
+            'medio': {'distritos': [], 'promedio_deficit': 0.0},
+            'muy_lejos': {'distritos': [], 'promedio_deficit': 0.0}
+        }
+        
+        if len(below_districts) >= 3:
+            deficits = np.array([d['deficit'] for d in below_districts]).reshape(-1, 1)
+            kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+            labels = kmeans.fit_predict(deficits)
+            centers = kmeans.cluster_centers_.flatten()
+            sorted_indices = np.argsort(centers)
+            mapping = {
+                sorted_indices[0]: 'muy_cerca',
+                sorted_indices[1]: 'medio',
+                sorted_indices[2]: 'muy_lejos'
+            }
+            for i, d in enumerate(below_districts):
+                cluster_name = mapping[labels[i]]
+                risk_clusters[cluster_name]['distritos'].append(d)
+        else:
+            for d in below_districts:
+                risk_clusters['muy_cerca']['distritos'].append(d)
+                
+        for key in risk_clusters:
+            if len(risk_clusters[key]['distritos']) > 0:
+                avg = np.mean([d['deficit'] for d in risk_clusters[key]['distritos']])
+                risk_clusters[key]['promedio_deficit'] = float(avg)
+                
+        for d in muy_cerca_o_encima:
+            risk_clusters['muy_cerca']['distritos'].append(d)
+            
+        for key in risk_clusters:
+            risk_clusters[key]['distritos'].sort(key=lambda x: x['cumplimiento'])
+            
+        mean_by_day = matrix.mean(axis=0)
+        marginal = np.diff(mean_by_day)
+        marginal = np.insert(marginal, 0, 0.0)
+        
+        coverage_by_day = []
+        for d in range(n_days):
+            pct_above = float(np.mean(matrix[:, d] >= eff_threshold))
+            coverage_by_day.append(pct_above)
+            
+        scenario_days = list(range(15, n_days + 1, 5))
+        if n_days not in scenario_days and n_days >= 15:
+            scenario_days.append(n_days)
+        if eval_day not in scenario_days:
+            scenario_days.append(eval_day)
+        scenario_days.sort()
+        
+        scenarios = []
+        for sd in scenario_days:
+            s_idx = sd - 1
+            s_col = matrix[:, s_idx]
+            above_threshold = s_col >= eff_threshold
+            at_100 = s_col >= 0.9995
+            scenarios.append({
+                'dia': sd,
+                'media': float(s_col.mean()),
+                'mediana': float(np.median(s_col)),
+                'pct_above_threshold': float(np.mean(above_threshold) * 100),
+                'count_above_threshold': int(np.sum(above_threshold)),
+                'pct_at_100': float(np.mean(at_100) * 100),
+                'count_at_100': int(np.sum(at_100)),
+                'distritos_en_riesgo': int(np.sum((~above_threshold) & (~at_100))),
+            })
+            
+        return {
+            "state": state,
+            "sheet": target_sheet,
+            "eval_day": eval_day,
+            "total_districts": n_districts,
+            "risk_clusters": risk_clusters,
+            "mean_by_day": mean_by_day.tolist(),
+            "marginal_returns": marginal.tolist(),
+            "coverage_by_day": coverage_by_day,
+            "scenarios": scenarios,
+            "dias": dias,
+            "counts_by_day": [int(np.sum(matrix[:, d] >= eff_threshold)) for d in range(n_days)]
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

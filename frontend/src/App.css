@@ -1720,3 +1720,209 @@ body {
     gap: 10px;
   }
 }
+
+/* ============================================ */
+/* ENTIDAD PROMEDIO - LIGHT THEME (#d5007f)     */
+/* ============================================ */
+
+.ep-light {
+  background: #fff5fb;
+  color: #1a0010;
+  min-height: 100%;
+  border-radius: 12px;
+}
+
+.ep-panel {
+  background: #ffffff;
+  border: 1px solid #f0b8dc;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 2px 12px rgba(213,0,127,0.07);
+}
+
+.ep-file-indicator {
+  font-size: 0.75rem;
+  color: #8b004f;
+  background: linear-gradient(135deg, rgba(213,0,127,0.1), rgba(255,80,170,0.08));
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(213,0,127,0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  word-break: break-all;
+}
+
+.ep-file-label {
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  color: #c2006e;
+  letter-spacing: 1px;
+}
+
+.ep-file-indicator span {
+  display: block;
+  font-weight: 600;
+  color: #d5007f;
+}
+
+.ep-upload-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(213,0,127,0.1);
+  border: 1.5px dashed rgba(213,0,127,0.5) !important;
+  border-radius: 10px;
+  color: #d5007f;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ep-upload-btn:hover {
+  background: rgba(213,0,127,0.18);
+}
+
+.ep-action-btn {
+  background: rgba(213,0,127,0.08) !important;
+  color: #d5007f !important;
+  border: 1px solid rgba(213,0,127,0.25) !important;
+  border-radius: 10px;
+}
+
+.ep-action-btn:hover {
+  background: rgba(213,0,127,0.16) !important;
+  color: #8b004f !important;
+}
+
+.ep-text-muted {
+  color: #9b5982 !important;
+}
+
+.ep-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+  font-size: 0.88rem;
+}
+
+.ep-table th {
+  padding: 10px 14px;
+  text-align: left;
+  font-weight: 600;
+  color: #8b004f;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border-bottom: 2px solid #f0b8dc;
+}
+
+.ep-table td {
+  padding: 10px 14px;
+  color: #1a0010;
+  border-bottom: 1px solid #fce4f3;
+}
+
+.ep-table tr:hover td {
+  background: #fff0f9;
+}
+
+.ep-highlight-row td {
+  background: rgba(213,0,127,0.08) !important;
+  font-weight: 600;
+  color: #d5007f;
+}
+
+.ep-cluster-col {
+  background: #fffafd;
+  border: 1px solid #f0b8dc;
+  border-radius: 8px;
+  padding: 12px;
+  min-width: 0;
+}
+
+.ep-cluster-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f0b8dc;
+  font-size: 0.85rem;
+}
+
+.ep-cluster-range {
+  font-size: 0.72rem;
+  color: #9b5982;
+  font-weight: 400;
+}
+
+.ep-cluster-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ep-cluster-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 6px;
+  border-radius: 5px;
+  font-size: 0.78rem;
+  background: rgba(213,0,127,0.04);
+  transition: background 0.15s;
+}
+
+.ep-cluster-item:hover {
+  background: rgba(213,0,127,0.1);
+}
+
+.ep-cluster-state {
+  color: #1a0010;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ep-cluster-days {
+  color: #d5007f;
+  font-weight: 700;
+  font-size: 0.77rem;
+  background: rgba(213,0,127,0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.ep-k-btn {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  border-radius: 6px;
+  background: rgba(213,0,127,0.07);
+  color: #8b004f;
+  border: 1px solid rgba(213,0,127,0.2) !important;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.ep-k-btn:hover {
+  background: rgba(213,0,127,0.15);
+}
+
+.ep-k-btn.active {
+  background: #d5007f;
+  color: #ffffff;
+  border-color: #d5007f !important;
+  box-shadow: 0 3px 10px rgba(213,0,127,0.35);
+}
