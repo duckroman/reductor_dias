@@ -178,7 +178,15 @@ function App() {
 // Nueva ruta para Análisis Entidad Promedio
 if (currentPath === '/grupos') {
   return (
-    <div className="app-layout">
+    <div style={{
+      minHeight: '100vh',
+      width: '100vw',
+      background: '#fff5fb',
+      overflowX: 'hidden',
+      overflowY: 'auto',
+      padding: '24px',
+      boxSizing: 'border-box',
+    }}>
       <EntidadPromedio activeSheet={activeSheet} />
     </div>
   );

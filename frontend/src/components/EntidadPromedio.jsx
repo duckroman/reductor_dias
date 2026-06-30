@@ -240,7 +240,7 @@ const EntidadPromedio = ({ activeSheet }) => {
   };
 
   return (
-    <div className="dashboard-container ep-light">
+    <div className="dashboard-container ep-light" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <h2 style={{ color: '#d5007f' }}>📊 Análisis de Promedios por Entidad y Clustering</h2>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -306,110 +306,111 @@ const EntidadPromedio = ({ activeSheet }) => {
         </div>
       )}
 
-      <div className="grid-2col" style={{ gap: '20px', marginBottom: '25px' }}>
-        {/* Mapa de México */}
-        <div className="ep-panel" style={{ padding: '20px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#d5007f' }}>
-              <Map size={18} /> Mapa de Promedios Estatales
-            </h3>
-          </div>
-          <p className="explanation-text micro ep-text-muted" style={{ marginBottom: '15px' }}>
-            Haga clic en un estado para ver la información de sus distritos agrupados bajo el umbral del 95% y sus gráficas de rendimiento.
-          </p>
-          <div style={{ background: '#fdf2fa', borderRadius: '12px', overflow: 'hidden' }}>
-            {geoJson ? getMapPlot() : <div style={{ height: '350px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#9b5982' }}>Cargando mapa de México...</div>}
-          </div>
-          {selectedState && (
-            <div style={{ marginTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: 'rgba(213,0,127,0.08)', border: '1px solid rgba(213,0,127,0.3)', borderRadius: '6px' }}>
-              <span style={{ fontSize: '0.9rem', color: '#8b004f' }}>🏛️ Estado seleccionado: <strong style={{ color: '#d5007f' }}>{selectedState}</strong></span>
-              <button onClick={() => setSelectedState(null)} style={{ border: 'none', background: 'transparent', color: '#d5007f', cursor: 'pointer', fontWeight: 600 }}>Quitar filtro ✕</button>
-            </div>
-          )}
+      {/* Mapa de México — ancho completo, parte superior */}
+      <div className="ep-panel" style={{ padding: '20px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', color: '#d5007f' }}>
+            <Map size={18} /> Mapa de Promedios Estatales
+          </h3>
         </div>
+        <p className="explanation-text micro ep-text-muted" style={{ marginBottom: '15px' }}>
+          Haga clic en un estado para ver la información de sus distritos agrupados bajo el umbral del 95% y sus gráficas de rendimiento.
+        </p>
+        <div style={{ background: '#fdf2fa', borderRadius: '12px', overflow: 'hidden' }}>
+          {geoJson ? getMapPlot() : <div style={{ height: '350px', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#9b5982' }}>Cargando mapa de México...</div>}
+        </div>
+        {selectedState && (
+          <div style={{ marginTop: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: 'rgba(213,0,127,0.08)', border: '1px solid rgba(213,0,127,0.3)', borderRadius: '6px' }}>
+            <span style={{ fontSize: '0.9rem', color: '#8b004f' }}>🏛️ Estado seleccionado: <strong style={{ color: '#d5007f' }}>{selectedState}</strong></span>
+            <button onClick={() => setSelectedState(null)} style={{ border: 'none', background: 'transparent', color: '#d5007f', cursor: 'pointer', fontWeight: 600 }}>Quitar filtro ✕</button>
+          </div>
+        )}
+      </div>
 
-        {/* Panel de Clustering */}
-        <div className="ep-panel" style={{ padding: '20px' }}>
-          <h3 style={{ marginTop: 0, marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '8px', color: '#d5007f' }}>
+      {/* Panel de Clustering — ancho completo, debajo del mapa */}
+      <div className="ep-panel" style={{ padding: '20px', marginBottom: '25px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+        <div>
+          <h3 style={{ marginTop: 0, marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '8px', color: '#d5007f' }}>
             <Layers size={18} /> Herramienta de Agrupamiento (Clusters)
           </h3>
-          <p className="explanation-text micro ep-text-muted" style={{ marginBottom: '20px' }}>
+          <p className="explanation-text micro ep-text-muted" style={{ margin: 0 }}>
             Permite agrupar los estados en 2, 3, 4 y 5 grupos homogéneos según sus promedios históricos en cada etapa.
           </p>
+        </div>
 
-          {/* Clusters Etapa 1 */}
-          <div style={{ marginBottom: '28px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h4 style={{ margin: 0, color: '#8b004f' }}>1ª Etapa de Capacitación</h4>
-              <div style={{ display: 'flex', gap: '5px' }}>
-                {[2, 3, 4, 5].map(k => (
-                  <button 
-                    key={k} 
-                    onClick={() => setClusterK1(k)}
-                    className={`ep-k-btn ${clusterK1 === k ? 'active' : ''}`}
-                  >
-                    K={k}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${clusterK1}, 1fr)`, gap: '10px', alignItems: 'start' }}>
-              {clustersStage1.map((c, idx) => (
-                <div key={idx} className="ep-cluster-col" style={{ borderTop: `3px solid hsl(${320 + idx * (80/Math.max(clusterK1-1,1))}, 75%, 40%)` }}>
-                  <div className="ep-cluster-header" style={{ color: `hsl(${320 + idx * (80/Math.max(clusterK1-1,1))}, 75%, 35%)` }}>
-                    <strong>Grupo {idx + 1}</strong>
-                    <span className="ep-cluster-range">{c.min_val.toFixed(1)}–{c.max_val.toFixed(1)} días</span>
-                  </div>
-                  <ul className="ep-cluster-list">
-                    {c.estados.map(est => (
-                      <li key={est.Entidad} className="ep-cluster-item">
-                        <span className="ep-cluster-state">{est.Entidad}</span>
-                        <span className="ep-cluster-days">{(est.E1_Promedio ?? est.promedio ?? est.value ?? 0).toFixed(1)} d</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+        {/* Clusters Etapa 1 */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h4 style={{ margin: 0, color: '#8b004f' }}>1ª Etapa de Capacitación</h4>
+            <div style={{ display: 'flex', gap: '5px' }}>
+              {[2, 3, 4, 5].map(k => (
+                <button
+                  key={k}
+                  onClick={() => setClusterK1(k)}
+                  className={`ep-k-btn ${clusterK1 === k ? 'active' : ''}`}
+                >
+                  K={k}
+                </button>
               ))}
             </div>
           </div>
-
-          {/* Clusters Etapa 2 */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <h4 style={{ margin: 0, color: '#8b004f' }}>2ª Etapa de Nombramientos</h4>
-              <div style={{ display: 'flex', gap: '5px' }}>
-                {[2, 3, 4, 5].map(k => (
-                  <button 
-                    key={k} 
-                    onClick={() => setClusterK2(k)}
-                    className={`ep-k-btn ${clusterK2 === k ? 'active' : ''}`}
-                  >
-                    K={k}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: `repeat(${clusterK2}, 1fr)`, gap: '10px', alignItems: 'start' }}>
-              {clustersStage2.map((c, idx) => (
-                <div key={idx} className="ep-cluster-col" style={{ borderTop: `3px solid hsl(${200 + idx * (80/Math.max(clusterK2-1,1))}, 75%, 40%)` }}>
-                  <div className="ep-cluster-header" style={{ color: `hsl(${200 + idx * (80/Math.max(clusterK2-1,1))}, 75%, 35%)` }}>
-                    <strong>Grupo {idx + 1}</strong>
-                    <span className="ep-cluster-range">{c.min_val.toFixed(1)}–{c.max_val.toFixed(1)} días</span>
-                  </div>
-                  <ul className="ep-cluster-list">
-                    {c.estados.map(est => (
-                      <li key={est.Entidad} className="ep-cluster-item">
-                        <span className="ep-cluster-state">{est.Entidad}</span>
-                        <span className="ep-cluster-days">{(est.E2_Promedio ?? est.promedio ?? est.value ?? 0).toFixed(1)} d</span>
-                      </li>
-                    ))}
-                  </ul>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${clusterK1}, minmax(0, 1fr))`, gap: '10px', alignItems: 'start' }}>
+            {clustersStage1.map((c, idx) => (
+              <div key={idx} className="ep-cluster-col" style={{ borderTop: `3px solid hsl(${320 + idx * (80 / Math.max(clusterK1 - 1, 1))}, 75%, 40%)` }}>
+                <div className="ep-cluster-header" style={{ color: `hsl(${320 + idx * (80 / Math.max(clusterK1 - 1, 1))}, 75%, 35%)` }}>
+                  <strong>Grupo {idx + 1}</strong>
+                  <span className="ep-cluster-range">{c.min_val.toFixed(1)}–{c.max_val.toFixed(1)} días</span>
                 </div>
+                <ul className="ep-cluster-list">
+                  {c.estados.map(est => (
+                    <li key={est.Entidad} className="ep-cluster-item">
+                      <span className="ep-cluster-state">{est.Entidad}</span>
+                      <span className="ep-cluster-days">{(est.E1_Promedio ?? est.promedio ?? est.value ?? 0).toFixed(1)} d</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Clusters Etapa 2 */}
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h4 style={{ margin: 0, color: '#8b004f' }}>2ª Etapa de Nombramientos</h4>
+            <div style={{ display: 'flex', gap: '5px' }}>
+              {[2, 3, 4, 5].map(k => (
+                <button
+                  key={k}
+                  onClick={() => setClusterK2(k)}
+                  className={`ep-k-btn ${clusterK2 === k ? 'active' : ''}`}
+                >
+                  K={k}
+                </button>
               ))}
             </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${clusterK2}, minmax(0, 1fr))`, gap: '10px', alignItems: 'start' }}>
+            {clustersStage2.map((c, idx) => (
+              <div key={idx} className="ep-cluster-col" style={{ borderTop: `3px solid hsl(${200 + idx * (80 / Math.max(clusterK2 - 1, 1))}, 75%, 40%)` }}>
+                <div className="ep-cluster-header" style={{ color: `hsl(${200 + idx * (80 / Math.max(clusterK2 - 1, 1))}, 75%, 35%)` }}>
+                  <strong>Grupo {idx + 1}</strong>
+                  <span className="ep-cluster-range">{c.min_val.toFixed(1)}–{c.max_val.toFixed(1)} días</span>
+                </div>
+                <ul className="ep-cluster-list">
+                  {c.estados.map(est => (
+                    <li key={est.Entidad} className="ep-cluster-item">
+                      <span className="ep-cluster-state">{est.Entidad}</span>
+                      <span className="ep-cluster-days">{(est.E2_Promedio ?? est.promedio ?? est.value ?? 0).toFixed(1)} d</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </div>
         </div>
       </div>
+
 
       {/* Desglose de Distritos del Estado Seleccionado */}
       {selectedState && (
