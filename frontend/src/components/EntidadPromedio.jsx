@@ -12,8 +12,8 @@ const Plot = PlotlyComponent.default || PlotlyComponent;
 const GROUP_COLOR_PALETTES = {
   2: ['#4fe3adff', '#FF2014'],
   3: ['#4fe3adff', '#FFD140', '#FF2014'],
-  4: ['#4fe3adff', '#E1FFA6', '#FF6B20', '#FF2014'],
-  5: ['#4fe3adff', '#E1FFA6', '#FFD140', '#FF6B20', '#FF2014'],
+  4: ['#4fe3adff', '#b2cf77ff', '#FF6B20', '#FF2014'],
+  5: ['#4fe3adff', '#b2cf77ff', '#FFD140', '#FF6B20', '#FF2014'],
 };
 
 const NO_DATA_COLOR = '#f1f5f9';
