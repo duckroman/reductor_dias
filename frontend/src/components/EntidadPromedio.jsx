@@ -9,15 +9,21 @@ import { Upload, Table, Map, Layers } from 'lucide-react';
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
-const GROUP_COLORS = [
-  '#d5007f', // Magenta principal del tema
-  '#a855f7', // Violeta moderno
-  '#6366f1', // Índigo premium
-  '#0ea5e9', // Azul cyan limpio
-  '#14b8a6', // Teal fresco
-];
+const GROUP_COLOR_PALETTES = {
+  2: ['#4fe3adff', '#FF2014'],
+  3: ['#4fe3adff', '#FFD140', '#FF2014'],
+  4: ['#4fe3adff', '#E1FFA6', '#FF6B20', '#FF2014'],
+  5: ['#4fe3adff', '#E1FFA6', '#FFD140', '#FF6B20', '#FF2014'],
+};
 
 const NO_DATA_COLOR = '#f1f5f9';
+
+const getGroupPalette = (k = 5) => GROUP_COLOR_PALETTES[k] || GROUP_COLOR_PALETTES[5];
+
+const getGroupColor = (groupIndex, k = 5) => {
+  const palette = getGroupPalette(k);
+  return palette[groupIndex % palette.length];
+};
 
 const STATE_ALIASES = {
   'estado de mexico': 'mexico',
@@ -59,6 +65,10 @@ const getStageLabel = (stage) => (
 
 const getStageShortLabel = (stage) => (
   stage === 1 ? 'Etapa 1' : 'Etapa 2'
+);
+
+const sortClustersByAverage = (clusters = []) => (
+  [...clusters].sort((a, b) => toNumber(a.min_val) - toNumber(b.min_val))
 );
 
 const buildGradientColorscale = (colors) => {
@@ -157,14 +167,16 @@ const EntidadPromedio = () => {
 
   const buildClusterLookup = (clusters) => {
     const lookup = {};
+    const orderedClusters = sortClustersByAverage(clusters);
+    const palette = getGroupPalette(orderedClusters.length);
 
-    clusters.forEach((cluster, clusterIndex) => {
+    orderedClusters.forEach((cluster, clusterIndex) => {
       (cluster.estados || []).forEach(est => {
         if (!est.Entidad) return;
 
         lookup[normalizeText(est.Entidad)] = {
           group: clusterIndex + 1,
-          color: GROUP_COLORS[clusterIndex % GROUP_COLORS.length],
+          color: palette[clusterIndex],
           cluster,
           estado: est,
         };
@@ -215,7 +227,7 @@ const EntidadPromedio = () => {
 
     const values = locations.map(name => {
       const clusterInfo = clusterLookup[normalizeText(name)];
-      return clusterInfo?.group || 0;
+      return clusterInfo?.group ?? null;
     });
 
     const hoverTexts = locations.map(name => {
@@ -231,10 +243,7 @@ const EntidadPromedio = () => {
       return `<b>${name}</b><br>${stageLabel}: ${average.toFixed(2)} días<br>${groupText}<br>K=${activeK}`;
     });
 
-    const colorscale = buildGradientColorscale([
-      NO_DATA_COLOR,
-      ...GROUP_COLORS.slice(0, activeK),
-    ]);
+    const colorscale = buildGradientColorscale(getGroupPalette(activeK));
 
     return (
       <Plot
@@ -244,25 +253,15 @@ const EntidadPromedio = () => {
             geojson: geoJson,
             locations,
             z: values,
-            zmin: 0,
+            zmin: 1,
             zmax: activeK,
             featureidkey: 'properties.name',
             colorscale,
             showscale: true,
             marker: {
               line: {
-                color: selectedState
-                  ? locations.map(n =>
-                    normalizeText(n) === normalizeText(selectedState)
-                      ? '#111827'
-                      : 'rgba(255,255,255,0.85)'
-                  )
-                  : 'rgba(255,255,255,0.85)',
-                width: selectedState
-                  ? locations.map(n =>
-                    normalizeText(n) === normalizeText(selectedState) ? 3 : 0.8
-                  )
-                  : 0.8,
+                color: 'rgba(0,0,0,0)',
+                width: 0,
               },
             },
             hoverinfo: 'text',
@@ -274,51 +273,78 @@ const EntidadPromedio = () => {
             },
             colorbar: {
               title: {
-                text: `<b>Grupos<br>${getStageShortLabel(stage)}</b>`,
+                text: `<b>${getStageShortLabel(stage)}</b>`,
                 side: 'top',
-                font: { color: '#6b0040', size: 12 },
+                font: { color: '#0b5d47', size: 12 },
               },
               tickmode: 'array',
               tickvals: Array.from({ length: activeK }, (_, idx) => idx + 1),
-              ticktext: Array.from({ length: activeK }, (_, idx) => `G${idx + 1}`),
+              ticktext: Array.from({ length: activeK }, (_, idx) => {
+                if (idx === 0) return `G${idx + 1} · menor`;
+                if (idx === activeK - 1) return `G${idx + 1} · mayor`;
+                return `G${idx + 1}`;
+              }),
               tickfont: {
-                color: '#6b0040',
-                size: 11,
+                color: '#0b5d47',
+                size: 10,
                 family: 'Outfit, sans-serif',
               },
-              thickness: 16,
-              len: 0.7,
-              xpad: 10,
-              ypad: 8,
-              bgcolor: 'rgba(255,255,255,0.76)',
-              bordercolor: 'rgba(213,0,127,0.18)',
+              ticks: 'outside',
+              ticklen: 4,
+              tickwidth: 1,
+              tickcolor: '#0b5d47',
+              thickness: 20,
+              len: 0.64,
+              xpad: 16,
+              ypad: 16,
+              bgcolor: 'rgba(255,255,255,0.86)',
+              bordercolor: 'rgba(152,255,217,0.45)',
               borderwidth: 1,
               outlinewidth: 0,
             },
           },
+          ...(selectedState ? [
+            {
+              type: 'choropleth',
+              geojson: geoJson,
+              locations: [selectedState],
+              z: [1],
+              zmin: 0,
+              zmax: 1,
+              featureidkey: 'properties.name',
+              colorscale: [
+                [0, 'rgba(0,0,0,0)'],
+                [1, 'rgba(0,0,0,0)'],
+              ],
+              showscale: false,
+              hoverinfo: 'skip',
+              marker: {
+                line: {
+                  color: '#111827',
+                  width: 2,
+                },
+              },
+            },
+          ] : []),
         ]}
         layout={{
           geo: {
-            scope: 'north america',
-            showframe: false,
-            showcoastlines: false,
-            showland: true,
-            landcolor: '#fff0f9',
-            showocean: true,
-            oceancolor: '#f8e4f3',
-            showlakes: false,
-            projection: { type: 'mercator' },
-            center: { lat: 23.6345, lon: -102.5528 },
-            lonaxis: { range: [-118, -86] },
-            lataxis: { range: [14, 33] },
+            visible: false,
+            projection: {
+              type: 'mercator',
+              scale: 1.02,
+            },
+            center: { lat: 23.7, lon: -102.4 },
+            lonaxis: { range: [-118.8, -85.6] },
+            lataxis: { range: [13.9, 33.4] },
             bgcolor: '#fdf2fa',
           },
-          margin: { t: 0, r: 18, b: 0, l: 0 },
+          margin: { t: 0, r: 68, b: 0, l: 0 },
           paper_bgcolor: '#fdf2fa',
           plot_bgcolor: '#fdf2fa',
           font: { color: '#6b0040' },
           dragmode: false,
-          height: 400,
+          height: 420,
         }}
         useResizeHandler={true}
         style={{ width: '100%' }}
@@ -335,35 +361,51 @@ const EntidadPromedio = () => {
     );
   };
 
-  const renderClusterCards = ({ stage, clusters }) => (
-    <div className="ep-stage-cluster-grid">
-      {clusters.map((c, idx) => (
-        <div
-          key={`${stage}-${idx}`}
-          className="ep-cluster-col"
-          style={{
-            borderTop: `3px solid ${GROUP_COLORS[idx % GROUP_COLORS.length]}`,
-            boxShadow: `0 10px 24px rgba(107, 0, 64, 0.06)`,
-          }}
-        >
-          <div className="ep-cluster-header" style={{ color: GROUP_COLORS[idx % GROUP_COLORS.length] }}>
-            <strong>Grupo {idx + 1}</strong>
-            <span className="ep-cluster-range">
-              {toNumber(c.min_val).toFixed(2)}–{toNumber(c.max_val).toFixed(2)} días
-            </span>
-          </div>
-          <ul className="ep-cluster-list">
-            {(c.estados || []).map(est => (
-              <li key={est.Entidad} className="ep-cluster-item">
-                <span className="ep-cluster-state">{est.Entidad}</span>
-                <span className="ep-cluster-days">{getStageAverage(est, stage).toFixed(2)} d</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </div>
-  );
+  const renderClusterCards = ({ stage, clusters }) => {
+    const orderedClusters = sortClustersByAverage(clusters);
+
+    return (
+      <div className="ep-stage-cluster-grid">
+        {orderedClusters.map((c, idx) => {
+          const groupColor = getGroupColor(idx, orderedClusters.length);
+          const groupTone = idx === 0
+            ? 'Entidades de avance rápido'
+            : idx === orderedClusters.length - 1
+              ? 'Entidades de avance menos rápido'
+              : 'Entidades de avance intermedio';
+
+          return (
+            <div
+              key={`${stage}-${idx}`}
+              className="ep-cluster-col"
+              style={{
+                borderTop: `3px solid ${groupColor}`,
+                boxShadow: `0 10px 24px rgba(107, 0, 64, 0.06)`,
+              }}
+            >
+              <div className="ep-cluster-header" style={{ color: groupColor }}>
+                <strong>Grupo {idx + 1}</strong>
+                <span className="ep-cluster-range">
+                  {toNumber(c.min_val).toFixed(2)}–{toNumber(c.max_val).toFixed(2)} días
+                </span>
+              </div>
+              <div className="ep-cluster-tone" style={{ color: groupColor }}>
+                {groupTone}
+              </div>
+              <ul className="ep-cluster-list">
+                {(c.estados || []).map(est => (
+                  <li key={est.Entidad} className="ep-cluster-item">
+                    <span className="ep-cluster-state">{est.Entidad}</span>
+                    <span className="ep-cluster-days">{getStageAverage(est, stage).toFixed(2)} d</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   const renderMapCard = ({ stage, clusters, activeK }) => {
     const selectedState = selectedStates[stage];
@@ -547,16 +589,16 @@ const EntidadPromedio = () => {
         }
 
         .ep-general-description {
-            width: 100%;
-            max-width: none;
-            margin: 20px 0 24px 0;
-            padding: 0;
-            border: none;
-            border-radius: 0;
-            background: transparent;
-            color: #6b0040;
-            font-size: 0.94rem;
-            line-height: 1.5;
+          width: 100%;
+          max-width: none;
+          margin: -4px 0 24px 0;
+          padding: 0;
+          border: none;
+          border-radius: 0;
+          background: transparent;
+          color: #6b0040;
+          font-size: 0.94rem;
+          line-height: 1.5;
         }
 
         .ep-stage-map-card {
@@ -597,7 +639,7 @@ const EntidadPromedio = () => {
         }
 
         .ep-map-shell {
-          min-height: 400px;
+          min-height: 420px;
           overflow: hidden;
           border-radius: 12px;
           background: #fdf2fa;
@@ -616,7 +658,7 @@ const EntidadPromedio = () => {
         }
 
         .ep-map-loading {
-          min-height: 400px;
+          min-height: 420px;
         }
 
         .ep-selected-state-card {
@@ -686,7 +728,7 @@ const EntidadPromedio = () => {
 
           .ep-map-shell,
           .ep-map-loading {
-            min-height: 360px;
+            min-height: 440px;
           }
         }
       `}</style>
