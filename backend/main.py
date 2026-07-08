@@ -8,8 +8,10 @@ Soporta seleccion de datasets predefinidos por etapa operativa.
 from fastapi import FastAPI, Query, File, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-import analysis
 import os
+import sys
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+import analysis
 import io
 import openpyxl
 from openpyxl.utils import get_column_letter
