@@ -13,10 +13,5 @@ export default defineConfig({
         changeOrigin: true,
       }
     }
-  },
-  resolve: {
-    alias: {
-      'plotly.js': 'plotly.js/dist/plotly.js'
-    }
   }
 })
