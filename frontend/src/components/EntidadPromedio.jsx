@@ -97,7 +97,7 @@ const EntidadPromedio = () => {
   // Load averages dataset and Mexico GeoJSON on mount
   useEffect(() => {
     loadData();
-    fetch('/mexico_geo.json')
+    fetch(`${import.meta.env.BASE_URL}mexico_geo.json`)
       .then(r => r.json())
       .then(data => setGeoJson(data))
       .catch(e => console.error('Error loading GeoJSON', e));

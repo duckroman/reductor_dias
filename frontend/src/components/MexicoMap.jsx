@@ -10,7 +10,7 @@ const MexicoMap = ({ sheet, selectedState, onStateClick, dataVersion }) => {
 
   // Cargar GeoJSON una sola vez
   useEffect(() => {
-    fetch('/mexico_geo.json')
+    fetch(`${import.meta.env.BASE_URL}mexico_geo.json`)
       .then(r => r.json())
       .then(data => setGeoJson(data))
       .catch(e => console.error('Error loading GeoJSON', e));
