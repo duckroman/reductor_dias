@@ -820,7 +820,7 @@ const EntidadPromedio = () => {
 
       {renderStageSection({
         stage: 2,
-        title: '2ª Etapa de Nombramientos',
+        title: '2ª Etapa de Capacitación',
         activeK: clusterK2,
         setActiveK: setClusterK2,
         clusters: clustersStage2,
