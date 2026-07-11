@@ -365,8 +365,8 @@ const EntidadPromedio = () => {
               tickmode: 'array',
               tickvals: Array.from({ length: activeK }, (_, idx) => idx + 1),
               ticktext: Array.from({ length: activeK }, (_, idx) => {
-                if (idx === 0) return `G${idx + 1} · menor`;
-                if (idx === activeK - 1) return `G${idx + 1} · mayor`;
+                if (idx === 0) return `G${idx + 1} · Rápido`;
+                if (idx === activeK - 1) return `G${idx + 1} · Lento`;
                 return `G${idx + 1}`;
               }),
               tickfont: {
@@ -611,7 +611,7 @@ const EntidadPromedio = () => {
                 >
                   {modalSortMode === 'lento'
                     ? '↺ Restablecer orden original'
-                    : '🐢 Ordenar: más lento → más rápido'}
+                    : 'Ordenar: más lento → más rápido'}
                 </button>
               </div>
 
