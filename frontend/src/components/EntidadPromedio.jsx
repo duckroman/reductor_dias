@@ -5,7 +5,21 @@ import {
   getEntidadesClustering,
 } from '../services/api';
 import PlotlyComponent from 'react-plotly.js';
-import { Upload, Table, Map, Layers } from 'lucide-react';
+import { Upload, Table, Map, Layers, X, Thermometer } from 'lucide-react';
+
+// Bundled datasets: importing them (instead of fetching them at runtime from
+// /public) makes them part of the compiled JS bundle. This avoids depending on
+// the production server correctly serving static files from /public, on
+// import.meta.env.BASE_URL resolving to the right path, or on any SPA
+// fallback route accidentally returning index.html instead of the JSON file.
+//
+// IMPORTANT: move both files into `src/data/` (create the folder if it
+// doesn't exist yet), next to this component, i.e.:
+//   src/data/mexico_geo.json
+//   src/data/distritos_analisis.json
+// If your project structure differs, just adjust the two import paths below.
+import mexicoGeoData from '../data/mexico_geo.json';
+import distritosAnalisisData from '../data/distritos_analisis.json';
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
@@ -76,6 +90,44 @@ const buildGradientColorscale = (colors) => {
   return colors.map((color, index) => [index / maxIndex, color]);
 };
 
+// --- District-level dataset (drill-down card) ---
+// Variable definitions per stage, matched to the keys expected in
+// `distritos_analisis.json` (see /public/distritos_analisis.json).
+const STAGE1_VARIABLES = [
+  { key: 'ciudadania_estabilizacion', label: 'Punto de estabilización de ciudadanía visitada' },
+  { key: 'ciudadania_95', label: '95% de ciudadanía visitada' },
+  { key: 'ccrl_estabilizacion', label: 'Punto de estabilización de CCRL' },
+  { key: 'numero_optimo', label: 'Número óptimo' },
+];
+
+const STAGE2_VARIABLES = [
+  { key: 'nombramientos_95', label: '95% de nombramientos' },
+  { key: 'nombramientos_estabilizacion', label: 'Punto de estabilización de nombramientos' },
+  { key: 'capacitaciones_95', label: '95% de capacitaciones' },
+  { key: 'capacitaciones_estabilizacion', label: 'Punto de estabilización de capacitaciones' },
+  { key: 'simulacros_estabilizacion', label: 'Punto de estabilización de asistencia a simulacros' },
+];
+
+const getStageVariables = (stage) => (stage === 1 ? STAGE1_VARIABLES : STAGE2_VARIABLES);
+
+// Heatmap gradient: green (rápido) -> red (lento / foco rojo)
+const HEAT_LOW_RGB = [79, 227, 173]; // #4fe3ad
+const HEAT_HIGH_RGB = [255, 32, 20]; // #FF2014
+
+const interpolateHeatColor = (t) => {
+  const clamped = Math.min(Math.max(t, 0), 1);
+  const rgb = HEAT_LOW_RGB.map((c, i) => Math.round(c + (HEAT_HIGH_RGB[i] - c) * clamped));
+  return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+};
+
+const getHeatColor = (value, min, max) => {
+  if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max) || max === min) {
+    return NO_DATA_COLOR;
+  }
+  const t = (value - min) / (max - min);
+  return interpolateHeatColor(t);
+};
+
 const EntidadPromedio = () => {
   // Averages dataset state
   const [entidadesData, setEntidadesData] = useState([]);
@@ -85,7 +137,7 @@ const EntidadPromedio = () => {
   const [showTable, setShowTable] = useState(false);
 
   // Map state
-  const [geoJson, setGeoJson] = useState(null);
+  const [geoJson] = useState(mexicoGeoData);
   const [selectedStates, setSelectedStates] = useState({ 1: null, 2: null });
 
   // Clustering state
@@ -94,13 +146,20 @@ const EntidadPromedio = () => {
   const [clustersStage1, setClustersStage1] = useState([]);
   const [clustersStage2, setClustersStage2] = useState([]);
 
-  // Load averages dataset and Mexico GeoJSON on mount
+  // District-level dataset state (drill-down card per entidad)
+  // Bundled at build time via the import above — no runtime loading needed.
+  const [distritosData] = useState({
+    etapa1: distritosAnalisisData.etapa1 || [],
+    etapa2: distritosAnalisisData.etapa2 || [],
+  });
+  const loadingDistritos = false;
+  const [modalEntidad, setModalEntidad] = useState(null); // { stage, entidad } | null
+  const [modalSortMode, setModalSortMode] = useState('original'); // 'original' | 'veloz'
+
+  // Load averages dataset (this one still comes from the backend API, unrelated
+  // to the bundled GeoJSON / district datasets above).
   useEffect(() => {
     loadData();
-    fetch(`${import.meta.env.BASE_URL}mexico_geo.json`)
-      .then(r => r.json())
-      .then(data => setGeoJson(data))
-      .catch(e => console.error('Error loading GeoJSON', e));
   }, []);
 
   const loadData = async () => {
@@ -203,6 +262,32 @@ const EntidadPromedio = () => {
       hasData: Boolean(stateData),
     };
   };
+
+  // --- District-level drill-down helpers ---
+
+  const getStageDistritos = (stage) => (stage === 1 ? distritosData.etapa1 : distritosData.etapa2);
+
+  const getDistritosPorEntidad = (stage, entidad) => {
+    const key = normalizeText(entidad);
+    return getStageDistritos(stage).filter(d => normalizeText(d.Entidad) === key);
+  };
+
+  // Min/max for a given variable across ALL districts nationwide, so that the
+  // heatmap color of a district is comparable across different entidades.
+  const getColumnRange = (stage, variableKey) => {
+    const values = getStageDistritos(stage)
+      .map(d => toNumber(d[variableKey], NaN))
+      .filter(v => Number.isFinite(v));
+
+    if (values.length === 0) return { min: 0, max: 1 };
+    return { min: Math.min(...values), max: Math.max(...values) };
+  };
+
+  const openDistritosModal = (stage, entidad) => {
+    setModalSortMode('original');
+    setModalEntidad({ stage, entidad });
+  };
+  const closeDistritosModal = () => setModalEntidad(null);
 
   const handleStateClick = (stage, clickedState) => {
     setSelectedStates(prev => ({
@@ -394,7 +479,12 @@ const EntidadPromedio = () => {
               </div>
               <ul className="ep-cluster-list">
                 {(c.estados || []).map(est => (
-                  <li key={est.Entidad} className="ep-cluster-item">
+                  <li
+                    key={est.Entidad}
+                    className="ep-cluster-item ep-cluster-item-clickable"
+                    onClick={() => openDistritosModal(stage, est.Entidad)}
+                    title={`Ver distritos de ${est.Entidad}`}
+                  >
                     <span className="ep-cluster-state">{est.Entidad}</span>
                     <span className="ep-cluster-days">{getStageAverage(est, stage).toFixed(2)} d</span>
                   </li>
@@ -440,6 +530,138 @@ const EntidadPromedio = () => {
             <button onClick={() => clearSelectedState(stage)}>Quitar selección ✕</button>
           </div>
         )}
+      </div>
+    );
+  };
+
+  const renderDistritosModal = () => {
+    if (!modalEntidad) return null;
+
+    const { stage, entidad } = modalEntidad;
+    const variables = getStageVariables(stage);
+    const ranges = variables.map(v => ({ ...v, ...getColumnRange(stage, v.key) }));
+    const datasetIsEmpty = getStageDistritos(stage).length === 0;
+
+    // Original order: by ID_Distrito ascending.
+    const baseDistritos = getDistritosPorEntidad(stage, entidad)
+      .slice()
+      .sort((a, b) => toNumber(a.ID_Distrito) - toNumber(b.ID_Distrito));
+
+    // Speed score per distrito = average of its stage variables (lower = más rápido).
+    const withScore = baseDistritos.map(d => {
+      const values = variables
+        .map(v => toNumber(d[v.key], NaN))
+        .filter(v => Number.isFinite(v));
+      const score = values.length ? values.reduce((a, b) => a + b, 0) / values.length : NaN;
+      return { ...d, __score: score };
+    });
+
+    const distritos = modalSortMode === 'lento'
+      ? [...withScore].sort((a, b) => {
+        const aFinite = Number.isFinite(a.__score);
+        const bFinite = Number.isFinite(b.__score);
+        if (!aFinite && !bFinite) return 0;
+        if (!aFinite) return 1;
+        if (!bFinite) return -1;
+        return b.__score - a.__score;
+      })
+      : withScore;
+
+    const distritoColWidthPct = 26;
+    const variableColWidthPct = (100 - distritoColWidthPct) / variables.length;
+
+    return (
+      <div className="ep-modal-overlay" onClick={closeDistritosModal}>
+        <div
+          className="ep-modal-card"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="ep-modal-header">
+            <div>
+              <span className="ep-modal-stage-label">{getStageLabel(stage)}</span>
+              <h3>🏛️ {entidad}</h3>
+            </div>
+            <button className="ep-modal-close" onClick={closeDistritosModal} aria-label="Cerrar">
+              <X size={18} />
+            </button>
+          </div>
+
+          {loadingDistritos ? (
+            <div className="ep-empty-state" style={{ minHeight: 140 }}>
+              Cargando dataset de distritos...
+            </div>
+          ) : datasetIsEmpty ? (
+            <div className="ep-empty-state" style={{ minHeight: 140 }}>
+              Aún no se ha cargado el dataset de distritos (distritos_analisis.json).
+            </div>
+          ) : distritos.length === 0 ? (
+            <div className="ep-empty-state" style={{ minHeight: 140 }}>
+              No se encontraron distritos para {entidad}.
+            </div>
+          ) : (
+            <>
+              <div className="ep-modal-toolbar">
+                <div className="ep-modal-toolbar-spacer" style={{ width: `${distritoColWidthPct}%` }} />
+                <span className="ep-modal-legend-label">Día en el que alcanza:</span>
+                <button
+                  className="ep-sort-btn"
+                  onClick={() => setModalSortMode(prev => (prev === 'lento' ? 'original' : 'lento'))}
+                >
+                  {modalSortMode === 'lento'
+                    ? '↺ Restablecer orden original'
+                    : '🐢 Ordenar: más lento → más rápido'}
+                </button>
+              </div>
+
+              <div className="ep-modal-table-wrap">
+                <table className="ep-heatmap-table">
+                  <colgroup>
+                    <col style={{ width: `${distritoColWidthPct}%` }} />
+                    {variables.map(v => (
+                      <col key={v.key} style={{ width: `${variableColWidthPct}%` }} />
+                    ))}
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>Distrito</th>
+                      {variables.map(v => <th key={v.key}>{v.label}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {distritos.map((d, idx) => (
+                      <tr key={`${d.ID_Distrito}-${idx}`}>
+                        <td className="ep-heatmap-distrito">
+                          <span className="ep-distrito-id">
+                            {String(toNumber(d.ID_Distrito, 0)).padStart(2, '0')}
+                          </span>
+                          <span className="ep-distrito-name">{d.Distrito}</span>
+                        </td>
+                        {ranges.map(r => {
+                          const value = toNumber(d[r.key], NaN);
+                          const color = getHeatColor(value, r.min, r.max);
+                          return (
+                            <td key={r.key} className="ep-heatmap-cell" style={{ background: color }}>
+                              {Number.isFinite(value) ? value.toFixed(2) : '—'}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="ep-heatmap-legend">
+                <Thermometer size={14} />
+                <span>Más rápido</span>
+                <div className="ep-heatmap-gradient" />
+                <span>Más lento (foco rojo)</span>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     );
   };
@@ -731,6 +953,223 @@ const EntidadPromedio = () => {
             min-height: 440px;
           }
         }
+
+        .ep-cluster-item-clickable {
+          cursor: pointer;
+          border-radius: 8px;
+          padding: 4px 6px;
+          margin: -4px -6px;
+          transition: background 0.15s ease, transform 0.1s ease;
+        }
+
+        .ep-cluster-item-clickable:hover {
+          background: rgba(213, 0, 127, 0.08);
+        }
+
+        .ep-cluster-item-clickable:active {
+          transform: scale(0.98);
+        }
+
+        .ep-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(20, 0, 12, 0.55);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 20px;
+        }
+
+        .ep-modal-card {
+          width: 100%;
+          max-width: 900px;
+          max-height: 85vh;
+          overflow-y: auto;
+          background: #fffdfe;
+          border-radius: 18px;
+          border: 1px solid rgba(213, 0, 127, 0.18);
+          box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+          padding: 22px;
+        }
+
+        .ep-modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          gap: 12px;
+          margin-bottom: 16px;
+        }
+
+        .ep-modal-header h3 {
+          margin: 0;
+          color: #8b004f;
+          font-size: 1.15rem;
+        }
+
+        .ep-modal-stage-label {
+          display: block;
+          color: #8b004f;
+          font-size: 0.74rem;
+          font-weight: 800;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
+          margin-bottom: 4px;
+        }
+
+        .ep-modal-close {
+          border: none;
+          background: rgba(213, 0, 127, 0.08);
+          color: #8b004f;
+          width: 32px;
+          height: 32px;
+          border-radius: 999px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          flex-shrink: 0;
+        }
+
+        .ep-modal-close:hover {
+          background: rgba(213, 0, 127, 0.16);
+        }
+
+        .ep-modal-toolbar {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin-bottom: 10px;
+        }
+
+        .ep-modal-toolbar-spacer {
+          flex-shrink: 0;
+        }
+
+        .ep-modal-legend-label {
+          flex: 1;
+          text-align: left;
+          color: #6b0040;
+          font-size: 0.86rem;
+          font-weight: 600;
+        }
+
+        .ep-sort-btn {
+          border: 1px solid rgba(213, 0, 127, 0.28);
+          background: rgba(213, 0, 127, 0.06);
+          color: #8b004f;
+          font-weight: 700;
+          font-size: 0.78rem;
+          padding: 7px 12px;
+          border-radius: 999px;
+          cursor: pointer;
+          white-space: nowrap;
+          flex-shrink: 0;
+          transition: background 0.15s ease;
+        }
+
+        .ep-sort-btn:hover {
+          background: rgba(213, 0, 127, 0.14);
+        }
+
+        .ep-modal-table-wrap {
+          overflow-x: auto;
+          border-radius: 12px;
+          border: 1px solid rgba(213, 0, 127, 0.12);
+        }
+
+        .ep-heatmap-table {
+          width: 100%;
+          min-width: 560px;
+          table-layout: fixed;
+          border-collapse: collapse;
+          font-size: 0.78rem;
+        }
+
+        .ep-heatmap-table th {
+          background: #fce4f3;
+          color: #6b0040;
+          padding: 8px 8px;
+          text-align: center;
+          vertical-align: middle;
+          font-size: 0.72rem;
+          line-height: 1.25;
+          white-space: normal;
+          word-break: break-word;
+          position: sticky;
+          top: 0;
+        }
+
+        .ep-heatmap-distrito {
+          display: flex;
+          align-items: flex-start;
+          gap: 6px;
+          font-weight: 600;
+          color: #1e0010;
+          background: #fffdfe;
+          position: sticky;
+          left: 0;
+        }
+
+        .ep-distrito-id {
+          flex-shrink: 0;
+          color: #8b004f;
+          font-weight: 800;
+          font-size: 0.74rem;
+          background: rgba(213, 0, 127, 0.1);
+          border-radius: 6px;
+          padding: 1px 5px;
+          line-height: 1.4;
+        }
+
+        .ep-distrito-name {
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          text-align: left;
+          line-height: 1.2;
+          font-size: 0.76rem;
+          white-space: normal;
+          word-break: break-word;
+        }
+
+        .ep-heatmap-table td {
+          padding: 7px 10px;
+          border-bottom: 1px solid rgba(213, 0, 127, 0.08);
+        }
+
+        .ep-heatmap-cell {
+          text-align: center;
+          font-weight: 700;
+          color: #1e0010;
+          text-shadow: 0 1px 1px rgba(255,255,255,0.35);
+        }
+
+        .ep-heatmap-legend {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-top: 14px;
+          color: #6b0040;
+          font-size: 0.8rem;
+          font-weight: 600;
+        }
+
+        .ep-heatmap-gradient {
+          flex: 1;
+          max-width: 160px;
+          height: 10px;
+          border-radius: 999px;
+          background: linear-gradient(90deg, #4fe3ad 0%, #FFD140 50%, #FF2014 100%);
+        }
+
+        @media (max-width: 760px) {
+          .ep-modal-card {
+            padding: 16px;
+            max-height: 90vh;
+          }
+        }
       `}</style>
 
       <div className="ep-topbar">
@@ -825,6 +1264,8 @@ const EntidadPromedio = () => {
         setActiveK: setClusterK2,
         clusters: clustersStage2,
       })}
+
+      {renderDistritosModal()}
     </div>
   );
 };
