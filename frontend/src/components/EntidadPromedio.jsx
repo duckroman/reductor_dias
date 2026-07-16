@@ -5,7 +5,8 @@ import {
   getEntidadesClustering,
 } from '../services/api';
 import PlotlyComponent from 'react-plotly.js';
-import { Upload, Table, Map, Layers, X, Thermometer } from 'lucide-react';
+import { Upload, Table, Map, Layers, X, Thermometer, Download } from 'lucide-react';
+import ExcelJS from 'exceljs';
 
 // Bundled datasets: importing them (instead of fetching them at runtime from
 // /public) makes them part of the compiled JS bundle. This avoids depending on
@@ -19,7 +20,7 @@ import { Upload, Table, Map, Layers, X, Thermometer } from 'lucide-react';
 //   src/data/distritos_analisis.json
 // If your project structure differs, just adjust the two import paths below.
 import mexicoGeoData from '../data/mexico_geo.json';
-import distritosAnalisisData from '../data/distritos_analisis_2.json';
+import distritosAnalisisData from '../data/distritos_analisis_3.json';
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
@@ -185,6 +186,158 @@ const getHeatColor = (value, min, max) => {
   return interpolateHeatColor(t);
 };
 
+// --- Exportar a Excel (.xlsx), conservando el color de cada celda ---
+
+// Convierte "rgb(r, g, b)" o un hex "#rrggbb" a un ARGB hex "FFRRGGBB" que
+// ExcelJS necesita para el relleno (fill) de una celda.
+const colorToArgbHex = (color) => {
+  if (!color) return 'FFFFFFFF';
+
+  const rgbMatch = color.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i);
+  if (rgbMatch) {
+    const [, r, g, b] = rgbMatch;
+    const toHex = (n) => Number(n).toString(16).padStart(2, '0').toUpperCase();
+    return `FF${toHex(r)}${toHex(g)}${toHex(b)}`;
+  }
+
+  const hexMatch = color.replace('#', '');
+  if (hexMatch.length === 6) return `FF${hexMatch.toUpperCase()}`;
+
+  return 'FFFFFFFF';
+};
+
+// Nombre de archivo seguro: sin acentos, espacios ni caracteres especiales.
+const sanitizeFileName = (value) => (
+  normalizeText(value).replace(/\s+/g, '_') || 'archivo'
+);
+
+// Dispara la descarga de un workbook de ExcelJS ya construido.
+const downloadWorkbook = async (workbook, fileName) => {
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+// Exporta una tabla de distritos a .xlsx, respetando el orden en el que se
+// muestra en pantalla (el arreglo `rows` ya debe venir ordenado como se ve en
+// la tarjeta) y coloreando las celdas de variables igual que el mapa de calor
+// en pantalla (usando el mismo `getHeatColor` con el mismo rango min/max).
+//
+// `columns`: [{ header, key, width?, isVariable?, min?, max? }]
+//   - isVariable: true → la celda se colorea con getHeatColor(valor, min, max)
+const exportRowsToXlsx = async ({ fileName, sheetName, columns, rows }) => {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet(sheetName.slice(0, 31)); // límite de Excel
+
+  worksheet.columns = columns.map(c => ({
+    header: c.header,
+    key: c.key,
+    width: c.width || 20,
+  }));
+
+  const headerRow = worksheet.getRow(1);
+  headerRow.font = { bold: true, color: { argb: 'FF6B0040' } };
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE4F3' } };
+  headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+
+  rows.forEach(row => {
+    const rowData = {};
+    columns.forEach(c => { rowData[c.key] = row[c.key]; });
+    const excelRow = worksheet.addRow(rowData);
+
+    columns.forEach((c, colIdx) => {
+      const cell = excelRow.getCell(colIdx + 1);
+      if (c.isVariable) {
+        const value = Number.isFinite(row[c.key]) ? row[c.key] : NaN;
+        cell.alignment = { horizontal: 'center' };
+        if (Number.isFinite(value)) {
+          cell.value = value;
+          cell.numFmt = '0.00';
+          const color = getHeatColor(value, c.min, c.max);
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorToArgbHex(color) } };
+        } else {
+          cell.value = '—';
+        }
+      }
+    });
+  });
+
+  await downloadWorkbook(workbook, fileName);
+};
+
+// --- Mini-mapa (icono) de una entidad a partir de su geometría GeoJSON ---
+//
+// Convierte la geometría (Polygon o MultiPolygon, en grados lon/lat) de un
+// estado en un <path> de SVG ya escalado y centrado dentro de un viewBox
+// cuadrado de `size` unidades, del mismo tamaño que se use el ícono/emoji que
+// acompaña el nombre de la entidad.
+const buildEntidadMiniMapPath = (geometry, size = 100) => {
+  if (!geometry) return null;
+
+  let polygons = [];
+  if (geometry.type === 'Polygon') {
+    polygons = [geometry.coordinates];
+  } else if (geometry.type === 'MultiPolygon') {
+    polygons = geometry.coordinates;
+  } else {
+    return null;
+  }
+
+  let minLon = Infinity;
+  let maxLon = -Infinity;
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+
+  polygons.forEach(rings => {
+    rings.forEach(ring => {
+      ring.forEach(([lon, lat]) => {
+        if (lon < minLon) minLon = lon;
+        if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      });
+    });
+  });
+
+  if (!Number.isFinite(minLon) || !Number.isFinite(maxLon)) return null;
+
+  const lonSpan = maxLon - minLon || 1;
+  const latSpan = maxLat - minLat || 1;
+  const scale = size / Math.max(lonSpan, latSpan);
+  const offsetX = (size - lonSpan * scale) / 2;
+  const offsetY = (size - latSpan * scale) / 2;
+
+  const project = ([lon, lat]) => {
+    const x = (lon - minLon) * scale + offsetX;
+    const y = size - ((lat - minLat) * scale + offsetY); // invertir Y (SVG crece hacia abajo)
+    return [x, y];
+  };
+
+  const pathParts = [];
+  polygons.forEach(rings => {
+    rings.forEach(ring => {
+      if (ring.length === 0) return;
+      const points = ring.map(project);
+      const d = points
+        .map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`)
+        .join(' ');
+      pathParts.push(`${d} Z`);
+    });
+  });
+
+  if (pathParts.length === 0) return null;
+  return { size, path: pathParts.join(' ') };
+};
+
 const EntidadPromedio = () => {
   // Averages dataset state
   const [entidadesData, setEntidadesData] = useState([]);
@@ -212,10 +365,12 @@ const EntidadPromedio = () => {
   const loadingDistritos = false;
   const [modalEntidad, setModalEntidad] = useState(null); // { stage, entidad } | null
   const [modalSortMode, setModalSortMode] = useState('original'); // 'original' | 'veloz'
+  const [exportingDistritos, setExportingDistritos] = useState(false);
 
   // Ranking nacional (300 distritos) modal state
   const [rankingModalStage, setRankingModalStage] = useState(null); // 1 | 2 | null
   const [rankingSortMode, setRankingSortMode] = useState('rapido'); // 'rapido' | 'lento' | 'entidad'
+  const [exportingRanking, setExportingRanking] = useState(false);
 
   // Load averages dataset (this one still comes from the backend API, unrelated
   // to the bundled GeoJSON / district datasets above).
@@ -331,6 +486,14 @@ const EntidadPromedio = () => {
   const getDistritosPorEntidad = (stage, entidad) => {
     const key = normalizeText(entidad);
     return getStageDistritos(stage).filter(d => normalizeText(d.Entidad) === key);
+  };
+
+  // Feature de GeoJSON de una entidad (para el ícono de mini-mapa junto a su
+  // nombre en la tarjeta de distritos).
+  const getEntidadGeoFeature = (entidad) => {
+    if (!geoJson?.features) return null;
+    const key = normalizeText(entidad);
+    return geoJson.features.find(f => normalizeText(f.properties?.name) === key) || null;
   };
 
   // Rango único de color por etapa: se calcula sobre TODOS los valores de
@@ -650,6 +813,43 @@ const EntidadPromedio = () => {
     const distritoColWidthPct = 26;
     const variableColWidthPct = (100 - distritoColWidthPct) / variables.length;
 
+    const geoFeature = getEntidadGeoFeature(entidad);
+    const miniMap = geoFeature ? buildEntidadMiniMapPath(geoFeature.geometry) : null;
+
+    const handleExportDistritos = async () => {
+      setExportingDistritos(true);
+      try {
+        const columns = [
+          { header: 'ID Distrito', key: 'id_distrito', width: 14 },
+          { header: 'Distrito', key: 'distrito', width: 32 },
+          ...ranges.map(r => ({
+            header: r.label, key: r.key, width: 22, isVariable: true, min: r.min, max: r.max,
+          })),
+        ];
+
+        const rows = distritos.map(d => ({
+          id_distrito: String(toNumber(d.ID_Distrito, 0)).padStart(2, '0'),
+          distrito: d.Distrito,
+          ...ranges.reduce((acc, r) => {
+            acc[r.key] = toNumber(d[r.key], NaN);
+            return acc;
+          }, {}),
+        }));
+
+        await exportRowsToXlsx({
+          fileName: `distritos_${sanitizeFileName(entidad)}_${getStageShortLabel(stage)}.xlsx`,
+          sheetName: `${entidad} ${getStageShortLabel(stage)}`,
+          columns,
+          rows,
+        });
+      } catch (e) {
+        console.error('Error exportando distritos a Excel', e);
+        alert('Ocurrió un error al exportar a Excel.');
+      } finally {
+        setExportingDistritos(false);
+      }
+    };
+
     return (
       <div className="ep-modal-overlay" onClick={closeDistritosModal}>
         <div
@@ -659,9 +859,21 @@ const EntidadPromedio = () => {
           aria-modal="true"
         >
           <div className="ep-modal-header">
-            <div>
+            <div className="ep-modal-header-titles">
               <span className="ep-modal-stage-label">{getStageLabel(stage)}</span>
-              <h3>🏛️ {entidad}</h3>
+              <h3 className="ep-modal-entidad-title">
+                <span className="ep-modal-entidad-icon" aria-hidden="true"></span>
+                {miniMap && (
+                  <svg
+                    viewBox={`0 0 ${miniMap.size} ${miniMap.size}`}
+                    className="ep-entidad-mini-map"
+                    aria-hidden="true"
+                  >
+                    <path d={miniMap.path} fill="#d5007f" fillRule="evenodd" />
+                  </svg>
+                )}
+                <span>{entidad}</span>
+              </h3>
             </div>
             <button className="ep-modal-close" onClick={closeDistritosModal} aria-label="Cerrar">
               <X size={18} />
@@ -692,6 +904,15 @@ const EntidadPromedio = () => {
                   {modalSortMode === 'lento'
                     ? '↺ Restablecer orden original'
                     : 'Ordenar: más lento → más rápido'}
+                </button>
+                <button
+                  className="ep-export-btn"
+                  onClick={handleExportDistritos}
+                  disabled={exportingDistritos}
+                  title="Exportar esta tabla a Excel"
+                >
+                  <Download size={14} />
+                  {exportingDistritos ? 'Exportando...' : 'Exportar a Excel'}
                 </button>
               </div>
 
@@ -768,6 +989,44 @@ const EntidadPromedio = () => {
       distritos = [...ranking].sort((a, b) => a.__posicion - b.__posicion);
     }
 
+    const handleExportRanking = async () => {
+      setExportingRanking(true);
+      try {
+        const columns = [
+          { header: 'Posición', key: 'posicion', width: 12 },
+          { header: 'Entidad', key: 'entidad', width: 24 },
+          { header: 'ID Distrito', key: 'id_distrito', width: 14 },
+          { header: 'Distrito', key: 'distrito', width: 32 },
+          ...ranges.map(r => ({
+            header: r.label, key: r.key, width: 22, isVariable: true, min: r.min, max: r.max,
+          })),
+        ];
+
+        const rows = distritos.map(d => ({
+          posicion: d.__posicion,
+          entidad: d.Entidad,
+          id_distrito: String(toNumber(d.ID_Distrito, 0)).padStart(2, '0'),
+          distrito: d.Distrito,
+          ...ranges.reduce((acc, r) => {
+            acc[r.key] = toNumber(d[r.key], NaN);
+            return acc;
+          }, {}),
+        }));
+
+        await exportRowsToXlsx({
+          fileName: `ranking_nacional_${getStageShortLabel(stage)}.xlsx`,
+          sheetName: `Ranking ${getStageShortLabel(stage)}`,
+          columns,
+          rows,
+        });
+      } catch (e) {
+        console.error('Error exportando el ranking a Excel', e);
+        alert('Ocurrió un error al exportar a Excel.');
+      } finally {
+        setExportingRanking(false);
+      }
+    };
+
     return (
       <div className="ep-modal-overlay" onClick={closeRankingModal}>
         <div
@@ -805,6 +1064,15 @@ const EntidadPromedio = () => {
             >
               🔤 Por entidad
             </button> */}
+            <button
+              className="ep-export-btn"
+              onClick={handleExportRanking}
+              disabled={exportingRanking}
+              title="Exportar esta tabla a Excel"
+            >
+              <Download size={14} />
+              {exportingRanking ? 'Exportando...' : 'Exportar a Excel'}
+            </button>
           </div>
 
           <div className="ep-modal-table-wrap ep-ranking-table-wrap">
@@ -1221,10 +1489,36 @@ const EntidadPromedio = () => {
           margin-bottom: 16px;
         }
 
+        .ep-modal-header-titles {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-start;
+          text-align: left;
+        }
+
         .ep-modal-header h3 {
           margin: 0;
           color: #8b004f;
           font-size: 1.15rem;
+        }
+
+        .ep-modal-entidad-title {
+          display: flex;
+          align-items: center;
+          justify-content: flex-start;
+          gap: 6px;
+          text-align: left;
+        }
+
+        .ep-modal-entidad-icon {
+          font-size: 1.15rem;
+          line-height: 1;
+        }
+
+        .ep-entidad-mini-map {
+          width: 1.15rem;
+          height: 1.15rem;
+          flex-shrink: 0;
         }
 
         .ep-modal-stage-label {
@@ -1300,6 +1594,32 @@ const EntidadPromedio = () => {
 
         .ep-sort-btn-active:hover {
           background: #6b0040;
+        }
+
+        .ep-export-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          border: 1px solid rgba(34, 139, 87, 0.35);
+          background: rgba(34, 139, 87, 0.08);
+          color: #1a7a4c;
+          font-weight: 700;
+          font-size: 0.78rem;
+          padding: 7px 12px;
+          border-radius: 999px;
+          cursor: pointer;
+          white-space: nowrap;
+          flex-shrink: 0;
+          transition: background 0.15s ease;
+        }
+
+        .ep-export-btn:hover {
+          background: rgba(34, 139, 87, 0.16);
+        }
+
+        .ep-export-btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         .ep-ranking-card {
