@@ -8,6 +8,7 @@ import SustitucionesPage from './components/SustitucionesPage';
 import DatasetViewer from './components/DatasetViewer';
 import Presentation from './components/Presentation';
 import EntidadPromedio from './components/EntidadPromedio';
+import GruposHistorico from './components/GruposHistorico';
 import { getSheets, uploadDataFile, getActiveFile, getDatasets, selectDataset, clearCache } from './services/api';
 import { Menu, X } from 'lucide-react';
 import './App.css';
@@ -59,8 +60,11 @@ function App() {
     };
     window.addEventListener('popstate', handleLocationChange);
     // Sync route to EntidadPromedio tab
-    if (window.location.pathname === '/grupos') {
+    if (window.location.pathname.replace(/\/$/, '') === '/grupos') {
       setActiveTab('entidadPromedio');
+    }
+    if (window.location.pathname.replace(/\/$/, '') === '/grupos_historico') {
+      setActiveTab('gruposHistorico');
     }
     return () => window.removeEventListener('popstate', handleLocationChange);
   }, []);
@@ -176,7 +180,7 @@ function App() {
     return <SustitucionesPage />;
   }
 // Nueva ruta para Análisis Entidad Promedio
-if (currentPath === '/grupos') {
+if (currentPath.replace(/\/$/, '') === '/grupos') {
   return (
     <div style={{
       minHeight: '100vh',
@@ -191,10 +195,26 @@ if (currentPath === '/grupos') {
     </div>
   );
 }
+// Ruta para Análisis Histórico de Grupos PEC 2017-2024
+if (currentPath.replace(/\/$/, '') === '/grupos_historico') {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      width: '100vw',
+      background: '#fff5fb',
+      overflowX: 'hidden',
+      overflowY: 'auto',
+      padding: '24px',
+      boxSizing: 'border-box',
+    }}>
+      <GruposHistorico activeSheet={activeSheet} />
+    </div>
+  );
+}
   // ============================================
   // PANTALLA 1: Selección de Etapa
   // ============================================
-  if (!selectedStage && currentPath !== '/grupos') {
+  if (!selectedStage && currentPath.replace(/\/$/, '') !== '/grupos' && currentPath.replace(/\/$/, '') !== '/grupos_historico') {
     return (
       <div className="stage-selection-container">
         <div className="stage-selection-card">
@@ -219,9 +239,12 @@ if (currentPath === '/grupos') {
               </div>
             </button>
           </div>
-          <div style={{ marginTop: '20px', textAlign: 'center' }}>
+          <div style={{ marginTop: '20px', textAlign: 'center', display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
             <button className="sidebar-btn" onClick={() => navigateTo('/grupos', 'entidadPromedio')} style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: '#fff' }}>
               Acceder a Análisis Entidad Promedio
+            </button>
+            <button className="sidebar-btn" onClick={() => navigateTo('/grupos_historico', 'gruposHistorico')} style={{ background: 'linear-gradient(135deg, #d5007f, #8b004f)', color: '#fff' }}>
+              📊 Histórico PEC 2017-2024
             </button>
           </div>
         </div>
@@ -364,6 +387,21 @@ if (currentPath === '/grupos') {
             >
               <span className="sidebar-icon">🏛️</span>
               <span className="sidebar-label" style={{ fontWeight: '600', color: activeTab === 'entidadPromedio' ? '#fff' : '#c084fc' }}>Análisis Entidad Promedio</span>
+            </button>
+            <button
+              className={`sidebar-btn ${activeTab === 'gruposHistorico' ? 'active' : ''}`}
+              onClick={() => { 
+                navigateTo('/grupos_historico', 'gruposHistorico');
+                setMobileMenuOpen(false);
+              }}
+              style={{
+                background: activeTab === 'gruposHistorico' ? 'var(--accent-color)' : 'linear-gradient(135deg, rgba(213, 0, 127, 0.1), rgba(139, 0, 79, 0.1))',
+                border: '1px solid rgba(213, 0, 127, 0.25)',
+                marginTop: '8px'
+              }}
+            >
+              <span className="sidebar-icon">📊</span>
+              <span className="sidebar-label" style={{ fontWeight: '600', color: activeTab === 'gruposHistorico' ? '#fff' : '#d5007f' }}>Histórico PEC 2017-2024</span>
             </button>
             <button
               className={`sidebar-btn ${activeTab === 'presentation' ? 'active' : ''}`}
