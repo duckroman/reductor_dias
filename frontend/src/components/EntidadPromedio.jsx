@@ -112,35 +112,43 @@ const STAGE2_VARIABLES = [
 
 const getStageVariables = (stage) => (stage === 1 ? STAGE1_VARIABLES : STAGE2_VARIABLES);
 
-// Variables ordenadas de mayor a menor ponderación. Se usa para comparar dos
-// distritos de forma jerárquica: la variable con mayor peso decide primero;
-// solo si hay empate (o falta el dato) se pasa a la siguiente en importancia.
-const getVariablesByWeightDesc = (variables) => (
-  [...variables].sort((a, b) => b.weight - a.weight)
-);
+// Normaliza un valor crudo a una escala 0–1 dentro del rango [min, max] de su
+// propia variable (0 = el mejor valor nacional de esa variable, 1 = el peor).
+// Esto es indispensable antes de ponderar: si se pondera directamente el
+// valor crudo (en días), una variable con un rango de valores más amplio
+// puede "dominar" el puntaje final aunque tenga un porcentaje de importancia
+// menor que otra variable con rango más angosto. Normalizar primero asegura
+// que el peso porcentual sea lo único que determina cuánto influye cada
+// variable en el resultado.
+const getNormalizedValue = (value, min, max) => {
+  if (!Number.isFinite(value)) return NaN;
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max === min) return 0;
+  return (value - min) / (max - min);
+};
 
-// Compara dos distritos variable por variable, en orden de importancia.
-// Retorna negativo si `a` es más rápido, positivo si `b` es más rápido, 0 si
-// son iguales en todas las variables disponibles. Un distrito con un valor
-// menor en la variable de mayor peso siempre se considera más rápido,
-// independientemente de los valores en variables de menor peso.
-const compareDistritosByPriority = (a, b, variables) => {
-  const ordered = getVariablesByWeightDesc(variables);
+// Puntaje ponderado de un distrito: promedio ponderado de sus variables ya
+// normalizadas (0–1), cada una multiplicada por su ponderación de
+// importancia. `variablesWithRange` debe ser el resultado de
+// `getVariablesWithRange(stage)`, es decir, cada variable con su `min`/`max`
+// nacional ya resuelto. Se normaliza dividiendo entre la suma de los pesos
+// realmente usados (así, si a un distrito le falta algún dato, o si los pesos
+// de una etapa no suman exactamente 100%, el resultado sigue siendo una
+// proporción correcta). Un puntaje más alto = distrito más lento; un puntaje
+// más bajo = distrito más rápido. El resultado siempre queda entre 0 y 1.
+const getWeightedScore = (row, variablesWithRange) => {
+  let weightedSum = 0;
+  let weightTotal = 0;
 
-  for (const v of ordered) {
-    const aVal = toNumber(a[v.key], NaN);
-    const bVal = toNumber(b[v.key], NaN);
-    const aFinite = Number.isFinite(aVal);
-    const bFinite = Number.isFinite(bVal);
+  variablesWithRange.forEach(v => {
+    const rawValue = toNumber(row[v.key], NaN);
+    if (!Number.isFinite(rawValue)) return;
 
-    if (!aFinite && !bFinite) continue; // ambos sin dato: sigue a la siguiente variable
-    if (!aFinite) return 1;   // a no tiene dato, b sí => b es más rápido
-    if (!bFinite) return -1;  // b no tiene dato, a sí => a es más rápido
-    if (aVal !== bVal) return aVal - bVal; // menor valor = más rápido, decide aquí
-    // empate exacto en esta variable: sigue a la siguiente en importancia
-  }
+    const normalized = getNormalizedValue(rawValue, v.min, v.max);
+    weightedSum += normalized * v.weight;
+    weightTotal += v.weight;
+  });
 
-  return 0;
+  return weightTotal > 0 ? weightedSum / weightTotal : NaN;
 };
 
 // Heatmap gradient: green (rápido) -> red (lento / foco rojo)
@@ -330,19 +338,48 @@ const EntidadPromedio = () => {
     return { min: Math.min(...values), max: Math.max(...values) };
   };
 
-  // Ranking nacional de un distrito dentro de su etapa: usa la comparación
-  // jerárquica por importancia (compareDistritosByPriority) para asignar una
-  // Posición fija (1 = más rápido a nivel nacional). Esta posición no cambia
-  // aunque la tabla se muestre en otro orden (por entidad, por ejemplo) o
-  // alfabéticamente.
+  // Rango individual (min/max nacional) de UNA variable específica. A
+  // diferencia de getStageColorRange (que combina todas las variables en un
+  // solo rango para homologar el color), este rango es por variable y se usa
+  // exclusivamente para normalizar antes de ponderar en getWeightedScore.
+  const getVariableRange = (stage, variableKey) => {
+    const values = getStageDistritos(stage)
+      .map(d => toNumber(d[variableKey], NaN))
+      .filter(v => Number.isFinite(v));
+
+    if (values.length === 0) return { min: 0, max: 1 };
+    return { min: Math.min(...values), max: Math.max(...values) };
+  };
+
+  // Variables de una etapa, cada una con su rango individual ya resuelto
+  // ({ key, label, weight, min, max }), listas para pasarse a
+  // getWeightedScore.
+  const getVariablesWithRange = (stage) => (
+    getStageVariables(stage).map(v => ({ ...v, ...getVariableRange(stage, v.key) }))
+  );
+
+  // Ranking nacional de un distrito dentro de su etapa: usa el puntaje
+  // ponderado (getWeightedScore) para asignar una Posición fija (1 = más
+  // rápido a nivel nacional). Esta posición no cambia aunque la tabla se
+  // muestre en otro orden (por entidad, por ejemplo) o alfabéticamente.
   const getStageRanking = (stage) => {
-    const variables = getStageVariables(stage);
+    const variablesWithRange = getVariablesWithRange(stage);
 
-    const sortedByPriority = [...getStageDistritos(stage)].sort(
-      (a, b) => compareDistritosByPriority(a, b, variables)
-    );
+    const withScore = getStageDistritos(stage).map(d => ({
+      ...d,
+      __score: getWeightedScore(d, variablesWithRange),
+    }));
 
-    return sortedByPriority.map((d, idx) => ({ ...d, __posicion: idx + 1 }));
+    const sortedByScore = [...withScore].sort((a, b) => {
+      const aFinite = Number.isFinite(a.__score);
+      const bFinite = Number.isFinite(b.__score);
+      if (!aFinite && !bFinite) return 0;
+      if (!aFinite) return 1;
+      if (!bFinite) return -1;
+      return a.__score - b.__score; // ascendente: menor puntaje = más rápido
+    });
+
+    return sortedByScore.map((d, idx) => ({ ...d, __posicion: idx + 1 }));
   };
 
   const openDistritosModal = (stage, entidad) => {
@@ -607,6 +644,7 @@ const EntidadPromedio = () => {
 
     const { stage, entidad } = modalEntidad;
     const variables = getStageVariables(stage);
+    const variablesWithRange = getVariablesWithRange(stage);
     const stageColorRange = getStageColorRange(stage);
     const ranges = variables.map(v => ({ ...v, ...stageColorRange }));
     const datasetIsEmpty = getStageDistritos(stage).length === 0;
@@ -616,11 +654,24 @@ const EntidadPromedio = () => {
       .slice()
       .sort((a, b) => toNumber(a.ID_Distrito) - toNumber(b.ID_Distrito));
 
-    // Comparación jerárquica por importancia: la variable con mayor peso decide
-    // primero (ver STAGE1_VARIABLES / STAGE2_VARIABLES y compareDistritosByPriority).
+    // Speed score per distrito = promedio ponderado de sus variables ya
+    // normalizadas (0–1), según las ponderaciones de importancia definidas en
+    // STAGE1_VARIABLES / STAGE2_VARIABLES (menor puntaje = más rápido).
+    const withScore = baseDistritos.map(d => ({
+      ...d,
+      __score: getWeightedScore(d, variablesWithRange),
+    }));
+
     const distritos = modalSortMode === 'lento'
-      ? [...baseDistritos].sort((a, b) => compareDistritosByPriority(b, a, variables))
-      : baseDistritos;
+      ? [...withScore].sort((a, b) => {
+        const aFinite = Number.isFinite(a.__score);
+        const bFinite = Number.isFinite(b.__score);
+        if (!aFinite && !bFinite) return 0;
+        if (!aFinite) return 1;
+        if (!bFinite) return -1;
+        return b.__score - a.__score;
+      })
+      : withScore;
 
     const distritoColWidthPct = 26;
     const variableColWidthPct = (100 - distritoColWidthPct) / variables.length;
@@ -1279,10 +1330,6 @@ const EntidadPromedio = () => {
 
         .ep-ranking-card {
           max-width: 1100px;
-          display: flex;
-          flex-direction: column;
-          max-height: 85vh;
-          overflow: hidden;
         }
 
         .ep-ranking-toolbar {
@@ -1293,10 +1340,29 @@ const EntidadPromedio = () => {
         }
 
         .ep-ranking-table-wrap {
-          flex: 1;
-          min-height: 0;
-          max-height: none;
-          overflow-y: auto;
+          max-height: 60vh;
+          overflow-y: scroll;
+          scrollbar-width: thin;
+          scrollbar-color: #d5007f #fce4f3;
+        }
+
+        .ep-ranking-table-wrap::-webkit-scrollbar {
+          width: 12px;
+        }
+
+        .ep-ranking-table-wrap::-webkit-scrollbar-track {
+          background: #fce4f3;
+          border-radius: 8px;
+        }
+
+        .ep-ranking-table-wrap::-webkit-scrollbar-thumb {
+          background: #d5007f;
+          border-radius: 8px;
+          border: 2px solid #fce4f3;
+        }
+
+        .ep-ranking-table-wrap::-webkit-scrollbar-thumb:hover {
+          background: #8b004f;
         }
 
         .ep-ranking-table {
