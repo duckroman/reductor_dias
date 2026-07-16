@@ -19,7 +19,7 @@ import { Upload, Table, Map, Layers, X, Thermometer } from 'lucide-react';
 //   src/data/distritos_analisis.json
 // If your project structure differs, just adjust the two import paths below.
 import mexicoGeoData from '../data/mexico_geo.json';
-import distritosAnalisisData from '../data/distritos_analisis.json';
+import distritosAnalisisData from '../data/distritos_analisis_2.json';
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
@@ -74,7 +74,7 @@ const getStageAverage = (row, stage) => {
 };
 
 const getStageLabel = (stage) => (
-  stage === 1 ? '1ª Etapa de Capacitación' : '2ª Etapa de Nombramientos'
+  stage === 1 ? '1ª Etapa de Capacitación  - PEC 2023-2024' : '2ª Etapa de Capacitación  - PEC 2023-2024'
 );
 
 const getStageShortLabel = (stage) => (
@@ -1251,7 +1251,7 @@ const EntidadPromedio = () => {
 
       {renderStageSection({
         stage: 1,
-        title: '1ª Etapa de Capacitación',
+        title: '1ª Etapa de Capacitación - PEC 2023-2024',
         activeK: clusterK1,
         setActiveK: setClusterK1,
         clusters: clustersStage1,
@@ -1259,7 +1259,7 @@ const EntidadPromedio = () => {
 
       {renderStageSection({
         stage: 2,
-        title: '2ª Etapa de Capacitación',
+        title: '2ª Etapa de Capacitación  - PEC 2023-2024',
         activeK: clusterK2,
         setActiveK: setClusterK2,
         clusters: clustersStage2,
