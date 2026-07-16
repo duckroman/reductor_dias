@@ -92,23 +92,56 @@ const buildGradientColorscale = (colors) => {
 
 // --- District-level dataset (drill-down card) ---
 // Variable definitions per stage, matched to the keys expected in
-// `distritos_analisis.json` (see /public/distritos_analisis.json).
+// `distritos_analisis.json`. `weight` = ponderación de importancia de cada
+// variable para calcular qué tan rápido/lento es un distrito (ver
+// METODOLOGIA_PONDERACION.md para el detalle).
 const STAGE1_VARIABLES = [
-  { key: 'ciudadania_estabilizacion', label: 'Punto de estabilización de ciudadanía visitada' },
-  { key: 'ciudadania_95', label: '95% de ciudadanía visitada' },
-  { key: 'ccrl_estabilizacion', label: 'Punto de estabilización de CCRL' },
-  { key: 'numero_optimo', label: 'Número óptimo' },
+  { key: 'ciudadania_estabilizacion', label: 'Punto de estabilización de ciudadanía visitada', weight: 0.20 },
+  { key: 'ciudadania_95', label: '95% de ciudadanía visitada', weight: 0.10 },
+  { key: 'ccrl_estabilizacion', label: 'Punto de estabilización de CCRL', weight: 0.40 },
+  { key: 'numero_optimo', label: 'Número óptimo', weight: 0.30 },
 ];
 
 const STAGE2_VARIABLES = [
-  { key: 'nombramientos_95', label: '95% de nombramientos' },
-  { key: 'nombramientos_estabilizacion', label: 'Punto de estabilización de nombramientos' },
-  { key: 'capacitaciones_95', label: '95% de capacitaciones' },
-  { key: 'capacitaciones_estabilizacion', label: 'Punto de estabilización de capacitaciones' },
-  { key: 'simulacros_estabilizacion', label: 'Punto de estabilización de asistencia a simulacros' },
+  { key: 'nombramientos_95', label: '95% de nombramientos', weight: 0.10 },
+  { key: 'nombramientos_estabilizacion', label: 'Punto de estabilización de nombramientos', weight: 0.15 },
+  { key: 'capacitaciones_95', label: '95% de capacitaciones', weight: 0.20 },
+  { key: 'capacitaciones_estabilizacion', label: 'Punto de estabilización de capacitaciones', weight: 0.25 },
+  { key: 'simulacros_estabilizacion', label: 'Punto de estabilización de asistencia a simulacros', weight: 0.30 },
 ];
 
 const getStageVariables = (stage) => (stage === 1 ? STAGE1_VARIABLES : STAGE2_VARIABLES);
+
+// Variables ordenadas de mayor a menor ponderación. Se usa para comparar dos
+// distritos de forma jerárquica: la variable con mayor peso decide primero;
+// solo si hay empate (o falta el dato) se pasa a la siguiente en importancia.
+const getVariablesByWeightDesc = (variables) => (
+  [...variables].sort((a, b) => b.weight - a.weight)
+);
+
+// Compara dos distritos variable por variable, en orden de importancia.
+// Retorna negativo si `a` es más rápido, positivo si `b` es más rápido, 0 si
+// son iguales en todas las variables disponibles. Un distrito con un valor
+// menor en la variable de mayor peso siempre se considera más rápido,
+// independientemente de los valores en variables de menor peso.
+const compareDistritosByPriority = (a, b, variables) => {
+  const ordered = getVariablesByWeightDesc(variables);
+
+  for (const v of ordered) {
+    const aVal = toNumber(a[v.key], NaN);
+    const bVal = toNumber(b[v.key], NaN);
+    const aFinite = Number.isFinite(aVal);
+    const bFinite = Number.isFinite(bVal);
+
+    if (!aFinite && !bFinite) continue; // ambos sin dato: sigue a la siguiente variable
+    if (!aFinite) return 1;   // a no tiene dato, b sí => b es más rápido
+    if (!bFinite) return -1;  // b no tiene dato, a sí => a es más rápido
+    if (aVal !== bVal) return aVal - bVal; // menor valor = más rápido, decide aquí
+    // empate exacto en esta variable: sigue a la siguiente en importancia
+  }
+
+  return 0;
+};
 
 // Heatmap gradient: green (rápido) -> red (lento / foco rojo)
 const HEAT_LOW_RGB = [79, 227, 173]; // #4fe3ad
@@ -155,6 +188,10 @@ const EntidadPromedio = () => {
   const loadingDistritos = false;
   const [modalEntidad, setModalEntidad] = useState(null); // { stage, entidad } | null
   const [modalSortMode, setModalSortMode] = useState('original'); // 'original' | 'veloz'
+
+  // Ranking nacional (300 distritos) modal state
+  const [rankingModalStage, setRankingModalStage] = useState(null); // 1 | 2 | null
+  const [rankingSortMode, setRankingSortMode] = useState('rapido'); // 'rapido' | 'lento' | 'entidad'
 
   // Load averages dataset (this one still comes from the backend API, unrelated
   // to the bundled GeoJSON / district datasets above).
@@ -272,15 +309,40 @@ const EntidadPromedio = () => {
     return getStageDistritos(stage).filter(d => normalizeText(d.Entidad) === key);
   };
 
-  // Min/max for a given variable across ALL districts nationwide, so that the
-  // heatmap color of a district is comparable across different entidades.
-  const getColumnRange = (stage, variableKey) => {
-    const values = getStageDistritos(stage)
-      .map(d => toNumber(d[variableKey], NaN))
-      .filter(v => Number.isFinite(v));
+  // Rango único de color por etapa: se calcula sobre TODOS los valores de
+  // TODAS las variables de esa etapa, en TODOS los distritos del país. Así,
+  // el mismo número de días siempre se pinta del mismo color sin importar en
+  // qué columna, qué distrito o qué tarjeta aparezca (antes cada columna
+  // tenía su propio min/max, por lo que un mismo valor podía verse con
+  // colores distintos según la variable).
+  const getStageColorRange = (stage) => {
+    const variables = getStageVariables(stage);
+    const values = [];
+
+    getStageDistritos(stage).forEach(d => {
+      variables.forEach(v => {
+        const value = toNumber(d[v.key], NaN);
+        if (Number.isFinite(value)) values.push(value);
+      });
+    });
 
     if (values.length === 0) return { min: 0, max: 1 };
     return { min: Math.min(...values), max: Math.max(...values) };
+  };
+
+  // Ranking nacional de un distrito dentro de su etapa: usa la comparación
+  // jerárquica por importancia (compareDistritosByPriority) para asignar una
+  // Posición fija (1 = más rápido a nivel nacional). Esta posición no cambia
+  // aunque la tabla se muestre en otro orden (por entidad, por ejemplo) o
+  // alfabéticamente.
+  const getStageRanking = (stage) => {
+    const variables = getStageVariables(stage);
+
+    const sortedByPriority = [...getStageDistritos(stage)].sort(
+      (a, b) => compareDistritosByPriority(a, b, variables)
+    );
+
+    return sortedByPriority.map((d, idx) => ({ ...d, __posicion: idx + 1 }));
   };
 
   const openDistritosModal = (stage, entidad) => {
@@ -288,6 +350,12 @@ const EntidadPromedio = () => {
     setModalEntidad({ stage, entidad });
   };
   const closeDistritosModal = () => setModalEntidad(null);
+
+  const openRankingModal = (stage) => {
+    setRankingSortMode('rapido');
+    setRankingModalStage(stage);
+  };
+  const closeRankingModal = () => setRankingModalStage(null);
 
   const handleStateClick = (stage, clickedState) => {
     setSelectedStates(prev => ({
@@ -539,7 +607,8 @@ const EntidadPromedio = () => {
 
     const { stage, entidad } = modalEntidad;
     const variables = getStageVariables(stage);
-    const ranges = variables.map(v => ({ ...v, ...getColumnRange(stage, v.key) }));
+    const stageColorRange = getStageColorRange(stage);
+    const ranges = variables.map(v => ({ ...v, ...stageColorRange }));
     const datasetIsEmpty = getStageDistritos(stage).length === 0;
 
     // Original order: by ID_Distrito ascending.
@@ -547,25 +616,11 @@ const EntidadPromedio = () => {
       .slice()
       .sort((a, b) => toNumber(a.ID_Distrito) - toNumber(b.ID_Distrito));
 
-    // Speed score per distrito = average of its stage variables (lower = más rápido).
-    const withScore = baseDistritos.map(d => {
-      const values = variables
-        .map(v => toNumber(d[v.key], NaN))
-        .filter(v => Number.isFinite(v));
-      const score = values.length ? values.reduce((a, b) => a + b, 0) / values.length : NaN;
-      return { ...d, __score: score };
-    });
-
+    // Comparación jerárquica por importancia: la variable con mayor peso decide
+    // primero (ver STAGE1_VARIABLES / STAGE2_VARIABLES y compareDistritosByPriority).
     const distritos = modalSortMode === 'lento'
-      ? [...withScore].sort((a, b) => {
-        const aFinite = Number.isFinite(a.__score);
-        const bFinite = Number.isFinite(b.__score);
-        if (!aFinite && !bFinite) return 0;
-        if (!aFinite) return 1;
-        if (!bFinite) return -1;
-        return b.__score - a.__score;
-      })
-      : withScore;
+      ? [...baseDistritos].sort((a, b) => compareDistritosByPriority(b, a, variables))
+      : baseDistritos;
 
     const distritoColWidthPct = 26;
     const variableColWidthPct = (100 - distritoColWidthPct) / variables.length;
@@ -666,6 +721,111 @@ const EntidadPromedio = () => {
     );
   };
 
+  const renderRankingModal = () => {
+    if (!rankingModalStage) return null;
+
+    const stage = rankingModalStage;
+    const variables = getStageVariables(stage);
+    const stageColorRange = getStageColorRange(stage);
+    const ranges = variables.map(v => ({ ...v, ...stageColorRange }));
+    const ranking = getStageRanking(stage); // posición fija, 1 = más rápido
+
+    let distritos = ranking;
+    if (rankingSortMode === 'lento') {
+      distritos = [...ranking].sort((a, b) => b.__posicion - a.__posicion);
+    } else if (rankingSortMode === 'entidad') {
+      distritos = [...ranking].sort((a, b) => {
+        const byEntidad = normalizeText(a.Entidad).localeCompare(normalizeText(b.Entidad));
+        if (byEntidad !== 0) return byEntidad;
+        return toNumber(a.ID_Distrito) - toNumber(b.ID_Distrito);
+      });
+    } else {
+      distritos = [...ranking].sort((a, b) => a.__posicion - b.__posicion);
+    }
+
+    return (
+      <div className="ep-modal-overlay" onClick={closeRankingModal}>
+        <div
+          className="ep-modal-card ep-ranking-card"
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div className="ep-modal-header">
+            <div>
+              <span className="ep-modal-stage-label">{getStageLabel(stage)}</span>
+              <h3>📋 Ranking nacional de los 300 distritos</h3>
+            </div>
+            <button className="ep-modal-close" onClick={closeRankingModal} aria-label="Cerrar">
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="ep-ranking-toolbar">
+            <button
+              className={`ep-sort-btn ${rankingSortMode === 'rapido' ? 'ep-sort-btn-active' : ''}`}
+              onClick={() => setRankingSortMode('rapido')}
+            >
+              Más rápido primero
+            </button>
+            <button
+              className={`ep-sort-btn ${rankingSortMode === 'lento' ? 'ep-sort-btn-active' : ''}`}
+              onClick={() => setRankingSortMode('lento')}
+            >
+              Más lento primero
+            </button>
+            {/*             <button
+              className={`ep-sort-btn ${rankingSortMode === 'entidad' ? 'ep-sort-btn-active' : ''}`}
+              onClick={() => setRankingSortMode('entidad')}
+            >
+              🔤 Por entidad
+            </button> */}
+          </div>
+
+          <div className="ep-modal-table-wrap ep-ranking-table-wrap">
+            <table className="ep-heatmap-table ep-ranking-table">
+              <thead>
+                <tr>
+                  <th className="ep-ranking-col-pos">Posición</th>
+                  <th className="ep-ranking-col-entidad">Entidad</th>
+                  <th className="ep-ranking-col-id">ID Distrito</th>
+                  <th className="ep-ranking-col-distrito">Distrito</th>
+                  {variables.map(v => <th key={v.key}>{v.label}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {distritos.map((d, idx) => (
+                  <tr key={`${d.ID_Entidad}-${d.ID_Distrito}-${idx}`}>
+                    <td className="ep-ranking-col-pos ep-ranking-pos-cell">{d.__posicion}</td>
+                    <td className="ep-ranking-col-entidad">{d.Entidad}</td>
+                    <td className="ep-ranking-col-id">{String(toNumber(d.ID_Distrito, 0)).padStart(2, '0')}</td>
+                    <td className="ep-ranking-col-distrito">{d.Distrito}</td>
+                    {ranges.map(r => {
+                      const value = toNumber(d[r.key], NaN);
+                      const color = getHeatColor(value, r.min, r.max);
+                      return (
+                        <td key={r.key} className="ep-heatmap-cell" style={{ background: color }}>
+                          {Number.isFinite(value) ? value.toFixed(2) : '—'}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="ep-heatmap-legend">
+            <Thermometer size={14} />
+            <span>Más rápido</span>
+            <div className="ep-heatmap-gradient" />
+            <span>Más lento (foco rojo)</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderStageSection = ({ stage, title, activeK, setActiveK, clusters }) => (
     <div className="ep-panel ep-stage-card">
       <div className="ep-stage-titlebar">
@@ -691,7 +851,16 @@ const EntidadPromedio = () => {
         {renderMapCard({ stage, clusters, activeK })}
 
         <div className="ep-stage-clusters-panel">
-          <div className="ep-side-label">Agrupamiento</div>
+          <div className="ep-side-label-row">
+            <div className="ep-side-label">Agrupamiento</div>
+            <button
+              className="ep-ranking-btn"
+              onClick={() => openRankingModal(stage)}
+              title="Ver ranking nacional de los 300 distritos"
+            >
+              📋 Ranking de los 300 distritos
+            </button>
+          </div>
           {clusters.length > 0 ? renderClusterCards({ stage, clusters }) : (
             <div className="ep-empty-state">Cargando grupos...</div>
           )}
@@ -776,6 +945,32 @@ const EntidadPromedio = () => {
           font-weight: 700;
           letter-spacing: 0.02em;
           text-transform: uppercase;
+        }
+
+        .ep-side-label-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .ep-ranking-btn {
+          border: 1px solid rgba(213, 0, 127, 0.28);
+          background: #fff;
+          color: #8b004f;
+          font-weight: 700;
+          font-size: 0.76rem;
+          padding: 6px 12px;
+          border-radius: 999px;
+          cursor: pointer;
+          white-space: nowrap;
+          margin-bottom: 10px;
+          transition: background 0.15s ease;
+        }
+
+        .ep-ranking-btn:hover {
+          background: rgba(213, 0, 127, 0.08);
         }
 
         .ep-stage-cluster-grid {
@@ -1072,6 +1267,66 @@ const EntidadPromedio = () => {
           background: rgba(213, 0, 127, 0.14);
         }
 
+        .ep-sort-btn-active {
+          background: #8b004f;
+          border-color: #8b004f;
+          color: #fff;
+        }
+
+        .ep-sort-btn-active:hover {
+          background: #6b0040;
+        }
+
+        .ep-ranking-card {
+          max-width: 1100px;
+          display: flex;
+          flex-direction: column;
+          max-height: 85vh;
+          overflow: hidden;
+        }
+
+        .ep-ranking-toolbar {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+
+        .ep-ranking-table-wrap {
+          flex: 1;
+          min-height: 0;
+          max-height: none;
+          overflow-y: auto;
+        }
+
+        .ep-ranking-table {
+          min-width: 720px;
+        }
+
+        .ep-ranking-col-pos {
+          width: 70px;
+          text-align: center;
+        }
+
+        .ep-ranking-pos-cell {
+          font-weight: 800;
+          color: #8b004f;
+        }
+
+        .ep-ranking-col-entidad {
+          text-align: left;
+          white-space: nowrap;
+        }
+
+        .ep-ranking-col-id {
+          width: 90px;
+          text-align: center;
+        }
+
+        .ep-ranking-col-distrito {
+          text-align: left;
+        }
+
         .ep-modal-table-wrap {
           overflow-x: auto;
           border-radius: 12px;
@@ -1266,6 +1521,7 @@ const EntidadPromedio = () => {
       })}
 
       {renderDistritosModal()}
+      {renderRankingModal()}
     </div>
   );
 };
