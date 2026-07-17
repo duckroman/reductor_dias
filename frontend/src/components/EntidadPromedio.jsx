@@ -1529,6 +1529,7 @@ const EntidadPromedio = () => {
           letter-spacing: 0.04em;
           text-transform: uppercase;
           margin-bottom: 4px;
+          margin-left: 5px;
         }
 
         .ep-modal-close {

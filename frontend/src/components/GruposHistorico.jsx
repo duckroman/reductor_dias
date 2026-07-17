@@ -13,6 +13,7 @@ import ExcelJS from 'exceljs';
 // un useEffect para que el componente compile aunque los archivos aún no existan.
 import mexicoGeoData from '../data/mexico_geo.json';
 import distritosAnalisisData from '../data/distritos_analisis_3.json';
+import distritosAnalisisPromedio from '../data/distritos_analisis_PECPromedio.json';
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
@@ -81,6 +82,10 @@ const getStageLabel = (stage) => (
 
 const getStageShortLabel = (stage) => (
     stage === 1 ? 'Etapa 1' : 'Etapa 2'
+);
+
+const getStageOrdinalLabel = (stage) => (
+    stage === 1 ? 'Primera etapa' : 'Segunda etapa'
 );
 
 // ---------------------------------------------------------------------------
@@ -213,7 +218,7 @@ const downloadWorkbook = async (workbook, fileName) => {
     URL.revokeObjectURL(url);
 };
 
-const exportRowsToXlsx = async ({ fileName, sheetName, columns, rows }) => {
+const exportRowsToXlsx = async ({ fileName, sheetName, columns, rows, titleText }) => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(sheetName.slice(0, 31));
 
@@ -223,7 +228,21 @@ const exportRowsToXlsx = async ({ fileName, sheetName, columns, rows }) => {
         width: c.width || 20,
     }));
 
-    const headerRow = worksheet.getRow(1);
+    // ── Fila de título: indica el PEC consultado y la etapa (p. ej.
+    // "PEC 2017-2018 - Primera etapa"). Se inserta arriba del encabezado,
+    // recorriendo hacia abajo la fila de encabezado y los datos.
+    if (titleText) {
+        worksheet.insertRow(1, [titleText]);
+        const titleRow = worksheet.getRow(1);
+        worksheet.mergeCells(1, 1, 1, columns.length);
+        titleRow.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
+        titleRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF8B004F' } };
+        titleRow.alignment = { vertical: 'middle', horizontal: 'center' };
+        titleRow.height = 22;
+    }
+
+    const headerRowNumber = titleText ? 2 : 1;
+    const headerRow = worksheet.getRow(headerRowNumber);
     headerRow.font = { bold: true, color: { argb: 'FF6B0040' } };
     headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE4F3' } };
     headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
@@ -321,11 +340,13 @@ const PEC_TABS = [
     { id: 'pec24', label: 'PEC 2023-2024' },
     { id: 'pec21', label: 'PEC 2020-2021' },
     { id: 'pec18', label: 'PEC 2017-2018' },
+    { id: 'promedio', label: 'Promedio' },
 ];
 
 const PEC_FILE_NAMES = {
     pec21: 'distritos_analisis_3_PEC21.json',
     pec18: 'distritos_analisis_3_PEC18.json',
+    promedio: 'distritos_analisis_PECPromedio.json',
 };
 
 // ---------------------------------------------------------------------------
@@ -358,6 +379,10 @@ const GruposHistorico = () => {
     const [distritosDataPec24] = useState({
         etapa1: distritosAnalisisData.etapa1 || [],
         etapa2: distritosAnalisisData.etapa2 || [],
+    });
+    const [distritosDataPromedio] = useState({
+        etapa1: distritosAnalisisPromedio.etapa1 || [],
+        etapa2: distritosAnalisisPromedio.etapa2 || [],
     });
     const [distritosDataPec21, setDistritosDataPec21] = useState(null);
     const [distritosDataPec18, setDistritosDataPec18] = useState(null);
@@ -507,6 +532,7 @@ const GruposHistorico = () => {
     const getActiveDataset = (tab) => {
         if (tab === 'pec21') return distritosDataPec21;
         if (tab === 'pec18') return distritosDataPec18;
+        if (tab === 'promedio') return distritosDataPromedio;
         return distritosDataPec24;
     };
 
@@ -891,6 +917,7 @@ const GruposHistorico = () => {
                     sheetName: `${entidad} ${getStageShortLabel(stage)}`,
                     columns,
                     rows,
+                    titleText: `${pecLabel} - ${getStageOrdinalLabel(stage)}`,
                 });
             } catch (e) {
                 console.error('Error exportando distritos a Excel', e);
@@ -960,10 +987,25 @@ const GruposHistorico = () => {
                                     onClick={handleExportDistritos}
                                     disabled={exportingDistritos}
                                     title="Exportar esta tabla a Excel"
+                                    style={{ whiteSpace: 'normal', lineHeight: '1.2', padding: '6px 12px', textAlign: 'center', height: 'auto' }}
                                 >
-                                    <Download size={14} />
-                                    {exportingDistritos ? 'Exportando...' : 'Exportar a Excel'}
+                                    <Download size={14} style={{ flexShrink: 0 }} />
+                                    <span>
+                                        {exportingDistritos ? 'Exportando...' : <>Exportar<br/>a Excel</>}
+                                    </span>
                                 </button>
+                                {distritosTab === 'promedio' && (
+                                    <a
+                                        href="/PEC_General_AD.xlsx"
+                                        download="PEC_General_AD.xlsx"
+                                        className="ep-export-btn"
+                                        style={{ background: '#f59e0b', color: '#fff', border: 'none', marginLeft: '6px', textDecoration: 'none', whiteSpace: 'normal', lineHeight: '1.2', padding: '6px 12px', textAlign: 'center', height: 'auto' }}
+                                        title="Descargar DataSet Completo"
+                                    >
+                                        <Download size={14} style={{ flexShrink: 0 }} />
+                                        <span>Descargar<br/>DataSet</span>
+                                    </a>
+                                )}
                             </div>
 
                             <div className="ep-modal-table-wrap">
@@ -1068,6 +1110,7 @@ const GruposHistorico = () => {
                     sheetName: `Ranking ${getStageShortLabel(stage)}`,
                     columns,
                     rows,
+                    titleText: `${pecLabel} - ${getStageOrdinalLabel(stage)}`,
                 });
             } catch (e) {
                 console.error('Error exportando el ranking a Excel', e);
@@ -1092,7 +1135,7 @@ const GruposHistorico = () => {
                     })}
 
                     <div className="ep-modal-header">
-                        <div>
+                        <div className="ep-modal-header-titles">
                             <span className="ep-modal-stage-label">{getStageLabel(stage)}</span>
                             <h3>📋 Ranking nacional de los 300 distritos</h3>
                         </div>
@@ -1123,10 +1166,25 @@ const GruposHistorico = () => {
                                     onClick={handleExportRanking}
                                     disabled={exportingRanking}
                                     title="Exportar esta tabla a Excel"
+                                    style={{ whiteSpace: 'normal', lineHeight: '1.2', padding: '6px 12px', textAlign: 'center', height: 'auto' }}
                                 >
-                                    <Download size={14} />
-                                    {exportingRanking ? 'Exportando...' : 'Exportar a Excel'}
+                                    <Download size={14} style={{ flexShrink: 0 }} />
+                                    <span>
+                                        {exportingRanking ? 'Exportando...' : <>Exportar<br/>a Excel</>}
+                                    </span>
                                 </button>
+                                {rankingTab === 'promedio' && (
+                                    <a
+                                        href="/PEC_General_AD.xlsx"
+                                        download="PEC_General_AD.xlsx"
+                                        className="ep-export-btn"
+                                        style={{ background: '#f59e0b', color: '#fff', border: 'none', marginLeft: '6px', textDecoration: 'none', whiteSpace: 'normal', lineHeight: '1.2', padding: '6px 12px', textAlign: 'center', height: 'auto' }}
+                                        title="Descargar DataSet Completo"
+                                    >
+                                        <Download size={14} style={{ flexShrink: 0 }} />
+                                        <span>Descargar<br/>DataSet</span>
+                                    </a>
+                                )}
                             </div>
 
                             <div className="ep-modal-table-wrap ep-ranking-table-wrap">
@@ -1479,6 +1537,7 @@ const GruposHistorico = () => {
           letter-spacing: 0.04em;
           text-transform: uppercase;
           margin-bottom: 4px;
+          margin-left: 5px;
         }
         .ep-modal-close {
           border: none;
