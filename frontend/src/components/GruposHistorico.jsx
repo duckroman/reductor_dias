@@ -991,7 +991,7 @@ const GruposHistorico = () => {
                                 >
                                     <Download size={14} style={{ flexShrink: 0 }} />
                                     <span>
-                                        {exportingDistritos ? 'Exportando...' : <>Exportar<br/>a Excel</>}
+                                        {exportingDistritos ? 'Exportando...' : <>Exportar<br />a Excel</>}
                                     </span>
                                 </button>
                                 {distritosTab === 'promedio' && (
@@ -1003,7 +1003,7 @@ const GruposHistorico = () => {
                                         title="Descargar DataSet Completo"
                                     >
                                         <Download size={14} style={{ flexShrink: 0 }} />
-                                        <span>Descargar<br/>DataSet</span>
+                                        <span>Descargar<br />DataSet</span>
                                     </a>
                                 )}
                             </div>
@@ -1170,7 +1170,7 @@ const GruposHistorico = () => {
                                 >
                                     <Download size={14} style={{ flexShrink: 0 }} />
                                     <span>
-                                        {exportingRanking ? 'Exportando...' : <>Exportar<br/>a Excel</>}
+                                        {exportingRanking ? 'Exportando...' : <>Exportar<br />a Excel</>}
                                     </span>
                                 </button>
                                 {rankingTab === 'promedio' && (
@@ -1182,7 +1182,7 @@ const GruposHistorico = () => {
                                         title="Descargar DataSet Completo"
                                     >
                                         <Download size={14} style={{ flexShrink: 0 }} />
-                                        <span>Descargar<br/>DataSet</span>
+                                        <span>Descargar<br />DataSet</span>
                                     </a>
                                 )}
                             </div>
@@ -1395,7 +1395,7 @@ const GruposHistorico = () => {
         .ep-general-description {
           width: 100%;
           max-width: none;
-          margin: -4px 0 24px 0;
+          margin: 0px 0 24px 0;
           padding: 0;
           border: none;
           border-radius: 0;
@@ -1403,6 +1403,7 @@ const GruposHistorico = () => {
           color: #6b0040;
           font-size: 0.94rem;
           line-height: 1.5;
+          text-align: left;
         }
         .ep-stage-map-card {
           border-radius: 16px;
@@ -1802,7 +1803,7 @@ const GruposHistorico = () => {
                     </div>
                     <p className="ep-general-description">
                         La herramienta permite agrupar los estados en 2, 3, 4 y 5 grupos con base en la velocidad que se alcanzan las metas en cada etapa de capacitación.
-                        Use las pestañas <strong>PEC 2023-2024</strong>, <strong>PEC 2020-2021</strong> y <strong>PEC 2017-2018</strong> dentro de cada tarjeta para comparar el histórico.
+
                     </p>
                 </>
             )}
