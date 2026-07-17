@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
-  getEntidadesData,
-  uploadEntidadesFile,
-  getEntidadesClustering,
+    getEntidadesData,
+    uploadEntidadesFile,
+    getEntidadesClustering,
 } from '../services/api';
 import PlotlyComponent from 'react-plotly.js';
 import { Upload, Table, Map, Layers, X, Thermometer, Download } from 'lucide-react';
@@ -20,10 +20,10 @@ const Plot = PlotlyComponent.default || PlotlyComponent;
 // Constantes de color
 // ---------------------------------------------------------------------------
 const GROUP_COLOR_PALETTES = {
-  2: ['#4fe3adff', '#FF2014'],
-  3: ['#4fe3adff', '#FFD140', '#FF2014'],
-  4: ['#4fe3adff', '#b2cf77ff', '#FF6B20', '#FF2014'],
-  5: ['#4fe3adff', '#b2cf77ff', '#FFD140', '#FF6B20', '#FF2014'],
+    2: ['#4fe3adff', '#FF2014'],
+    3: ['#4fe3adff', '#FFD140', '#FF2014'],
+    4: ['#4fe3adff', '#b2cf77ff', '#FF6B20', '#FF2014'],
+    5: ['#4fe3adff', '#b2cf77ff', '#FFD140', '#FF6B20', '#FF2014'],
 };
 
 const NO_DATA_COLOR = '#f1f5f9';
@@ -31,123 +31,131 @@ const NO_DATA_COLOR = '#f1f5f9';
 const getGroupPalette = (k = 5) => GROUP_COLOR_PALETTES[k] || GROUP_COLOR_PALETTES[5];
 
 const getGroupColor = (groupIndex, k = 5) => {
-  const palette = getGroupPalette(k);
-  return palette[groupIndex % palette.length];
+    const palette = getGroupPalette(k);
+    return palette[groupIndex % palette.length];
 };
 
 // ---------------------------------------------------------------------------
 // Normalización de texto
 // ---------------------------------------------------------------------------
 const STATE_ALIASES = {
-  'estado de mexico': 'mexico',
-  'edo de mexico': 'mexico',
-  edomex: 'mexico',
-  cdmx: 'ciudad de mexico',
-  'ciudad mexico': 'ciudad de mexico',
-  'ciudad de mexico': 'ciudad de mexico',
-  'veracruz de ignacio de la llave': 'veracruz',
-  'coahuila de zaragoza': 'coahuila',
-  'michoacan de ocampo': 'michoacan',
+    'estado de mexico': 'mexico',
+    'edo de mexico': 'mexico',
+    edomex: 'mexico',
+    cdmx: 'ciudad de mexico',
+    'ciudad mexico': 'ciudad de mexico',
+    'ciudad de mexico': 'ciudad de mexico',
+    'veracruz de ignacio de la llave': 'veracruz',
+    'coahuila de zaragoza': 'coahuila',
+    'michoacan de ocampo': 'michoacan',
 };
 
 const normalizeText = (value = '') => {
-  const normalized = String(value)
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .trim();
+    const normalized = String(value)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .trim();
 
-  return STATE_ALIASES[normalized] || normalized;
+    return STATE_ALIASES[normalized] || normalized;
 };
 
 const toNumber = (value, fallback = 0) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
 };
 
 // ---------------------------------------------------------------------------
 // Helpers de etapa
 // ---------------------------------------------------------------------------
 const getStageAverage = (row, stage) => {
-  if (!row) return 0;
-  const field = stage === 1 ? 'E1_Promedio' : 'E2_Promedio';
-  return toNumber(row[field] ?? row.promedio ?? row.value, 0);
+    if (!row) return 0;
+    const field = stage === 1 ? 'E1_Promedio' : 'E2_Promedio';
+    return toNumber(row[field] ?? row.promedio ?? row.value, 0);
 };
 
 const getStageLabel = (stage) => (
-  stage === 1 ? '1ª Etapa de Capacitación' : '2ª Etapa de Capacitación'
+    stage === 1 ? '1ª Etapa de Capacitación' : '2ª Etapa de Capacitación'
 );
 
 const getStageShortLabel = (stage) => (
-  stage === 1 ? 'Etapa 1' : 'Etapa 2'
+    stage === 1 ? 'Etapa 1' : 'Etapa 2'
 );
 
 // ---------------------------------------------------------------------------
 // Definición de variables por etapa
 // ---------------------------------------------------------------------------
 const STAGE1_VARIABLES = [
-  { key: 'ccrl_estabilizacion', label: 'Punto de estabilización de CCRL', weight: 0.40 },
-  { key: 'numero_optimo', label: 'Número óptimo', weight: 0.30 },
-  { key: 'ciudadania_estabilizacion', label: 'Punto de estabilización de ciudadanía visitada', weight: 0.20 },
-  { key: 'ciudadania_95', label: '95% de ciudadanía visitada', weight: 0.10 },
+    { key: 'ccrl_estabilizacion', label: 'Punto de estabilización de CCRL', weight: 0.40 },
+    { key: 'numero_optimo', label: 'Número óptimo', weight: 0.30 },
+    { key: 'ciudadania_estabilizacion', label: 'Punto de estabilización de ciudadanía visitada', weight: 0.20 },
+    { key: 'ciudadania_95', label: '95% de ciudadanía visitada', weight: 0.10 },
 ];
 
 const STAGE2_VARIABLES = [
-  { key: 'simulacros_estabilizacion', label: 'Punto de estabilización de asistencia a simulacros', weight: 0.30 },
-  { key: 'capacitaciones_estabilizacion', label: 'Punto de estabilización de capacitaciones', weight: 0.25 },
-  { key: 'capacitaciones_95', label: '95% de capacitaciones', weight: 0.20 },
-  { key: 'nombramientos_estabilizacion', label: 'Punto de estabilización de nombramientos', weight: 0.15 },
-  { key: 'nombramientos_95', label: '95% de nombramientos', weight: 0.10 },
+    { key: 'simulacros_estabilizacion', label: 'Punto de estabilización de asistencia a simulacros', weight: 0.30 },
+    { key: 'capacitaciones_estabilizacion', label: 'Punto de estabilización de capacitaciones', weight: 0.25 },
+    { key: 'capacitaciones_95', label: '95% de capacitaciones', weight: 0.20 },
+    { key: 'nombramientos_estabilizacion', label: 'Punto de estabilización de nombramientos', weight: 0.15 },
+    { key: 'nombramientos_95', label: '95% de nombramientos', weight: 0.10 },
 ];
 
 const getStageVariables = (stage) => (stage === 1 ? STAGE1_VARIABLES : STAGE2_VARIABLES);
 
 const STAGE1_DISPLAY_ORDER = [
-  'ciudadania_estabilizacion',
-  'ciudadania_95',
-  'ccrl_estabilizacion',
-  'numero_optimo',
+    'ciudadania_estabilizacion',
+    'ciudadania_95',
+    'ccrl_estabilizacion',
+    'numero_optimo',
 ];
 
 const STAGE2_DISPLAY_ORDER = [
-  'nombramientos_95',
-  'nombramientos_estabilizacion',
-  'capacitaciones_95',
-  'capacitaciones_estabilizacion',
-  'simulacros_estabilizacion',
+    'nombramientos_95',
+    'nombramientos_estabilizacion',
+    'capacitaciones_95',
+    'capacitaciones_estabilizacion',
+    'simulacros_estabilizacion',
 ];
 
-const getStageDisplayVariables = (stage) => {
-  const all = getStageVariables(stage);
-  const order = stage === 1 ? STAGE1_DISPLAY_ORDER : STAGE2_DISPLAY_ORDER;
-  return order.map(key => all.find(v => v.key === key)).filter(Boolean);
+const getStageDisplayVariables = (stage, pecTab) => {
+    const all = getStageVariables(stage);
+    const order = stage === 1 ? STAGE1_DISPLAY_ORDER : STAGE2_DISPLAY_ORDER;
+    const variables = order.map(key => all.find(v => v.key === key)).filter(Boolean);
+
+    // En el PEC 2017-2018 la variable "Número óptimo" siempre vale 0 (no se
+    // capturó en ese ciclo), así que no tiene sentido mostrarla como columna.
+    if (pecTab === 'pec18') {
+        return variables.filter(v => v.key !== 'numero_optimo');
+    }
+
+    return variables;
 };
 
 // ---------------------------------------------------------------------------
 // Comparación jerárquica
 // ---------------------------------------------------------------------------
 const compareDistritosByPriority = (a, b, variables) => {
-  for (const v of variables) {
-    const aVal = toNumber(a[v.key], NaN);
-    const bVal = toNumber(b[v.key], NaN);
-    const aFinite = Number.isFinite(aVal);
-    const bFinite = Number.isFinite(bVal);
-    if (aFinite && !bFinite) return -1;
-    if (!aFinite && bFinite) return 1;
-    if (!aFinite && !bFinite) continue;
-    if (aVal !== bVal) return aVal - bVal;
-  }
-  return 0;
+    for (const v of variables) {
+        const aVal = toNumber(a[v.key], NaN);
+        const bVal = toNumber(b[v.key], NaN);
+        const aFinite = Number.isFinite(aVal);
+        const bFinite = Number.isFinite(bVal);
+        if (aFinite && !bFinite) return -1;
+        if (!aFinite && bFinite) return 1;
+        if (!aFinite && !bFinite) continue;
+        if (aVal !== bVal) return aVal - bVal;
+    }
+    return 0;
 };
 
 const sortClustersByAverage = (clusters = []) => (
-  [...clusters].sort((a, b) => toNumber(a.min_val) - toNumber(b.min_val))
+    [...clusters].sort((a, b) => toNumber(a.min_val) - toNumber(b.min_val))
 );
 
 const buildGradientColorscale = (colors) => {
-  const maxIndex = Math.max(colors.length - 1, 1);
-  return colors.map((color, index) => [index / maxIndex, color]);
+    const maxIndex = Math.max(colors.length - 1, 1);
+    return colors.map((color, index) => [index / maxIndex, color]);
 };
 
 // ---------------------------------------------------------------------------
@@ -157,1066 +165,1066 @@ const HEAT_LOW_RGB = [79, 227, 173];
 const HEAT_HIGH_RGB = [255, 32, 20];
 
 const interpolateHeatColor = (t) => {
-  const clamped = Math.min(Math.max(t, 0), 1);
-  const rgb = HEAT_LOW_RGB.map((c, i) => Math.round(c + (HEAT_HIGH_RGB[i] - c) * clamped));
-  return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+    const clamped = Math.min(Math.max(t, 0), 1);
+    const rgb = HEAT_LOW_RGB.map((c, i) => Math.round(c + (HEAT_HIGH_RGB[i] - c) * clamped));
+    return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
 };
 
 const getHeatColor = (value, min, max) => {
-  if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max) || max === min) {
-    return NO_DATA_COLOR;
-  }
-  const t = (value - min) / (max - min);
-  return interpolateHeatColor(t);
+    if (!Number.isFinite(value) || !Number.isFinite(min) || !Number.isFinite(max) || max === min) {
+        return NO_DATA_COLOR;
+    }
+    const t = (value - min) / (max - min);
+    return interpolateHeatColor(t);
 };
 
 // ---------------------------------------------------------------------------
 // Exportar a Excel
 // ---------------------------------------------------------------------------
 const colorToArgbHex = (color) => {
-  if (!color) return 'FFFFFFFF';
-  const rgbMatch = color.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i);
-  if (rgbMatch) {
-    const [, r, g, b] = rgbMatch;
-    const toHex = (n) => Number(n).toString(16).padStart(2, '0').toUpperCase();
-    return `FF${toHex(r)}${toHex(g)}${toHex(b)}`;
-  }
-  const hexMatch = color.replace('#', '');
-  if (hexMatch.length === 6) return `FF${hexMatch.toUpperCase()}`;
-  return 'FFFFFFFF';
+    if (!color) return 'FFFFFFFF';
+    const rgbMatch = color.match(/rgb\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)/i);
+    if (rgbMatch) {
+        const [, r, g, b] = rgbMatch;
+        const toHex = (n) => Number(n).toString(16).padStart(2, '0').toUpperCase();
+        return `FF${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+    const hexMatch = color.replace('#', '');
+    if (hexMatch.length === 6) return `FF${hexMatch.toUpperCase()}`;
+    return 'FFFFFFFF';
 };
 
 const sanitizeFileName = (value) => (
-  normalizeText(value).replace(/\s+/g, '_') || 'archivo'
+    normalizeText(value).replace(/\s+/g, '_') || 'archivo'
 );
 
 const downloadWorkbook = async (workbook, fileName) => {
-  const buffer = await workbook.xlsx.writeBuffer();
-  const blob = new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-  });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 };
 
 const exportRowsToXlsx = async ({ fileName, sheetName, columns, rows }) => {
-  const workbook = new ExcelJS.Workbook();
-  const worksheet = workbook.addWorksheet(sheetName.slice(0, 31));
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet(sheetName.slice(0, 31));
 
-  worksheet.columns = columns.map(c => ({
-    header: c.header,
-    key: c.key,
-    width: c.width || 20,
-  }));
+    worksheet.columns = columns.map(c => ({
+        header: c.header,
+        key: c.key,
+        width: c.width || 20,
+    }));
 
-  const headerRow = worksheet.getRow(1);
-  headerRow.font = { bold: true, color: { argb: 'FF6B0040' } };
-  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE4F3' } };
-  headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    const headerRow = worksheet.getRow(1);
+    headerRow.font = { bold: true, color: { argb: 'FF6B0040' } };
+    headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE4F3' } };
+    headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
 
-  rows.forEach(row => {
-    const rowData = {};
-    columns.forEach(c => { rowData[c.key] = row[c.key]; });
-    const excelRow = worksheet.addRow(rowData);
+    rows.forEach(row => {
+        const rowData = {};
+        columns.forEach(c => { rowData[c.key] = row[c.key]; });
+        const excelRow = worksheet.addRow(rowData);
 
-    columns.forEach((c, colIdx) => {
-      const cell = excelRow.getCell(colIdx + 1);
-      if (c.isVariable) {
-        const value = Number.isFinite(row[c.key]) ? row[c.key] : NaN;
-        cell.alignment = { horizontal: 'center' };
-        if (Number.isFinite(value)) {
-          cell.value = value;
-          cell.numFmt = '0.00';
-          const color = getHeatColor(value, c.min, c.max);
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorToArgbHex(color) } };
-        } else {
-          cell.value = '—';
-        }
-      }
+        columns.forEach((c, colIdx) => {
+            const cell = excelRow.getCell(colIdx + 1);
+            if (c.isVariable) {
+                const value = Number.isFinite(row[c.key]) ? row[c.key] : NaN;
+                cell.alignment = { horizontal: 'center' };
+                if (Number.isFinite(value)) {
+                    cell.value = value;
+                    cell.numFmt = '0.00';
+                    const color = getHeatColor(value, c.min, c.max);
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: colorToArgbHex(color) } };
+                } else {
+                    cell.value = '—';
+                }
+            }
+        });
     });
-  });
 
-  await downloadWorkbook(workbook, fileName);
+    await downloadWorkbook(workbook, fileName);
 };
 
 // ---------------------------------------------------------------------------
 // Mini-mapa SVG
 // ---------------------------------------------------------------------------
 const buildEntidadMiniMapPath = (geometry, size = 100) => {
-  if (!geometry) return null;
+    if (!geometry) return null;
 
-  let polygons = [];
-  if (geometry.type === 'Polygon') {
-    polygons = [geometry.coordinates];
-  } else if (geometry.type === 'MultiPolygon') {
-    polygons = geometry.coordinates;
-  } else {
-    return null;
-  }
+    let polygons = [];
+    if (geometry.type === 'Polygon') {
+        polygons = [geometry.coordinates];
+    } else if (geometry.type === 'MultiPolygon') {
+        polygons = geometry.coordinates;
+    } else {
+        return null;
+    }
 
-  let minLon = Infinity;
-  let maxLon = -Infinity;
-  let minLat = Infinity;
-  let maxLat = -Infinity;
+    let minLon = Infinity;
+    let maxLon = -Infinity;
+    let minLat = Infinity;
+    let maxLat = -Infinity;
 
-  polygons.forEach(rings => {
-    rings.forEach(ring => {
-      ring.forEach(([lon, lat]) => {
-        if (lon < minLon) minLon = lon;
-        if (lon > maxLon) maxLon = lon;
-        if (lat < minLat) minLat = lat;
-        if (lat > maxLat) maxLat = lat;
-      });
+    polygons.forEach(rings => {
+        rings.forEach(ring => {
+            ring.forEach(([lon, lat]) => {
+                if (lon < minLon) minLon = lon;
+                if (lon > maxLon) maxLon = lon;
+                if (lat < minLat) minLat = lat;
+                if (lat > maxLat) maxLat = lat;
+            });
+        });
     });
-  });
 
-  if (!Number.isFinite(minLon) || !Number.isFinite(maxLon)) return null;
+    if (!Number.isFinite(minLon) || !Number.isFinite(maxLon)) return null;
 
-  const lonSpan = maxLon - minLon || 1;
-  const latSpan = maxLat - minLat || 1;
-  const scale = size / Math.max(lonSpan, latSpan);
-  const offsetX = (size - lonSpan * scale) / 2;
-  const offsetY = (size - latSpan * scale) / 2;
+    const lonSpan = maxLon - minLon || 1;
+    const latSpan = maxLat - minLat || 1;
+    const scale = size / Math.max(lonSpan, latSpan);
+    const offsetX = (size - lonSpan * scale) / 2;
+    const offsetY = (size - latSpan * scale) / 2;
 
-  const project = ([lon, lat]) => {
-    const x = (lon - minLon) * scale + offsetX;
-    const y = size - ((lat - minLat) * scale + offsetY);
-    return [x, y];
-  };
+    const project = ([lon, lat]) => {
+        const x = (lon - minLon) * scale + offsetX;
+        const y = size - ((lat - minLat) * scale + offsetY);
+        return [x, y];
+    };
 
-  const pathParts = [];
-  polygons.forEach(rings => {
-    rings.forEach(ring => {
-      if (ring.length === 0) return;
-      const points = ring.map(project);
-      const d = points
-        .map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`)
-        .join(' ');
-      pathParts.push(`${d} Z`);
+    const pathParts = [];
+    polygons.forEach(rings => {
+        rings.forEach(ring => {
+            if (ring.length === 0) return;
+            const points = ring.map(project);
+            const d = points
+                .map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(2)},${y.toFixed(2)}`)
+                .join(' ');
+            pathParts.push(`${d} Z`);
+        });
     });
-  });
 
-  if (pathParts.length === 0) return null;
-  return { size, path: pathParts.join(' ') };
+    if (pathParts.length === 0) return null;
+    return { size, path: pathParts.join(' ') };
 };
 
 // ---------------------------------------------------------------------------
 // Configuración de las pestañas PEC
 // ---------------------------------------------------------------------------
 const PEC_TABS = [
-  { id: 'pec24', label: 'PEC 2023-2024' },
-  { id: 'pec21', label: 'PEC 2020-2021' },
-  { id: 'pec18', label: 'PEC 2017-2018' },
+    { id: 'pec24', label: 'PEC 2023-2024' },
+    { id: 'pec21', label: 'PEC 2020-2021' },
+    { id: 'pec18', label: 'PEC 2017-2018' },
 ];
 
 const PEC_FILE_NAMES = {
-  pec21: 'distritos_analisis_3_PEC21.json',
-  pec18: 'distritos_analisis_3_PEC18.json',
+    pec21: 'distritos_analisis_3_PEC21.json',
+    pec18: 'distritos_analisis_3_PEC18.json',
 };
 
 // ---------------------------------------------------------------------------
 // Componente principal
 // ---------------------------------------------------------------------------
 const GruposHistorico = () => {
-  // Averages dataset state
-  const [entidadesData, setEntidadesData] = useState([]);
-  const [filename, setFilename] = useState('');
-  const [loadingData, setLoadingData] = useState(true);
-  const [uploading, setUploading] = useState(false);
-  const [showTable, setShowTable] = useState(false);
+    // Averages dataset state
+    const [entidadesData, setEntidadesData] = useState([]);
+    const [filename, setFilename] = useState('');
+    const [loadingData, setLoadingData] = useState(true);
+    const [uploading, setUploading] = useState(false);
+    const [showTable, setShowTable] = useState(false);
 
-  // Map state
-  const [geoJson] = useState(mexicoGeoData);
-  const [selectedStates, setSelectedStates] = useState({ 1: null, 2: null });
+    // Map state
+    const [geoJson] = useState(mexicoGeoData);
+    const [selectedStates, setSelectedStates] = useState({ 1: null, 2: null });
 
-  // Clustering state
-  const [clusterK1, setClusterK1] = useState(3);
-  const [clusterK2, setClusterK2] = useState(3);
-  const [clustersStage1, setClustersStage1] = useState([]);
-  const [clustersStage2, setClustersStage2] = useState([]);
+    // Clustering state
+    const [clusterK1, setClusterK1] = useState(3);
+    const [clusterK2, setClusterK2] = useState(3);
+    const [clustersStage1, setClustersStage1] = useState([]);
+    const [clustersStage2, setClustersStage2] = useState([]);
 
-  // ---------------------------------------------------------------------------
-  // Datasets históricos
-  // PEC 2023-2024: importado estáticamente (siempre disponible).
-  // PEC 2020-2021 y PEC 2017-2018: cargados dinámicamente; son null si el
-  // archivo aún no existe en src/data/.
-  // ---------------------------------------------------------------------------
-  const [distritosDataPec24] = useState({
-    etapa1: distritosAnalisisData.etapa1 || [],
-    etapa2: distritosAnalisisData.etapa2 || [],
-  });
-  const [distritosDataPec21, setDistritosDataPec21] = useState(null);
-  const [distritosDataPec18, setDistritosDataPec18] = useState(null);
+    // ---------------------------------------------------------------------------
+    // Datasets históricos
+    // PEC 2023-2024: importado estáticamente (siempre disponible).
+    // PEC 2020-2021 y PEC 2017-2018: cargados dinámicamente; son null si el
+    // archivo aún no existe en src/data/.
+    // ---------------------------------------------------------------------------
+    const [distritosDataPec24] = useState({
+        etapa1: distritosAnalisisData.etapa1 || [],
+        etapa2: distritosAnalisisData.etapa2 || [],
+    });
+    const [distritosDataPec21, setDistritosDataPec21] = useState(null);
+    const [distritosDataPec18, setDistritosDataPec18] = useState(null);
 
-  useEffect(() => {
-    import('../data/distritos_analisis_3_PEC21.json')
-      .then(mod => {
-        const data = mod.default || mod;
-        setDistritosDataPec21({
-          etapa1: data.etapa1 || [],
-          etapa2: data.etapa2 || [],
-        });
-      })
-      .catch(() => setDistritosDataPec21(null));
+    useEffect(() => {
+        import('../data/distritos_analisis_3_PEC21.json')
+            .then(mod => {
+                const data = mod.default || mod;
+                setDistritosDataPec21({
+                    etapa1: data.etapa1 || [],
+                    etapa2: data.etapa2 || [],
+                });
+            })
+            .catch(() => setDistritosDataPec21(null));
 
-    import('../data/distritos_analisis_3_PEC18.json')
-      .then(mod => {
-        const data = mod.default || mod;
-        setDistritosDataPec18({
-          etapa1: data.etapa1 || [],
-          etapa2: data.etapa2 || [],
-        });
-      })
-      .catch(() => setDistritosDataPec18(null));
-  }, []);
+        import('../data/distritos_analisis_3_PEC18.json')
+            .then(mod => {
+                const data = mod.default || mod;
+                setDistritosDataPec18({
+                    etapa1: data.etapa1 || [],
+                    etapa2: data.etapa2 || [],
+                });
+            })
+            .catch(() => setDistritosDataPec18(null));
+    }, []);
 
-  const loadingDistritos = false;
+    const loadingDistritos = false;
 
-  // Modal de distritos por entidad (pestaña independiente del ranking)
-  const [modalEntidad, setModalEntidad] = useState(null);
-  const [modalSortMode, setModalSortMode] = useState('original');
-  const [exportingDistritos, setExportingDistritos] = useState(false);
-  const [distritosTab, setDistritosTab] = useState('pec24');
+    // Modal de distritos por entidad (pestaña independiente del ranking)
+    const [modalEntidad, setModalEntidad] = useState(null);
+    const [modalSortMode, setModalSortMode] = useState('original');
+    const [exportingDistritos, setExportingDistritos] = useState(false);
+    const [distritosTab, setDistritosTab] = useState('pec24');
 
-  // Modal de ranking nacional (pestaña independiente del modal de distritos)
-  const [rankingModalStage, setRankingModalStage] = useState(null);
-  const [rankingSortMode, setRankingSortMode] = useState('rapido');
-  const [exportingRanking, setExportingRanking] = useState(false);
-  const [rankingTab, setRankingTab] = useState('pec24');
+    // Modal de ranking nacional (pestaña independiente del modal de distritos)
+    const [rankingModalStage, setRankingModalStage] = useState(null);
+    const [rankingSortMode, setRankingSortMode] = useState('rapido');
+    const [exportingRanking, setExportingRanking] = useState(false);
+    const [rankingTab, setRankingTab] = useState('pec24');
 
-  // ---------------------------------------------------------------------------
-  // Carga de datos de promedios (API)
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    loadData();
-  }, []);
+    // ---------------------------------------------------------------------------
+    // Carga de datos de promedios (API)
+    // ---------------------------------------------------------------------------
+    useEffect(() => {
+        loadData();
+    }, []);
 
-  const loadData = async () => {
-    setLoadingData(true);
-    try {
-      const res = await getEntidadesData();
-      setEntidadesData(res.data || []);
-      setFilename(res.filename || '');
-    } catch (e) {
-      console.error('Error loading entity averages', e);
-    } finally {
-      setLoadingData(false);
-    }
-  };
-
-  useEffect(() => {
-    if (entidadesData.length === 0) return;
-
-    const fetchClusters = async () => {
-      try {
-        const res1 = await getEntidadesClustering(1, clusterK1);
-        setClustersStage1(res1.profiles || []);
-
-        const res2 = await getEntidadesClustering(2, clusterK2);
-        setClustersStage2(res2.profiles || []);
-      } catch (e) {
-        console.error('Error loading clusters', e);
-      }
+    const loadData = async () => {
+        setLoadingData(true);
+        try {
+            const res = await getEntidadesData();
+            setEntidadesData(res.data || []);
+            setFilename(res.filename || '');
+        } catch (e) {
+            console.error('Error loading entity averages', e);
+        } finally {
+            setLoadingData(false);
+        }
     };
 
-    fetchClusters();
-  }, [clusterK1, clusterK2, entidadesData]);
+    useEffect(() => {
+        if (entidadesData.length === 0) return;
 
-  const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+        const fetchClusters = async () => {
+            try {
+                const res1 = await getEntidadesClustering(1, clusterK1);
+                setClustersStage1(res1.profiles || []);
 
-    setUploading(true);
-    try {
-      const res = await uploadEntidadesFile(file);
-      setFilename(res.filename);
-      await loadData();
-      alert('Archivo de promedios estatales cargado con éxito.');
-    } catch (err) {
-      console.error(err);
-      alert('Error al cargar el archivo de promedios estatales. Revise el formato.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  // ---------------------------------------------------------------------------
-  // Helpers de mapa y clustering
-  // ---------------------------------------------------------------------------
-  const buildEntityMap = () => {
-    const stateMap = {};
-    entidadesData.forEach(s => {
-      if (s.Entidad) stateMap[normalizeText(s.Entidad)] = s;
-    });
-    return stateMap;
-  };
-
-  const buildClusterLookup = (clusters) => {
-    const lookup = {};
-    const orderedClusters = sortClustersByAverage(clusters);
-    const palette = getGroupPalette(orderedClusters.length);
-
-    orderedClusters.forEach((cluster, clusterIndex) => {
-      (cluster.estados || []).forEach(est => {
-        if (!est.Entidad) return;
-        lookup[normalizeText(est.Entidad)] = {
-          group: clusterIndex + 1,
-          color: palette[clusterIndex],
-          cluster,
-          estado: est,
+                const res2 = await getEntidadesClustering(2, clusterK2);
+                setClustersStage2(res2.profiles || []);
+            } catch (e) {
+                console.error('Error loading clusters', e);
+            }
         };
-      });
-    });
 
-    return lookup;
-  };
+        fetchClusters();
+    }, [clusterK1, clusterK2, entidadesData]);
 
-  const getSelectedStateInfo = (stage, clusters) => {
-    const selectedState = selectedStates[stage];
-    if (!selectedState) return null;
+    const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
 
-    const stateMap = buildEntityMap();
-    const clusterLookup = buildClusterLookup(clusters);
-    const key = normalizeText(selectedState);
-
-    return {
-      promedio: getStageAverage(stateMap[key], stage),
-      grupo: clusterLookup[key]?.group || null,
-      color: clusterLookup[key]?.color || NO_DATA_COLOR,
-      hasData: Boolean(stateMap[key]),
+        setUploading(true);
+        try {
+            const res = await uploadEntidadesFile(file);
+            setFilename(res.filename);
+            await loadData();
+            alert('Archivo de promedios estatales cargado con éxito.');
+        } catch (err) {
+            console.error(err);
+            alert('Error al cargar el archivo de promedios estatales. Revise el formato.');
+        } finally {
+            setUploading(false);
+        }
     };
-  };
 
-  // ---------------------------------------------------------------------------
-  // Helpers de distritos con soporte de pestaña activa
-  // ---------------------------------------------------------------------------
-  const getActiveDataset = (tab) => {
-    if (tab === 'pec21') return distritosDataPec21;
-    if (tab === 'pec18') return distritosDataPec18;
-    return distritosDataPec24;
-  };
-
-  const getStageDistritos = (stage, tab) => {
-    const dataset = getActiveDataset(tab);
-    if (!dataset) return [];
-    return stage === 1 ? dataset.etapa1 : dataset.etapa2;
-  };
-
-  const getDistritosPorEntidad = (stage, entidad, tab) => {
-    const key = normalizeText(entidad);
-    return getStageDistritos(stage, tab).filter(d => normalizeText(d.Entidad) === key);
-  };
-
-  const getEntidadGeoFeature = (entidad) => {
-    if (!geoJson?.features) return null;
-    const key = normalizeText(entidad);
-    return geoJson.features.find(f => normalizeText(f.properties?.name) === key) || null;
-  };
-
-  const getStageColorRange = (stage, tab) => {
-    const variables = getStageVariables(stage);
-    const values = [];
-
-    getStageDistritos(stage, tab).forEach(d => {
-      variables.forEach(v => {
-        const value = toNumber(d[v.key], NaN);
-        if (Number.isFinite(value)) values.push(value);
-      });
-    });
-
-    if (values.length === 0) return { min: 0, max: 1 };
-    return { min: Math.min(...values), max: Math.max(...values) };
-  };
-
-  const getStageRanking = (stage, tab) => {
-    const variables = getStageVariables(stage);
-    const sorted = [...getStageDistritos(stage, tab)].sort((a, b) =>
-      compareDistritosByPriority(a, b, variables)
-    );
-    return sorted.map((d, idx) => ({ ...d, __posicion: idx + 1 }));
-  };
-
-  // ---------------------------------------------------------------------------
-  // Handlers de modales
-  // ---------------------------------------------------------------------------
-  const openDistritosModal = (stage, entidad) => {
-    setModalSortMode('original');
-    setDistritosTab('pec24');
-    setModalEntidad({ stage, entidad });
-  };
-  const closeDistritosModal = () => setModalEntidad(null);
-
-  const openRankingModal = (stage) => {
-    setRankingSortMode('rapido');
-    setRankingTab('pec24');
-    setRankingModalStage(stage);
-  };
-  const closeRankingModal = () => setRankingModalStage(null);
-
-  const handleStateClick = (stage, clickedState) => {
-    setSelectedStates(prev => ({
-      ...prev,
-      [stage]: prev[stage] === clickedState ? null : clickedState,
-    }));
-  };
-
-  const clearSelectedState = (stage) => {
-    setSelectedStates(prev => ({ ...prev, [stage]: null }));
-  };
-
-  // ---------------------------------------------------------------------------
-  // Mapa Plotly
-  // ---------------------------------------------------------------------------
-  const getMapPlot = ({ stage, clusters, activeK }) => {
-    if (!geoJson || entidadesData.length === 0 || clusters.length === 0) return null;
-
-    const stateMap = buildEntityMap();
-    const clusterLookup = buildClusterLookup(clusters);
-    const selectedState = selectedStates[stage];
-    const stageLabel = getStageLabel(stage);
-
-    const locations = geoJson.features.map(f => f.properties.name);
-
-    const values = locations.map(name => {
-      const clusterInfo = clusterLookup[normalizeText(name)];
-      return clusterInfo?.group ?? null;
-    });
-
-    const hoverTexts = locations.map(name => {
-      const key = normalizeText(name);
-      const stateData = stateMap[key];
-      const clusterInfo = clusterLookup[key];
-
-      if (!stateData) return `<b>${name}</b><br>Sin datos`;
-
-      const average = getStageAverage(stateData, stage);
-      const groupText = clusterInfo?.group ? `Grupo ${clusterInfo.group}` : 'Sin grupo asignado';
-
-      return `<b>${name}</b><br>${stageLabel}: ${average.toFixed(2)} días<br>${groupText}<br>K=${activeK}`;
-    });
-
-    const colorscale = buildGradientColorscale(getGroupPalette(activeK));
-
-    return (
-      <Plot
-        data={[
-          {
-            type: 'choropleth',
-            geojson: geoJson,
-            locations,
-            z: values,
-            zmin: 1,
-            zmax: activeK,
-            featureidkey: 'properties.name',
-            colorscale,
-            showscale: true,
-            marker: { line: { color: 'rgba(0,0,0,0)', width: 0 } },
-            hoverinfo: 'text',
-            text: hoverTexts,
-            hoverlabel: {
-              bgcolor: '#ffffff',
-              bordercolor: '#d5007f',
-              font: { family: 'Outfit, sans-serif', size: 13, color: '#1e0010' },
-            },
-            colorbar: {
-              title: {
-                text: `<b>${getStageShortLabel(stage)}</b>`,
-                side: 'top',
-                font: { color: '#0b5d47', size: 12 },
-              },
-              tickmode: 'array',
-              tickvals: Array.from({ length: activeK }, (_, idx) => idx + 1),
-              ticktext: Array.from({ length: activeK }, (_, idx) => {
-                if (idx === 0) return `G${idx + 1} · Rápido`;
-                if (idx === activeK - 1) return `G${idx + 1} · Lento`;
-                return `G${idx + 1}`;
-              }),
-              tickfont: { color: '#0b5d47', size: 10, family: 'Outfit, sans-serif' },
-              ticks: 'outside',
-              ticklen: 4,
-              tickwidth: 1,
-              tickcolor: '#0b5d47',
-              thickness: 20,
-              len: 0.64,
-              xpad: 16,
-              ypad: 16,
-              bgcolor: 'rgba(255,255,255,0.86)',
-              bordercolor: 'rgba(152,255,217,0.45)',
-              borderwidth: 1,
-              outlinewidth: 0,
-            },
-          },
-          ...(selectedState ? [
-            {
-              type: 'choropleth',
-              geojson: geoJson,
-              locations: [selectedState],
-              z: [1],
-              zmin: 0,
-              zmax: 1,
-              featureidkey: 'properties.name',
-              colorscale: [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0)']],
-              showscale: false,
-              hoverinfo: 'skip',
-              marker: { line: { color: '#111827', width: 2 } },
-            },
-          ] : []),
-        ]}
-        layout={{
-          geo: {
-            visible: false,
-            projection: { type: 'mercator', scale: 1.02 },
-            center: { lat: 23.7, lon: -102.4 },
-            lonaxis: { range: [-118.8, -85.6] },
-            lataxis: { range: [13.9, 33.4] },
-            bgcolor: '#fdf2fa',
-          },
-          margin: { t: 0, r: 68, b: 0, l: 0 },
-          paper_bgcolor: '#fdf2fa',
-          plot_bgcolor: '#fdf2fa',
-          font: { color: '#6b0040' },
-          dragmode: false,
-          height: 420,
-        }}
-        useResizeHandler={true}
-        style={{ width: '100%' }}
-        onClick={(event) => {
-          if (event && event.points && event.points[0]) {
-            const clickedState = event.points[0].location;
-            if (clickedState) handleStateClick(stage, clickedState);
-          }
-        }}
-        config={{ displayModeBar: false, scrollZoom: false, responsive: true }}
-      />
-    );
-  };
-
-  // ---------------------------------------------------------------------------
-  // Render: tarjetas de clusters
-  // ---------------------------------------------------------------------------
-  const renderClusterCards = ({ stage, clusters }) => {
-    const orderedClusters = sortClustersByAverage(clusters);
-
-    return (
-      <div className="ep-stage-cluster-grid">
-        {orderedClusters.map((c, idx) => {
-          const groupColor = getGroupColor(idx, orderedClusters.length);
-          const groupTone = idx === 0
-            ? 'Entidades de avance rápido'
-            : idx === orderedClusters.length - 1
-              ? 'Entidades de avance menos rápido'
-              : 'Entidades de avance intermedio';
-
-          return (
-            <div
-              key={`${stage}-${idx}`}
-              className="ep-cluster-col"
-              style={{
-                borderTop: `3px solid ${groupColor}`,
-                boxShadow: `0 10px 24px rgba(107, 0, 64, 0.06)`,
-              }}
-            >
-              <div className="ep-cluster-header" style={{ color: groupColor }}>
-                <strong>Grupo {idx + 1}</strong>
-                <span className="ep-cluster-range">
-                  {toNumber(c.min_val).toFixed(2)}–{toNumber(c.max_val).toFixed(2)} días
-                </span>
-              </div>
-              <div className="ep-cluster-tone" style={{ color: groupColor }}>
-                {groupTone}
-              </div>
-              <ul className="ep-cluster-list">
-                {(c.estados || []).map(est => (
-                  <li
-                    key={est.Entidad}
-                    className="ep-cluster-item ep-cluster-item-clickable"
-                    onClick={() => openDistritosModal(stage, est.Entidad)}
-                    title={`Ver distritos de ${est.Entidad}`}
-                  >
-                    <span className="ep-cluster-state">{est.Entidad}</span>
-                    <span className="ep-cluster-days">{getStageAverage(est, stage).toFixed(2)} d</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          );
-        })}
-      </div>
-    );
-  };
-
-  // ---------------------------------------------------------------------------
-  // Render: tarjeta de mapa
-  // ---------------------------------------------------------------------------
-  const renderMapCard = ({ stage, clusters, activeK }) => {
-    const selectedState = selectedStates[stage];
-    const selectedStateInfo = getSelectedStateInfo(stage, clusters);
-    const stageLabel = getStageLabel(stage);
-
-    return (
-      <div className="ep-stage-map-card">
-        <div className="ep-stage-map-header">
-          <h4><Map size={17} /> Mapa de Clusters</h4>
-          <span className="ep-stage-pill">{getStageShortLabel(stage)} · K={activeK}</span>
-        </div>
-
-        <div className="ep-map-shell">
-          {geoJson && !loadingData && clusters.length > 0
-            ? getMapPlot({ stage, clusters, activeK })
-            : <div className="ep-map-loading">Cargando mapa y grupos...</div>
-          }
-        </div>
-
-        {selectedState && (
-          <div className="ep-selected-state-card">
-            <div>
-              <span className="ep-selected-state-title">🏛️ {selectedState}</span>
-              <span className="ep-selected-state-detail">
-                {selectedStateInfo?.hasData
-                  ? `${stageLabel}: ${selectedStateInfo.promedio.toFixed(2)} días · ${selectedStateInfo.grupo ? `Grupo ${selectedStateInfo.grupo}` : 'Sin grupo asignado'}`
-                  : 'Sin datos para esta etapa'}
-              </span>
-            </div>
-            <button onClick={() => clearSelectedState(stage)}>Quitar selección ✕</button>
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // ---------------------------------------------------------------------------
-  // Render: barra de pestañas PEC (reutilizable)
-  // ---------------------------------------------------------------------------
-  const renderPecTabBar = ({ activeTab, onTabChange }) => (
-    <div className="gh-pec-tabs" role="tablist" aria-label="Seleccionar PEC">
-      {PEC_TABS.map(tab => (
-        <button
-          key={tab.id}
-          role="tab"
-          aria-selected={activeTab === tab.id}
-          className={`gh-pec-tab${activeTab === tab.id ? ' gh-pec-tab-active' : ''}`}
-          onClick={() => onTabChange(tab.id)}
-        >
-          {tab.label}
-        </button>
-      ))}
-    </div>
-  );
-
-  // ---------------------------------------------------------------------------
-  // Render: mensaje dataset no disponible
-  // ---------------------------------------------------------------------------
-  const renderDatasetUnavailable = (tab) => (
-    <div className="ep-empty-state gh-dataset-unavailable" style={{ minHeight: 160 }}>
-      <div>
-        <div className="gh-unavailable-icon">📂</div>
-        <div className="gh-unavailable-title">Dataset no disponible</div>
-        <div className="gh-unavailable-desc">
-          El archivo <code>{PEC_FILE_NAMES[tab]}</code> aún no ha sido cargado en{' '}
-          <code>src/data/</code>. Agréguelo y reconstruya la aplicación para habilitar esta pestaña.
-        </div>
-      </div>
-    </div>
-  );
-
-  // ---------------------------------------------------------------------------
-  // Render: modal de distritos por entidad
-  // ---------------------------------------------------------------------------
-  const renderDistritosModal = () => {
-    if (!modalEntidad) return null;
-
-    const { stage, entidad } = modalEntidad;
-    const variables = getStageVariables(stage);
-    const displayVariables = getStageDisplayVariables(stage);
-
-    const activeDataset = getActiveDataset(distritosTab);
-    const datasetUnavailable = activeDataset === null;
-
-    const stageColorRange = getStageColorRange(stage, distritosTab);
-    const ranges = displayVariables.map(v => ({ ...v, ...stageColorRange }));
-    const datasetIsEmpty = getStageDistritos(stage, distritosTab).length === 0;
-
-    const baseDistritos = getDistritosPorEntidad(stage, entidad, distritosTab)
-      .slice()
-      .sort((a, b) => toNumber(a.ID_Distrito) - toNumber(b.ID_Distrito));
-
-    const distritos = modalSortMode === 'lento'
-      ? [...baseDistritos].sort((a, b) => compareDistritosByPriority(b, a, variables))
-      : baseDistritos;
-
-    const distritoColWidthPct = 26;
-    const variableColWidthPct = (100 - distritoColWidthPct) / (displayVariables.length || 1);
-
-    const geoFeature = getEntidadGeoFeature(entidad);
-    const miniMap = geoFeature ? buildEntidadMiniMapPath(geoFeature.geometry) : null;
-
-    const pecLabel = PEC_TABS.find(t => t.id === distritosTab)?.label || '';
-
-    const handleExportDistritos = async () => {
-      setExportingDistritos(true);
-      try {
-        const columns = [
-          { header: 'ID Distrito', key: 'id_distrito', width: 14 },
-          { header: 'Distrito', key: 'distrito', width: 32 },
-          ...ranges.map(r => ({
-            header: r.label, key: r.key, width: 22, isVariable: true, min: r.min, max: r.max,
-          })),
-        ];
-
-        const rows = distritos.map(d => ({
-          id_distrito: String(toNumber(d.ID_Distrito, 0)).padStart(2, '0'),
-          distrito: d.Distrito,
-          ...ranges.reduce((acc, r) => {
-            acc[r.key] = toNumber(d[r.key], NaN);
-            return acc;
-          }, {}),
-        }));
-
-        await exportRowsToXlsx({
-          fileName: `distritos_${sanitizeFileName(entidad)}_${getStageShortLabel(stage)}_${sanitizeFileName(pecLabel)}.xlsx`,
-          sheetName: `${entidad} ${getStageShortLabel(stage)}`,
-          columns,
-          rows,
+    // ---------------------------------------------------------------------------
+    // Helpers de mapa y clustering
+    // ---------------------------------------------------------------------------
+    const buildEntityMap = () => {
+        const stateMap = {};
+        entidadesData.forEach(s => {
+            if (s.Entidad) stateMap[normalizeText(s.Entidad)] = s;
         });
-      } catch (e) {
-        console.error('Error exportando distritos a Excel', e);
-        alert('Ocurrió un error al exportar a Excel.');
-      } finally {
-        setExportingDistritos(false);
-      }
+        return stateMap;
     };
 
-    return (
-      <div className="ep-modal-overlay" onClick={closeDistritosModal}>
-        <div
-          className="ep-modal-card"
-          onClick={(e) => e.stopPropagation()}
-          role="dialog"
-          aria-modal="true"
-        >
-          {/* ── Barra de pestañas PEC (reemplaza getStageLabel) ── */}
-          {renderPecTabBar({
-            activeTab: distritosTab,
-            onTabChange: (id) => { setDistritosTab(id); setModalSortMode('original'); },
-          })}
+    const buildClusterLookup = (clusters) => {
+        const lookup = {};
+        const orderedClusters = sortClustersByAverage(clusters);
+        const palette = getGroupPalette(orderedClusters.length);
 
-          <div className="ep-modal-header">
-            <div className="ep-modal-header-titles">
-              <span className="ep-modal-stage-label">{getStageLabel(stage)}</span>
-              <h3 className="ep-modal-entidad-title">
-                <span className="ep-modal-entidad-icon" aria-hidden="true"></span>
-                {miniMap && (
-                  <svg
-                    viewBox={`0 0 ${miniMap.size} ${miniMap.size}`}
-                    className="ep-entidad-mini-map"
-                    aria-hidden="true"
-                  >
-                    <path d={miniMap.path} fill="#d5007f" fillRule="evenodd" />
-                  </svg>
+        orderedClusters.forEach((cluster, clusterIndex) => {
+            (cluster.estados || []).forEach(est => {
+                if (!est.Entidad) return;
+                lookup[normalizeText(est.Entidad)] = {
+                    group: clusterIndex + 1,
+                    color: palette[clusterIndex],
+                    cluster,
+                    estado: est,
+                };
+            });
+        });
+
+        return lookup;
+    };
+
+    const getSelectedStateInfo = (stage, clusters) => {
+        const selectedState = selectedStates[stage];
+        if (!selectedState) return null;
+
+        const stateMap = buildEntityMap();
+        const clusterLookup = buildClusterLookup(clusters);
+        const key = normalizeText(selectedState);
+
+        return {
+            promedio: getStageAverage(stateMap[key], stage),
+            grupo: clusterLookup[key]?.group || null,
+            color: clusterLookup[key]?.color || NO_DATA_COLOR,
+            hasData: Boolean(stateMap[key]),
+        };
+    };
+
+    // ---------------------------------------------------------------------------
+    // Helpers de distritos con soporte de pestaña activa
+    // ---------------------------------------------------------------------------
+    const getActiveDataset = (tab) => {
+        if (tab === 'pec21') return distritosDataPec21;
+        if (tab === 'pec18') return distritosDataPec18;
+        return distritosDataPec24;
+    };
+
+    const getStageDistritos = (stage, tab) => {
+        const dataset = getActiveDataset(tab);
+        if (!dataset) return [];
+        return stage === 1 ? dataset.etapa1 : dataset.etapa2;
+    };
+
+    const getDistritosPorEntidad = (stage, entidad, tab) => {
+        const key = normalizeText(entidad);
+        return getStageDistritos(stage, tab).filter(d => normalizeText(d.Entidad) === key);
+    };
+
+    const getEntidadGeoFeature = (entidad) => {
+        if (!geoJson?.features) return null;
+        const key = normalizeText(entidad);
+        return geoJson.features.find(f => normalizeText(f.properties?.name) === key) || null;
+    };
+
+    const getStageColorRange = (stage, tab) => {
+        const variables = getStageVariables(stage);
+        const values = [];
+
+        getStageDistritos(stage, tab).forEach(d => {
+            variables.forEach(v => {
+                const value = toNumber(d[v.key], NaN);
+                if (Number.isFinite(value)) values.push(value);
+            });
+        });
+
+        if (values.length === 0) return { min: 0, max: 1 };
+        return { min: Math.min(...values), max: Math.max(...values) };
+    };
+
+    const getStageRanking = (stage, tab) => {
+        const variables = getStageVariables(stage);
+        const sorted = [...getStageDistritos(stage, tab)].sort((a, b) =>
+            compareDistritosByPriority(a, b, variables)
+        );
+        return sorted.map((d, idx) => ({ ...d, __posicion: idx + 1 }));
+    };
+
+    // ---------------------------------------------------------------------------
+    // Handlers de modales
+    // ---------------------------------------------------------------------------
+    const openDistritosModal = (stage, entidad) => {
+        setModalSortMode('original');
+        setDistritosTab('pec24');
+        setModalEntidad({ stage, entidad });
+    };
+    const closeDistritosModal = () => setModalEntidad(null);
+
+    const openRankingModal = (stage) => {
+        setRankingSortMode('rapido');
+        setRankingTab('pec24');
+        setRankingModalStage(stage);
+    };
+    const closeRankingModal = () => setRankingModalStage(null);
+
+    const handleStateClick = (stage, clickedState) => {
+        setSelectedStates(prev => ({
+            ...prev,
+            [stage]: prev[stage] === clickedState ? null : clickedState,
+        }));
+    };
+
+    const clearSelectedState = (stage) => {
+        setSelectedStates(prev => ({ ...prev, [stage]: null }));
+    };
+
+    // ---------------------------------------------------------------------------
+    // Mapa Plotly
+    // ---------------------------------------------------------------------------
+    const getMapPlot = ({ stage, clusters, activeK }) => {
+        if (!geoJson || entidadesData.length === 0 || clusters.length === 0) return null;
+
+        const stateMap = buildEntityMap();
+        const clusterLookup = buildClusterLookup(clusters);
+        const selectedState = selectedStates[stage];
+        const stageLabel = getStageLabel(stage);
+
+        const locations = geoJson.features.map(f => f.properties.name);
+
+        const values = locations.map(name => {
+            const clusterInfo = clusterLookup[normalizeText(name)];
+            return clusterInfo?.group ?? null;
+        });
+
+        const hoverTexts = locations.map(name => {
+            const key = normalizeText(name);
+            const stateData = stateMap[key];
+            const clusterInfo = clusterLookup[key];
+
+            if (!stateData) return `<b>${name}</b><br>Sin datos`;
+
+            const average = getStageAverage(stateData, stage);
+            const groupText = clusterInfo?.group ? `Grupo ${clusterInfo.group}` : 'Sin grupo asignado';
+
+            return `<b>${name}</b><br>${stageLabel}: ${average.toFixed(2)} días<br>${groupText}<br>K=${activeK}`;
+        });
+
+        const colorscale = buildGradientColorscale(getGroupPalette(activeK));
+
+        return (
+            <Plot
+                data={[
+                    {
+                        type: 'choropleth',
+                        geojson: geoJson,
+                        locations,
+                        z: values,
+                        zmin: 1,
+                        zmax: activeK,
+                        featureidkey: 'properties.name',
+                        colorscale,
+                        showscale: true,
+                        marker: { line: { color: 'rgba(0,0,0,0)', width: 0 } },
+                        hoverinfo: 'text',
+                        text: hoverTexts,
+                        hoverlabel: {
+                            bgcolor: '#ffffff',
+                            bordercolor: '#d5007f',
+                            font: { family: 'Outfit, sans-serif', size: 13, color: '#1e0010' },
+                        },
+                        colorbar: {
+                            title: {
+                                text: `<b>${getStageShortLabel(stage)}</b>`,
+                                side: 'top',
+                                font: { color: '#0b5d47', size: 12 },
+                            },
+                            tickmode: 'array',
+                            tickvals: Array.from({ length: activeK }, (_, idx) => idx + 1),
+                            ticktext: Array.from({ length: activeK }, (_, idx) => {
+                                if (idx === 0) return `G${idx + 1} · Rápido`;
+                                if (idx === activeK - 1) return `G${idx + 1} · Lento`;
+                                return `G${idx + 1}`;
+                            }),
+                            tickfont: { color: '#0b5d47', size: 10, family: 'Outfit, sans-serif' },
+                            ticks: 'outside',
+                            ticklen: 4,
+                            tickwidth: 1,
+                            tickcolor: '#0b5d47',
+                            thickness: 20,
+                            len: 0.64,
+                            xpad: 16,
+                            ypad: 16,
+                            bgcolor: 'rgba(255,255,255,0.86)',
+                            bordercolor: 'rgba(152,255,217,0.45)',
+                            borderwidth: 1,
+                            outlinewidth: 0,
+                        },
+                    },
+                    ...(selectedState ? [
+                        {
+                            type: 'choropleth',
+                            geojson: geoJson,
+                            locations: [selectedState],
+                            z: [1],
+                            zmin: 0,
+                            zmax: 1,
+                            featureidkey: 'properties.name',
+                            colorscale: [[0, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0)']],
+                            showscale: false,
+                            hoverinfo: 'skip',
+                            marker: { line: { color: '#111827', width: 2 } },
+                        },
+                    ] : []),
+                ]}
+                layout={{
+                    geo: {
+                        visible: false,
+                        projection: { type: 'mercator', scale: 1.02 },
+                        center: { lat: 23.7, lon: -102.4 },
+                        lonaxis: { range: [-118.8, -85.6] },
+                        lataxis: { range: [13.9, 33.4] },
+                        bgcolor: '#fdf2fa',
+                    },
+                    margin: { t: 0, r: 68, b: 0, l: 0 },
+                    paper_bgcolor: '#fdf2fa',
+                    plot_bgcolor: '#fdf2fa',
+                    font: { color: '#6b0040' },
+                    dragmode: false,
+                    height: 420,
+                }}
+                useResizeHandler={true}
+                style={{ width: '100%' }}
+                onClick={(event) => {
+                    if (event && event.points && event.points[0]) {
+                        const clickedState = event.points[0].location;
+                        if (clickedState) handleStateClick(stage, clickedState);
+                    }
+                }}
+                config={{ displayModeBar: false, scrollZoom: false, responsive: true }}
+            />
+        );
+    };
+
+    // ---------------------------------------------------------------------------
+    // Render: tarjetas de clusters
+    // ---------------------------------------------------------------------------
+    const renderClusterCards = ({ stage, clusters }) => {
+        const orderedClusters = sortClustersByAverage(clusters);
+
+        return (
+            <div className="ep-stage-cluster-grid">
+                {orderedClusters.map((c, idx) => {
+                    const groupColor = getGroupColor(idx, orderedClusters.length);
+                    const groupTone = idx === 0
+                        ? 'Entidades de avance rápido'
+                        : idx === orderedClusters.length - 1
+                            ? 'Entidades de avance menos rápido'
+                            : 'Entidades de avance intermedio';
+
+                    return (
+                        <div
+                            key={`${stage}-${idx}`}
+                            className="ep-cluster-col"
+                            style={{
+                                borderTop: `3px solid ${groupColor}`,
+                                boxShadow: `0 10px 24px rgba(107, 0, 64, 0.06)`,
+                            }}
+                        >
+                            <div className="ep-cluster-header" style={{ color: groupColor }}>
+                                <strong>Grupo {idx + 1}</strong>
+                                <span className="ep-cluster-range">
+                                    {toNumber(c.min_val).toFixed(2)}–{toNumber(c.max_val).toFixed(2)} días
+                                </span>
+                            </div>
+                            <div className="ep-cluster-tone" style={{ color: groupColor }}>
+                                {groupTone}
+                            </div>
+                            <ul className="ep-cluster-list">
+                                {(c.estados || []).map(est => (
+                                    <li
+                                        key={est.Entidad}
+                                        className="ep-cluster-item ep-cluster-item-clickable"
+                                        onClick={() => openDistritosModal(stage, est.Entidad)}
+                                        title={`Ver distritos de ${est.Entidad}`}
+                                    >
+                                        <span className="ep-cluster-state">{est.Entidad}</span>
+                                        <span className="ep-cluster-days">{getStageAverage(est, stage).toFixed(2)} d</span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    );
+                })}
+            </div>
+        );
+    };
+
+    // ---------------------------------------------------------------------------
+    // Render: tarjeta de mapa
+    // ---------------------------------------------------------------------------
+    const renderMapCard = ({ stage, clusters, activeK }) => {
+        const selectedState = selectedStates[stage];
+        const selectedStateInfo = getSelectedStateInfo(stage, clusters);
+        const stageLabel = getStageLabel(stage);
+
+        return (
+            <div className="ep-stage-map-card">
+                <div className="ep-stage-map-header">
+                    <h4><Map size={17} /> Mapa de Clusters</h4>
+                    <span className="ep-stage-pill">{getStageShortLabel(stage)} · K={activeK}</span>
+                </div>
+
+                <div className="ep-map-shell">
+                    {geoJson && !loadingData && clusters.length > 0
+                        ? getMapPlot({ stage, clusters, activeK })
+                        : <div className="ep-map-loading">Cargando mapa y grupos...</div>
+                    }
+                </div>
+
+                {selectedState && (
+                    <div className="ep-selected-state-card">
+                        <div>
+                            <span className="ep-selected-state-title">🏛️ {selectedState}</span>
+                            <span className="ep-selected-state-detail">
+                                {selectedStateInfo?.hasData
+                                    ? `${stageLabel}: ${selectedStateInfo.promedio.toFixed(2)} días · ${selectedStateInfo.grupo ? `Grupo ${selectedStateInfo.grupo}` : 'Sin grupo asignado'}`
+                                    : 'Sin datos para esta etapa'}
+                            </span>
+                        </div>
+                        <button onClick={() => clearSelectedState(stage)}>Quitar selección ✕</button>
+                    </div>
                 )}
-                <span>{entidad}</span>
-              </h3>
             </div>
-            <button className="ep-modal-close" onClick={closeDistritosModal} aria-label="Cerrar">
-              <X size={18} />
-            </button>
-          </div>
-
-          {loadingDistritos ? (
-            <div className="ep-empty-state" style={{ minHeight: 140 }}>Cargando dataset de distritos...</div>
-          ) : datasetUnavailable ? (
-            renderDatasetUnavailable(distritosTab)
-          ) : datasetIsEmpty ? (
-            <div className="ep-empty-state" style={{ minHeight: 140 }}>Aún no se ha cargado el dataset de distritos.</div>
-          ) : distritos.length === 0 ? (
-            <div className="ep-empty-state" style={{ minHeight: 140 }}>No se encontraron distritos para {entidad}.</div>
-          ) : (
-            <>
-              <div className="ep-modal-toolbar">
-                <div className="ep-modal-toolbar-spacer" style={{ width: `${distritoColWidthPct}%` }} />
-                <span className="ep-modal-legend-label">Día en el que alcanza:</span>
-                <button
-                  className="ep-sort-btn"
-                  onClick={() => setModalSortMode(prev => (prev === 'lento' ? 'original' : 'lento'))}
-                >
-                  {modalSortMode === 'lento' ? '↺ Restablecer orden original' : 'Ordenar: más lento → más rápido'}
-                </button>
-                <button
-                  className="ep-export-btn"
-                  onClick={handleExportDistritos}
-                  disabled={exportingDistritos}
-                  title="Exportar esta tabla a Excel"
-                >
-                  <Download size={14} />
-                  {exportingDistritos ? 'Exportando...' : 'Exportar a Excel'}
-                </button>
-              </div>
-
-              <div className="ep-modal-table-wrap">
-                <table className="ep-heatmap-table">
-                  <colgroup>
-                    <col style={{ width: `${distritoColWidthPct}%` }} />
-                    {displayVariables.map(v => (
-                      <col key={v.key} style={{ width: `${variableColWidthPct}%` }} />
-                    ))}
-                  </colgroup>
-                  <thead>
-                    <tr>
-                      <th>Distrito</th>
-                      {displayVariables.map(v => <th key={v.key}>{v.label}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {distritos.map((d, idx) => (
-                      <tr key={`${d.ID_Distrito}-${idx}`}>
-                        <td className="ep-heatmap-distrito">
-                          <span className="ep-distrito-id">
-                            {String(toNumber(d.ID_Distrito, 0)).padStart(2, '0')}
-                          </span>
-                          <span className="ep-distrito-name">{d.Distrito}</span>
-                        </td>
-                        {ranges.map(r => {
-                          const value = toNumber(d[r.key], NaN);
-                          const color = getHeatColor(value, r.min, r.max);
-                          return (
-                            <td key={r.key} className="ep-heatmap-cell" style={{ background: color }}>
-                              {Number.isFinite(value) ? value.toFixed(2) : '—'}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="ep-heatmap-legend">
-                <Thermometer size={14} />
-                <span>Más rápido</span>
-                <div className="ep-heatmap-gradient" />
-                <span>Más lento (foco rojo)</span>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  // ---------------------------------------------------------------------------
-  // Render: modal de ranking nacional
-  // ---------------------------------------------------------------------------
-  const renderRankingModal = () => {
-    if (!rankingModalStage) return null;
-
-    const stage = rankingModalStage;
-    const displayVariables = getStageDisplayVariables(stage);
-
-    const activeDataset = getActiveDataset(rankingTab);
-    const datasetUnavailable = activeDataset === null;
-
-    const stageColorRange = getStageColorRange(stage, rankingTab);
-    const ranges = displayVariables.map(v => ({ ...v, ...stageColorRange }));
-    const ranking = getStageRanking(stage, rankingTab);
-
-    const distritos = rankingSortMode === 'lento'
-      ? [...ranking].sort((a, b) => b.__posicion - a.__posicion)
-      : [...ranking].sort((a, b) => a.__posicion - b.__posicion);
-
-    const pecLabel = PEC_TABS.find(t => t.id === rankingTab)?.label || '';
-
-    const handleExportRanking = async () => {
-      setExportingRanking(true);
-      try {
-        const columns = [
-          { header: 'Posición', key: 'posicion', width: 12 },
-          { header: 'Entidad', key: 'entidad', width: 24 },
-          { header: 'ID Distrito', key: 'id_distrito', width: 14 },
-          { header: 'Distrito', key: 'distrito', width: 32 },
-          ...ranges.map(r => ({
-            header: r.label, key: r.key, width: 22, isVariable: true, min: r.min, max: r.max,
-          })),
-        ];
-
-        const rows = distritos.map(d => ({
-          posicion: d.__posicion,
-          entidad: d.Entidad,
-          id_distrito: String(toNumber(d.ID_Distrito, 0)).padStart(2, '0'),
-          distrito: d.Distrito,
-          ...ranges.reduce((acc, r) => {
-            acc[r.key] = toNumber(d[r.key], NaN);
-            return acc;
-          }, {}),
-        }));
-
-        await exportRowsToXlsx({
-          fileName: `ranking_nacional_${getStageShortLabel(stage)}_${sanitizeFileName(pecLabel)}.xlsx`,
-          sheetName: `Ranking ${getStageShortLabel(stage)}`,
-          columns,
-          rows,
-        });
-      } catch (e) {
-        console.error('Error exportando el ranking a Excel', e);
-        alert('Ocurrió un error al exportar a Excel.');
-      } finally {
-        setExportingRanking(false);
-      }
+        );
     };
 
-    return (
-      <div className="ep-modal-overlay" onClick={closeRankingModal}>
-        <div
-          className="ep-modal-card ep-ranking-card"
-          onClick={(e) => e.stopPropagation()}
-          role="dialog"
-          aria-modal="true"
-        >
-          {/* ── Barra de pestañas PEC (reemplaza getStageLabel) ── */}
-          {renderPecTabBar({
-            activeTab: rankingTab,
-            onTabChange: (id) => { setRankingTab(id); setRankingSortMode('rapido'); },
-          })}
-
-          <div className="ep-modal-header">
-            <div>
-              <span className="ep-modal-stage-label">{getStageLabel(stage)}</span>
-              <h3>📋 Ranking nacional de los 300 distritos</h3>
-            </div>
-            <button className="ep-modal-close" onClick={closeRankingModal} aria-label="Cerrar">
-              <X size={18} />
-            </button>
-          </div>
-
-          {datasetUnavailable ? (
-            renderDatasetUnavailable(rankingTab)
-          ) : (
-            <>
-              <div className="ep-ranking-toolbar">
+    // ---------------------------------------------------------------------------
+    // Render: barra de pestañas PEC (reutilizable)
+    // ---------------------------------------------------------------------------
+    const renderPecTabBar = ({ activeTab, onTabChange }) => (
+        <div className="gh-pec-tabs" role="tablist" aria-label="Seleccionar PEC">
+            {PEC_TABS.map(tab => (
                 <button
-                  className={`ep-sort-btn ${rankingSortMode === 'rapido' ? 'ep-sort-btn-active' : ''}`}
-                  onClick={() => setRankingSortMode('rapido')}
+                    key={tab.id}
+                    role="tab"
+                    aria-selected={activeTab === tab.id}
+                    className={`gh-pec-tab${activeTab === tab.id ? ' gh-pec-tab-active' : ''}`}
+                    onClick={() => onTabChange(tab.id)}
                 >
-                  Más rápido primero
+                    {tab.label}
                 </button>
-                <button
-                  className={`ep-sort-btn ${rankingSortMode === 'lento' ? 'ep-sort-btn-active' : ''}`}
-                  onClick={() => setRankingSortMode('lento')}
-                >
-                  Más lento primero
-                </button>
-                <button
-                  className="ep-export-btn"
-                  onClick={handleExportRanking}
-                  disabled={exportingRanking}
-                  title="Exportar esta tabla a Excel"
-                >
-                  <Download size={14} />
-                  {exportingRanking ? 'Exportando...' : 'Exportar a Excel'}
-                </button>
-              </div>
-
-              <div className="ep-modal-table-wrap ep-ranking-table-wrap">
-                <table className="ep-heatmap-table ep-ranking-table">
-                  <thead>
-                    <tr>
-                      <th className="ep-ranking-col-pos">Posición</th>
-                      <th className="ep-ranking-col-entidad">Entidad</th>
-                      <th className="ep-ranking-col-id">ID Distrito</th>
-                      <th className="ep-ranking-col-distrito">Distrito</th>
-                      {displayVariables.map(v => <th key={v.key}>{v.label}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {distritos.map((d, idx) => (
-                      <tr key={`${d.ID_Entidad}-${d.ID_Distrito}-${idx}`}>
-                        <td className="ep-ranking-col-pos ep-ranking-pos-cell">{d.__posicion}</td>
-                        <td className="ep-ranking-col-entidad">{d.Entidad}</td>
-                        <td className="ep-ranking-col-id">{String(toNumber(d.ID_Distrito, 0)).padStart(2, '0')}</td>
-                        <td className="ep-ranking-col-distrito">{d.Distrito}</td>
-                        {ranges.map(r => {
-                          const value = toNumber(d[r.key], NaN);
-                          const color = getHeatColor(value, r.min, r.max);
-                          return (
-                            <td key={r.key} className="ep-heatmap-cell" style={{ background: color }}>
-                              {Number.isFinite(value) ? value.toFixed(2) : '—'}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="ep-heatmap-legend">
-                <Thermometer size={14} />
-                <span>Más rápido</span>
-                <div className="ep-heatmap-gradient" />
-                <span>Más lento (foco rojo)</span>
-              </div>
-            </>
-          )}
+            ))}
         </div>
-      </div>
     );
-  };
 
-  // ---------------------------------------------------------------------------
-  // Render: sección de etapa (mapa + clusters)
-  // ---------------------------------------------------------------------------
-  const renderStageSection = ({ stage, title, activeK, setActiveK, clusters }) => (
-    <div className="ep-panel ep-stage-card">
-      <div className="ep-stage-titlebar">
-        <div>
-          <h3><Layers size={18} /> {title}</h3>
+    // ---------------------------------------------------------------------------
+    // Render: mensaje dataset no disponible
+    // ---------------------------------------------------------------------------
+    const renderDatasetUnavailable = (tab) => (
+        <div className="ep-empty-state gh-dataset-unavailable" style={{ minHeight: 160 }}>
+            <div>
+                <div className="gh-unavailable-icon">📂</div>
+                <div className="gh-unavailable-title">Dataset no disponible</div>
+                <div className="gh-unavailable-desc">
+                    El archivo <code>{PEC_FILE_NAMES[tab]}</code> aún no ha sido cargado en{' '}
+                    <code>src/data/</code>. Agréguelo y reconstruya la aplicación para habilitar esta pestaña.
+                </div>
+            </div>
         </div>
-        <div className="ep-k-control" aria-label={`Selector de K para ${title}`}>
-          {[2, 3, 4, 5].map(k => (
-            <button
-              key={k}
-              onClick={() => setActiveK(k)}
-              className={`ep-k-btn ${activeK === k ? 'active' : ''}`}
-            >
-              K={k}
-            </button>
-          ))}
+    );
+
+    // ---------------------------------------------------------------------------
+    // Render: modal de distritos por entidad
+    // ---------------------------------------------------------------------------
+    const renderDistritosModal = () => {
+        if (!modalEntidad) return null;
+
+        const { stage, entidad } = modalEntidad;
+        const variables = getStageVariables(stage);
+        const displayVariables = getStageDisplayVariables(stage, distritosTab);
+
+        const activeDataset = getActiveDataset(distritosTab);
+        const datasetUnavailable = activeDataset === null;
+
+        const stageColorRange = getStageColorRange(stage, distritosTab);
+        const ranges = displayVariables.map(v => ({ ...v, ...stageColorRange }));
+        const datasetIsEmpty = getStageDistritos(stage, distritosTab).length === 0;
+
+        const baseDistritos = getDistritosPorEntidad(stage, entidad, distritosTab)
+            .slice()
+            .sort((a, b) => toNumber(a.ID_Distrito) - toNumber(b.ID_Distrito));
+
+        const distritos = modalSortMode === 'lento'
+            ? [...baseDistritos].sort((a, b) => compareDistritosByPriority(b, a, variables))
+            : baseDistritos;
+
+        const distritoColWidthPct = 26;
+        const variableColWidthPct = (100 - distritoColWidthPct) / (displayVariables.length || 1);
+
+        const geoFeature = getEntidadGeoFeature(entidad);
+        const miniMap = geoFeature ? buildEntidadMiniMapPath(geoFeature.geometry) : null;
+
+        const pecLabel = PEC_TABS.find(t => t.id === distritosTab)?.label || '';
+
+        const handleExportDistritos = async () => {
+            setExportingDistritos(true);
+            try {
+                const columns = [
+                    { header: 'ID Distrito', key: 'id_distrito', width: 14 },
+                    { header: 'Distrito', key: 'distrito', width: 32 },
+                    ...ranges.map(r => ({
+                        header: r.label, key: r.key, width: 22, isVariable: true, min: r.min, max: r.max,
+                    })),
+                ];
+
+                const rows = distritos.map(d => ({
+                    id_distrito: String(toNumber(d.ID_Distrito, 0)).padStart(2, '0'),
+                    distrito: d.Distrito,
+                    ...ranges.reduce((acc, r) => {
+                        acc[r.key] = toNumber(d[r.key], NaN);
+                        return acc;
+                    }, {}),
+                }));
+
+                await exportRowsToXlsx({
+                    fileName: `distritos_${sanitizeFileName(entidad)}_${getStageShortLabel(stage)}_${sanitizeFileName(pecLabel)}.xlsx`,
+                    sheetName: `${entidad} ${getStageShortLabel(stage)}`,
+                    columns,
+                    rows,
+                });
+            } catch (e) {
+                console.error('Error exportando distritos a Excel', e);
+                alert('Ocurrió un error al exportar a Excel.');
+            } finally {
+                setExportingDistritos(false);
+            }
+        };
+
+        return (
+            <div className="ep-modal-overlay" onClick={closeDistritosModal}>
+                <div
+                    className="ep-modal-card"
+                    onClick={(e) => e.stopPropagation()}
+                    role="dialog"
+                    aria-modal="true"
+                >
+                    {/* ── Barra de pestañas PEC (reemplaza getStageLabel) ── */}
+                    {renderPecTabBar({
+                        activeTab: distritosTab,
+                        onTabChange: (id) => { setDistritosTab(id); setModalSortMode('original'); },
+                    })}
+
+                    <div className="ep-modal-header">
+                        <div className="ep-modal-header-titles">
+                            <span className="ep-modal-stage-label">{getStageLabel(stage)}</span>
+                            <h3 className="ep-modal-entidad-title">
+                                <span className="ep-modal-entidad-icon" aria-hidden="true"></span>
+                                {miniMap && (
+                                    <svg
+                                        viewBox={`0 0 ${miniMap.size} ${miniMap.size}`}
+                                        className="ep-entidad-mini-map"
+                                        aria-hidden="true"
+                                    >
+                                        <path d={miniMap.path} fill="#d5007f" fillRule="evenodd" />
+                                    </svg>
+                                )}
+                                <span>{entidad}</span>
+                            </h3>
+                        </div>
+                        <button className="ep-modal-close" onClick={closeDistritosModal} aria-label="Cerrar">
+                            <X size={18} />
+                        </button>
+                    </div>
+
+                    {loadingDistritos ? (
+                        <div className="ep-empty-state" style={{ minHeight: 140 }}>Cargando dataset de distritos...</div>
+                    ) : datasetUnavailable ? (
+                        renderDatasetUnavailable(distritosTab)
+                    ) : datasetIsEmpty ? (
+                        <div className="ep-empty-state" style={{ minHeight: 140 }}>Aún no se ha cargado el dataset de distritos.</div>
+                    ) : distritos.length === 0 ? (
+                        <div className="ep-empty-state" style={{ minHeight: 140 }}>No se encontraron distritos para {entidad}.</div>
+                    ) : (
+                        <>
+                            <div className="ep-modal-toolbar">
+                                <div className="ep-modal-toolbar-spacer" style={{ width: `${distritoColWidthPct}%` }} />
+                                <span className="ep-modal-legend-label">Día en el que alcanza:</span>
+                                <button
+                                    className="ep-sort-btn"
+                                    onClick={() => setModalSortMode(prev => (prev === 'lento' ? 'original' : 'lento'))}
+                                >
+                                    {modalSortMode === 'lento' ? '↺ Restablecer orden original' : 'Ordenar: más lento → más rápido'}
+                                </button>
+                                <button
+                                    className="ep-export-btn"
+                                    onClick={handleExportDistritos}
+                                    disabled={exportingDistritos}
+                                    title="Exportar esta tabla a Excel"
+                                >
+                                    <Download size={14} />
+                                    {exportingDistritos ? 'Exportando...' : 'Exportar a Excel'}
+                                </button>
+                            </div>
+
+                            <div className="ep-modal-table-wrap">
+                                <table className="ep-heatmap-table">
+                                    <colgroup>
+                                        <col style={{ width: `${distritoColWidthPct}%` }} />
+                                        {displayVariables.map(v => (
+                                            <col key={v.key} style={{ width: `${variableColWidthPct}%` }} />
+                                        ))}
+                                    </colgroup>
+                                    <thead>
+                                        <tr>
+                                            <th>Distrito</th>
+                                            {displayVariables.map(v => <th key={v.key}>{v.label}</th>)}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {distritos.map((d, idx) => (
+                                            <tr key={`${d.ID_Distrito}-${idx}`}>
+                                                <td className="ep-heatmap-distrito">
+                                                    <span className="ep-distrito-id">
+                                                        {String(toNumber(d.ID_Distrito, 0)).padStart(2, '0')}
+                                                    </span>
+                                                    <span className="ep-distrito-name">{d.Distrito}</span>
+                                                </td>
+                                                {ranges.map(r => {
+                                                    const value = toNumber(d[r.key], NaN);
+                                                    const color = getHeatColor(value, r.min, r.max);
+                                                    return (
+                                                        <td key={r.key} className="ep-heatmap-cell" style={{ background: color }}>
+                                                            {Number.isFinite(value) ? value.toFixed(2) : '—'}
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div className="ep-heatmap-legend">
+                                <Thermometer size={14} />
+                                <span>Más rápido</span>
+                                <div className="ep-heatmap-gradient" />
+                                <span>Más lento (foco rojo)</span>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // ---------------------------------------------------------------------------
+    // Render: modal de ranking nacional
+    // ---------------------------------------------------------------------------
+    const renderRankingModal = () => {
+        if (!rankingModalStage) return null;
+
+        const stage = rankingModalStage;
+        const displayVariables = getStageDisplayVariables(stage, rankingTab);
+
+        const activeDataset = getActiveDataset(rankingTab);
+        const datasetUnavailable = activeDataset === null;
+
+        const stageColorRange = getStageColorRange(stage, rankingTab);
+        const ranges = displayVariables.map(v => ({ ...v, ...stageColorRange }));
+        const ranking = getStageRanking(stage, rankingTab);
+
+        const distritos = rankingSortMode === 'lento'
+            ? [...ranking].sort((a, b) => b.__posicion - a.__posicion)
+            : [...ranking].sort((a, b) => a.__posicion - b.__posicion);
+
+        const pecLabel = PEC_TABS.find(t => t.id === rankingTab)?.label || '';
+
+        const handleExportRanking = async () => {
+            setExportingRanking(true);
+            try {
+                const columns = [
+                    { header: 'Posición', key: 'posicion', width: 12 },
+                    { header: 'Entidad', key: 'entidad', width: 24 },
+                    { header: 'ID Distrito', key: 'id_distrito', width: 14 },
+                    { header: 'Distrito', key: 'distrito', width: 32 },
+                    ...ranges.map(r => ({
+                        header: r.label, key: r.key, width: 22, isVariable: true, min: r.min, max: r.max,
+                    })),
+                ];
+
+                const rows = distritos.map(d => ({
+                    posicion: d.__posicion,
+                    entidad: d.Entidad,
+                    id_distrito: String(toNumber(d.ID_Distrito, 0)).padStart(2, '0'),
+                    distrito: d.Distrito,
+                    ...ranges.reduce((acc, r) => {
+                        acc[r.key] = toNumber(d[r.key], NaN);
+                        return acc;
+                    }, {}),
+                }));
+
+                await exportRowsToXlsx({
+                    fileName: `ranking_nacional_${getStageShortLabel(stage)}_${sanitizeFileName(pecLabel)}.xlsx`,
+                    sheetName: `Ranking ${getStageShortLabel(stage)}`,
+                    columns,
+                    rows,
+                });
+            } catch (e) {
+                console.error('Error exportando el ranking a Excel', e);
+                alert('Ocurrió un error al exportar a Excel.');
+            } finally {
+                setExportingRanking(false);
+            }
+        };
+
+        return (
+            <div className="ep-modal-overlay" onClick={closeRankingModal}>
+                <div
+                    className="ep-modal-card ep-ranking-card"
+                    onClick={(e) => e.stopPropagation()}
+                    role="dialog"
+                    aria-modal="true"
+                >
+                    {/* ── Barra de pestañas PEC (reemplaza getStageLabel) ── */}
+                    {renderPecTabBar({
+                        activeTab: rankingTab,
+                        onTabChange: (id) => { setRankingTab(id); setRankingSortMode('rapido'); },
+                    })}
+
+                    <div className="ep-modal-header">
+                        <div>
+                            <span className="ep-modal-stage-label">{getStageLabel(stage)}</span>
+                            <h3>📋 Ranking nacional de los 300 distritos</h3>
+                        </div>
+                        <button className="ep-modal-close" onClick={closeRankingModal} aria-label="Cerrar">
+                            <X size={18} />
+                        </button>
+                    </div>
+
+                    {datasetUnavailable ? (
+                        renderDatasetUnavailable(rankingTab)
+                    ) : (
+                        <>
+                            <div className="ep-ranking-toolbar">
+                                <button
+                                    className={`ep-sort-btn ${rankingSortMode === 'rapido' ? 'ep-sort-btn-active' : ''}`}
+                                    onClick={() => setRankingSortMode('rapido')}
+                                >
+                                    Más rápido primero
+                                </button>
+                                <button
+                                    className={`ep-sort-btn ${rankingSortMode === 'lento' ? 'ep-sort-btn-active' : ''}`}
+                                    onClick={() => setRankingSortMode('lento')}
+                                >
+                                    Más lento primero
+                                </button>
+                                <button
+                                    className="ep-export-btn"
+                                    onClick={handleExportRanking}
+                                    disabled={exportingRanking}
+                                    title="Exportar esta tabla a Excel"
+                                >
+                                    <Download size={14} />
+                                    {exportingRanking ? 'Exportando...' : 'Exportar a Excel'}
+                                </button>
+                            </div>
+
+                            <div className="ep-modal-table-wrap ep-ranking-table-wrap">
+                                <table className="ep-heatmap-table ep-ranking-table">
+                                    <thead>
+                                        <tr>
+                                            <th className="ep-ranking-col-pos">Posición</th>
+                                            <th className="ep-ranking-col-entidad">Entidad</th>
+                                            <th className="ep-ranking-col-id">ID Distrito</th>
+                                            <th className="ep-ranking-col-distrito">Distrito</th>
+                                            {displayVariables.map(v => <th key={v.key}>{v.label}</th>)}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {distritos.map((d, idx) => (
+                                            <tr key={`${d.ID_Entidad}-${d.ID_Distrito}-${idx}`}>
+                                                <td className="ep-ranking-col-pos ep-ranking-pos-cell">{d.__posicion}</td>
+                                                <td className="ep-ranking-col-entidad">{d.Entidad}</td>
+                                                <td className="ep-ranking-col-id">{String(toNumber(d.ID_Distrito, 0)).padStart(2, '0')}</td>
+                                                <td className="ep-ranking-col-distrito">{d.Distrito}</td>
+                                                {ranges.map(r => {
+                                                    const value = toNumber(d[r.key], NaN);
+                                                    const color = getHeatColor(value, r.min, r.max);
+                                                    return (
+                                                        <td key={r.key} className="ep-heatmap-cell" style={{ background: color }}>
+                                                            {Number.isFinite(value) ? value.toFixed(2) : '—'}
+                                                        </td>
+                                                    );
+                                                })}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div className="ep-heatmap-legend">
+                                <Thermometer size={14} />
+                                <span>Más rápido</span>
+                                <div className="ep-heatmap-gradient" />
+                                <span>Más lento (foco rojo)</span>
+                            </div>
+                        </>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // ---------------------------------------------------------------------------
+    // Render: sección de etapa (mapa + clusters)
+    // ---------------------------------------------------------------------------
+    const renderStageSection = ({ stage, title, activeK, setActiveK, clusters }) => (
+        <div className="ep-panel ep-stage-card">
+            <div className="ep-stage-titlebar">
+                <div>
+                    <h3><Layers size={18} /> {title}</h3>
+                </div>
+                <div className="ep-k-control" aria-label={`Selector de K para ${title}`}>
+                    {[2, 3, 4, 5].map(k => (
+                        <button
+                            key={k}
+                            onClick={() => setActiveK(k)}
+                            className={`ep-k-btn ${activeK === k ? 'active' : ''}`}
+                        >
+                            K={k}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            <div className="ep-stage-layout">
+                {renderMapCard({ stage, clusters, activeK })}
+
+                <div className="ep-stage-clusters-panel">
+                    <div className="ep-side-label-row">
+                        <div className="ep-side-label">Agrupamiento</div>
+                        <button
+                            className="ep-ranking-btn"
+                            onClick={() => openRankingModal(stage)}
+                            title="Ver ranking nacional de los 300 distritos"
+                        >
+                            📋 Ranking de los 300 distritos
+                        </button>
+                    </div>
+                    {clusters.length > 0 ? renderClusterCards({ stage, clusters }) : (
+                        <div className="ep-empty-state">Cargando grupos...</div>
+                    )}
+                </div>
+            </div>
         </div>
-      </div>
+    );
 
-      <div className="ep-stage-layout">
-        {renderMapCard({ stage, clusters, activeK })}
-
-        <div className="ep-stage-clusters-panel">
-          <div className="ep-side-label-row">
-            <div className="ep-side-label">Agrupamiento</div>
-            <button
-              className="ep-ranking-btn"
-              onClick={() => openRankingModal(stage)}
-              title="Ver ranking nacional de los 300 distritos"
-            >
-              📋 Ranking de los 300 distritos
-            </button>
-          </div>
-          {clusters.length > 0 ? renderClusterCards({ stage, clusters }) : (
-            <div className="ep-empty-state">Cargando grupos...</div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-
-  // ---------------------------------------------------------------------------
-  // Render principal
-  // ---------------------------------------------------------------------------
-  return (
-    <div className="dashboard-container ep-light" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
-      <style>{`
+    // ---------------------------------------------------------------------------
+    // Render principal
+    // ---------------------------------------------------------------------------
+    return (
+        <div className="dashboard-container ep-light" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
+            <style>{`
         /* ================================================================
            Estilos heredados de EntidadPromedio
            ================================================================ */
@@ -1631,32 +1639,42 @@ const GruposHistorico = () => {
            ================================================================ */
         .gh-pec-tabs {
           display: flex;
-          gap: 4px;
-          margin-bottom: 14px;
-          padding: 4px;
-          background: rgba(213, 0, 127, 0.05);
-          border: 1px solid rgba(213, 0, 127, 0.14);
-          border-radius: 12px;
-          width: fit-content;
+          align-items: flex-end;
+          gap: 3px;
+          margin-bottom: 18px;
+          padding: 0 2px;
+          border-bottom: 2px solid rgba(213, 0, 127, 0.22);
         }
         .gh-pec-tab {
-          border: none;
-          background: transparent;
+          position: relative;
+          top: 3px;
+          border: 1px solid rgba(213, 0, 127, 0.28);
+          border-bottom: none;
+          background: rgba(213, 0, 127, 0.07);
           color: #8b004f;
           font-size: 0.8rem;
           font-weight: 600;
-          padding: 7px 16px;
-          border-radius: 9px;
+          padding: 9px 20px 8px;
+          border-radius: 10px 10px 0 0;
           cursor: pointer;
-          transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+          transition: background 0.15s ease, color 0.15s ease, top 0.15s ease;
           white-space: nowrap;
           letter-spacing: 0.01em;
         }
-        .gh-pec-tab:hover:not(.gh-pec-tab-active) { background: rgba(213, 0, 127, 0.09); }
+        .gh-pec-tab:hover:not(.gh-pec-tab-active) {
+          background: rgba(213, 0, 127, 0.14);
+          top: 1px;
+        }
         .gh-pec-tab-active {
-          background: #8b004f;
-          color: #fff;
-          box-shadow: 0 2px 8px rgba(139, 0, 79, 0.35);
+          top: 0;
+          z-index: 2;
+          background: #fffdfe;
+          color: #8b004f;
+          font-weight: 800;
+          border-color: rgba(213, 0, 127, 0.4);
+          border-bottom: 2px solid #fffdfe;
+          margin-bottom: -2px;
+          box-shadow: 0 -4px 10px rgba(139, 0, 79, 0.1);
         }
 
         /* ================================================================
@@ -1700,101 +1718,101 @@ const GruposHistorico = () => {
         }
       `}</style>
 
-      <div className="ep-topbar">
-        <h2 style={{ color: '#d5007f', margin: 0 }}>📊 Análisis Histórico de Grupos — PEC 2017-2024</h2>
-        <div className="ep-actions">
-          <button
-            className="sidebar-btn ep-action-btn"
-            onClick={() => setShowTable(!showTable)}
-            style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}
-          >
-            <Table size={16} /> {showTable ? 'Ocultar Dataset' : 'Ver Dataset'}
-          </button>
-          <label className="ep-upload-btn" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-            <Upload size={16} /> {uploading ? '⏳ Cargando...' : 'Cargar Dataset'}
-            <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleFileUpload} />
-          </label>
+            <div className="ep-topbar">
+                <h2 style={{ color: '#d5007f', margin: 0 }}>📊 Análisis Histórico de Grupos — PEC 2017-2024</h2>
+                <div className="ep-actions">
+                    <button
+                        className="sidebar-btn ep-action-btn"
+                        onClick={() => setShowTable(!showTable)}
+                        style={{ width: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}
+                    >
+                        <Table size={16} /> {showTable ? 'Ocultar Dataset' : 'Ver Dataset'}
+                    </button>
+                    <label className="ep-upload-btn" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                        <Upload size={16} /> {uploading ? '⏳ Cargando...' : 'Cargar Dataset'}
+                        <input type="file" accept=".xlsx, .xls" style={{ display: 'none' }} onChange={handleFileUpload} />
+                    </label>
+                </div>
+            </div>
+
+            {filename && (
+                <>
+                    <div className="ep-file-indicator" style={{ marginBottom: '12px', maxWidth: '350px' }}>
+                        <div className="ep-file-label">Archivo de Promedios Estatal</div>
+                        <span>{filename}</span>
+                    </div>
+                    <p className="ep-general-description">
+                        La herramienta permite agrupar los estados en 2, 3, 4 y 5 grupos con base en la velocidad que se alcanzan las metas en cada etapa de capacitación.
+                        Use las pestañas <strong>PEC 2023-2024</strong>, <strong>PEC 2020-2021</strong> y <strong>PEC 2017-2018</strong> dentro de cada tarjeta para comparar el histórico.
+                    </p>
+                </>
+            )}
+
+            {showTable && entidadesData.length > 0 && (
+                <div className="ep-panel animate-fade-in" style={{ marginBottom: '25px', overflowX: 'auto' }}>
+                    <h3 style={{ marginTop: 0, color: '#d5007f' }}>📋 Dataset Completo de Promedios por Entidad</h3>
+                    <table className="ep-table">
+                        <thead>
+                            <tr style={{ background: '#fce4f3' }}>
+                                <th>Circ.</th>
+                                <th>ID Estado</th>
+                                <th>Entidad</th>
+                                <th>E1 2017-2018</th>
+                                <th>E1 2020-2021</th>
+                                <th>E1 2023-2024</th>
+                                <th style={{ color: '#c084fc', fontWeight: 'bold' }}>E1 Promedio</th>
+                                <th>E2 2017-2018</th>
+                                <th>E2 2020-2021</th>
+                                <th>E2 2023-2024</th>
+                                <th style={{ color: '#c084fc', fontWeight: 'bold' }}>E2 Promedio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {entidadesData.map((row, idx) => {
+                                const isSelected = [selectedStates[1], selectedStates[2]].some(
+                                    state => normalizeText(state) === normalizeText(row.Entidad)
+                                );
+                                return (
+                                    <tr key={idx} className={isSelected ? 'highlight-row' : ''}>
+                                        <td>{row.Circunscripción}</td>
+                                        <td>{row['ID Estado']}</td>
+                                        <td>{row.Entidad}</td>
+                                        <td>{row.E1_2017_2018}</td>
+                                        <td>{row.E1_2020_2021}</td>
+                                        <td>{row.E1_2023_2024}</td>
+                                        <td style={{ fontWeight: '600' }}>{toNumber(row.E1_Promedio).toFixed(2)}</td>
+                                        <td>{row.E2_2017_2018}</td>
+                                        <td>{row.E2_2020_2021}</td>
+                                        <td>{row.E2_2023_2024}</td>
+                                        <td style={{ fontWeight: '600' }}>{toNumber(row.E2_Promedio).toFixed(2)}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+
+            {renderStageSection({
+                stage: 1,
+                title: '1ª Etapa de Capacitación — Histórico PEC 2017-2024',
+                activeK: clusterK1,
+                setActiveK: setClusterK1,
+                clusters: clustersStage1,
+            })}
+
+            {renderStageSection({
+                stage: 2,
+                title: '2ª Etapa de Capacitación — Histórico PEC 2017-2024',
+                activeK: clusterK2,
+                setActiveK: setClusterK2,
+                clusters: clustersStage2,
+            })}
+
+            {renderDistritosModal()}
+            {renderRankingModal()}
         </div>
-      </div>
-
-      {filename && (
-        <>
-          <div className="ep-file-indicator" style={{ marginBottom: '12px', maxWidth: '350px' }}>
-            <div className="ep-file-label">Archivo de Promedios Estatal</div>
-            <span>{filename}</span>
-          </div>
-          <p className="ep-general-description">
-            La herramienta permite agrupar los estados en 2, 3, 4 y 5 grupos con base en la velocidad que se alcanzan las metas en cada etapa de capacitación.
-            Use las pestañas <strong>PEC 2023-2024</strong>, <strong>PEC 2020-2021</strong> y <strong>PEC 2017-2018</strong> dentro de cada tarjeta para comparar el histórico.
-          </p>
-        </>
-      )}
-
-      {showTable && entidadesData.length > 0 && (
-        <div className="ep-panel animate-fade-in" style={{ marginBottom: '25px', overflowX: 'auto' }}>
-          <h3 style={{ marginTop: 0, color: '#d5007f' }}>📋 Dataset Completo de Promedios por Entidad</h3>
-          <table className="ep-table">
-            <thead>
-              <tr style={{ background: '#fce4f3' }}>
-                <th>Circ.</th>
-                <th>ID Estado</th>
-                <th>Entidad</th>
-                <th>E1 2017-2018</th>
-                <th>E1 2020-2021</th>
-                <th>E1 2023-2024</th>
-                <th style={{ color: '#c084fc', fontWeight: 'bold' }}>E1 Promedio</th>
-                <th>E2 2017-2018</th>
-                <th>E2 2020-2021</th>
-                <th>E2 2023-2024</th>
-                <th style={{ color: '#c084fc', fontWeight: 'bold' }}>E2 Promedio</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entidadesData.map((row, idx) => {
-                const isSelected = [selectedStates[1], selectedStates[2]].some(
-                  state => normalizeText(state) === normalizeText(row.Entidad)
-                );
-                return (
-                  <tr key={idx} className={isSelected ? 'highlight-row' : ''}>
-                    <td>{row.Circunscripción}</td>
-                    <td>{row['ID Estado']}</td>
-                    <td>{row.Entidad}</td>
-                    <td>{row.E1_2017_2018}</td>
-                    <td>{row.E1_2020_2021}</td>
-                    <td>{row.E1_2023_2024}</td>
-                    <td style={{ fontWeight: '600' }}>{toNumber(row.E1_Promedio).toFixed(2)}</td>
-                    <td>{row.E2_2017_2018}</td>
-                    <td>{row.E2_2020_2021}</td>
-                    <td>{row.E2_2023_2024}</td>
-                    <td style={{ fontWeight: '600' }}>{toNumber(row.E2_Promedio).toFixed(2)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {renderStageSection({
-        stage: 1,
-        title: '1ª Etapa de Capacitación — Histórico PEC 2017-2024',
-        activeK: clusterK1,
-        setActiveK: setClusterK1,
-        clusters: clustersStage1,
-      })}
-
-      {renderStageSection({
-        stage: 2,
-        title: '2ª Etapa de Capacitación — Histórico PEC 2017-2024',
-        activeK: clusterK2,
-        setActiveK: setClusterK2,
-        clusters: clustersStage2,
-      })}
-
-      {renderDistritosModal()}
-      {renderRankingModal()}
-    </div>
-  );
+    );
 };
 
 export default GruposHistorico;
