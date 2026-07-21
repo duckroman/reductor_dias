@@ -2451,7 +2451,7 @@ const SeccionesGHMap = () => {
       `}</style>
 
             <div className="ep-topbar">
-                <h2 style={{ color: '#d5007f', margin: 0 }}>📊 Análisis Histórico de Grupos — PEC 2017-2024</h2>
+                <h2 style={{ color: '#d5007f', margin: 0 }}>📊 Análisis Histórico sobre el avance en metas de los Procesos Electorales</h2>
                 <div className="ep-actions">
                     <button
                         className="sidebar-btn ep-action-btn"
@@ -2474,8 +2474,7 @@ const SeccionesGHMap = () => {
                         <span>{filename}</span>
                     </div>
                     <p className="ep-general-description">
-                        La herramienta permite agrupar los estados en 2, 3, 4 y 5 grupos con base en la velocidad que se alcanzan las metas en cada etapa de capacitación.
-                        Use las pestañas <strong>PEC 2023-2024</strong>, <strong>PEC 2020-2021</strong> y <strong>PEC 2017-2018</strong> dentro de cada tarjeta para comparar el histórico.
+                        La herramienta permite agrupar a las entidades en 2, 3, 4 y 5 grupos con base en la velocidad a la que se alcanzan las metas en una etapa de capacitación determinada.
                     </p>
                 </>
             )}
