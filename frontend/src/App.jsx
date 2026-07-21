@@ -9,6 +9,7 @@ import DatasetViewer from './components/DatasetViewer';
 import Presentation from './components/Presentation';
 import EntidadPromedio from './components/EntidadPromedio';
 import GruposHistorico from './components/GruposHistorico';
+import SeccionesGHMap from './components/SeccionesGHMap';
 import { getSheets, uploadDataFile, getActiveFile, getDatasets, selectDataset, clearCache } from './services/api';
 import { Menu, X } from 'lucide-react';
 import './App.css';
@@ -208,6 +209,22 @@ if (currentPath.replace(/\/$/, '') === '/grupos_historico') {
       boxSizing: 'border-box',
     }}>
       <GruposHistorico activeSheet={activeSheet} />
+    </div>
+  );
+}
+// Ruta para SeccionesGHMap
+if (currentPath.replace(/\/$/, '') === '/SeccionesGHMap' || currentPath.replace(/\/$/, '') === '/SeccionesGHMap.jsx') {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      width: '100vw',
+      background: '#fff5fb',
+      overflowX: 'hidden',
+      overflowY: 'auto',
+      padding: '24px',
+      boxSizing: 'border-box',
+    }}>
+      <SeccionesGHMap activeSheet={activeSheet} />
     </div>
   );
 }
