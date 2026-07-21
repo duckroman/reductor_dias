@@ -355,6 +355,7 @@ const SeccionesGHMap = () => {
     });
     const [hoveredDistrict, setHoveredDistrict] = useState({ 1: null, 2: null });
     const [selectedDistrict, setSelectedDistrict] = useState({ 1: null, 2: null });
+    const [districtListSortMode, setDistrictListSortMode] = useState({ 1: 'original', 2: 'original' });
     const districtSummaryRefs = useRef({ 1: null, 2: null });
     const districtRowRefs = useRef({ 1: {}, 2: {} });
 
@@ -608,20 +609,40 @@ const SeccionesGHMap = () => {
     // ---------------------------------------------------------------------------
     // Helpers del mapa distrital piloto
     // ---------------------------------------------------------------------------
-    const buildDistrictSvgGeometry = (districts, width = 760, height = 500, padding = 58) => {
-        const points = districts.flatMap(d =>
+    const buildDistrictSvgGeometry = (districts, entidad, width = 760, height = 500, padding = 58) => {
+        const entityKey = normalizeText(entidad);
+        const forceExternalLabels = new Set([
+            'yucatan',
+            'merida',
+            'colima',
+            'queretaro',
+            'durango',
+            'tabasco',
+        ]).has(entityKey);
+
+        // Colima contiene un polígono insular pequeño que no aporta valor a esta
+        // visualización. Para esta tarjeta se conserva únicamente el polígono
+        // territorial principal de cada distrito.
+        const preparedDistricts = districts.map(district => ({
+            ...district,
+            c: entityKey === 'colima' && (district.c || []).length > 1
+                ? [[...(district.c || [])].sort((a, b) => b.length - a.length)[0]]
+                : (district.c || []),
+        }));
+
+        const points = preparedDistricts.flatMap(d =>
             (d.c || []).flatMap(polygon => polygon)
         );
 
         if (points.length === 0) return [];
 
-        const useExternalLabels = districts.length > 6;
+        const useExternalLabels = preparedDistricts.length > 6 || forceExternalLabels;
         const labelMinGap = 31;
         const labelTop = 28;
         const labelBottom = height - 28;
         const usableLabelHeight = labelBottom - labelTop;
         const maxRowsPerColumn = Math.max(1, Math.floor(usableLabelHeight / labelMinGap) + 1);
-        const sideCount = Math.ceil(districts.length / 2);
+        const sideCount = Math.ceil(preparedDistricts.length / 2);
         const columnsPerSide = useExternalLabels
             ? Math.max(1, Math.ceil(sideCount / maxRowsPerColumn))
             : 0;
@@ -654,7 +675,7 @@ const SeccionesGHMap = () => {
             height - (offsetY + (y - minY) * scale),
         ];
 
-        const projectedDistricts = districts.map(district => {
+        const projectedDistricts = preparedDistricts.map(district => {
             const polygons = (district.c || []).map(polygon => {
                 const projected = polygon.map(project);
                 const path = projected
@@ -1005,7 +1026,7 @@ const SeccionesGHMap = () => {
         const datasetUnavailable = activeDataset === null;
         const districtRows = getDistritosPorEntidad(stage, entidad, selection.tab);
         const range = getStageColorRange(stage, selection.tab);
-        const svgDistricts = buildDistrictSvgGeometry(districtGeometry);
+        const svgDistricts = buildDistrictSvgGeometry(districtGeometry, entidad);
         const pecLabel = PEC_TABS.find(tab => tab.id === selection.tab)?.label || '';
         const activeDistrictId = hoveredDistrict[stage] ?? selectedDistrict[stage];
         const setDistrictHover = districtId => setHoveredDistrict(prev => ({ ...prev, [stage]: districtId }));
@@ -1014,6 +1035,34 @@ const SeccionesGHMap = () => {
             ...prev,
             [stage]: prev[stage] === districtId ? null : districtId,
         }));
+        const toggleDistrictListSort = () => setDistrictListSortMode(prev => ({
+            ...prev,
+            [stage]: prev[stage] === 'lento' ? 'original' : 'lento',
+        }));
+
+        const districtVisuals = svgDistricts.map(district => {
+            const row = getDistrictMapRow(stage, entidad, selection.tab, district.id);
+            const value = getDistrictMapValue(row, activeVariable?.key);
+            const fill = getHeatColor(value, range.min, range.max);
+            const districtName = row?.Distrito || `Distrito ${district.id}`;
+            const isSelected = toNumber(selectedDistrict[stage], NaN) === toNumber(district.id, NaN);
+            const isHovered = toNumber(hoveredDistrict[stage], NaN) === toNumber(district.id, NaN);
+            const groupClassName = [
+                'ep-district-group',
+                (isSelected || isHovered) ? 'active' : '',
+                isSelected ? 'selected' : '',
+                isHovered ? 'hovered' : '',
+            ].filter(Boolean).join(' ');
+            return { district, row, value, fill, districtName, groupClassName };
+        });
+
+        const listedDistricts = districtListSortMode[stage] === 'lento'
+            ? [...districtVisuals].sort((a, b) => {
+                const aValue = Number.isFinite(a.value) ? a.value : -Infinity;
+                const bValue = Number.isFinite(b.value) ? b.value : -Infinity;
+                return bValue - aValue;
+            })
+            : districtVisuals;
 
         return (
             <div className="ep-district-map-card">
@@ -1079,69 +1128,68 @@ const SeccionesGHMap = () => {
                                 role="img"
                                 aria-label={`Distritos de ${entidad}, ${pecLabel}, ${activeVariable?.label}`}
                             >
-                                {svgDistricts.map(district => {
-                                    const row = getDistrictMapRow(stage, entidad, selection.tab, district.id);
-                                    const value = getDistrictMapValue(row, activeVariable?.key);
-                                    const fill = getHeatColor(value, range.min, range.max);
-                                    const districtName = row?.Distrito || `Distrito ${district.id}`;
+                                {/* Capa 1: polígonos. Ningún polígono puede cubrir líneas o etiquetas. */}
+                                {districtVisuals.map(({ district, value, fill, districtName, groupClassName }) => (
+                                    <path
+                                        key={`shape-${district.id}`}
+                                        d={district.path}
+                                        fill={fill}
+                                        className={`ep-district-shape ${groupClassName}`}
+                                        onMouseEnter={() => {
+                                            setDistrictHover(district.id);
+                                            centerDistrictInSummary(stage, district.id, 'auto');
+                                        }}
+                                        onMouseLeave={clearDistrictHover}
+                                        onClick={() => toggleDistrictSelection(district.id)}
+                                    >
+                                        <title>
+                                            {`${districtName}: ${Number.isFinite(value) ? `${value.toFixed(2)} días` : 'Sin dato'}`}
+                                        </title>
+                                    </path>
+                                ))}
 
-                                    const isSelected = toNumber(selectedDistrict[stage], NaN) === toNumber(district.id, NaN);
-                                    const isHovered = toNumber(hoveredDistrict[stage], NaN) === toNumber(district.id, NaN);
-                                    const groupClassName = [
-                                        'ep-district-group',
-                                        (isSelected || isHovered) ? 'active' : '',
-                                        isSelected ? 'selected' : '',
-                                        isHovered ? 'hovered' : '',
-                                    ].filter(Boolean).join(' ');
+                                {/* Capa 2: líneas guía, todas al mismo nivel visual. */}
+                                {districtVisuals.filter(({ district }) => district.externalLabel).map(({ district, groupClassName }) => (
+                                    <line
+                                        key={`leader-${district.id}`}
+                                        x1={district.centerX}
+                                        y1={district.centerY}
+                                        x2={district.lineEndX}
+                                        y2={district.lineEndY}
+                                        className={`ep-district-leader ${groupClassName}`}
+                                    />
+                                ))}
 
-                                    return (
-                                        <g
-                                            key={district.id}
-                                            className={groupClassName}
-                                            onMouseEnter={() => {
-                                                setDistrictHover(district.id);
-                                                centerDistrictInSummary(stage, district.id, 'auto');
-                                            }}
-                                            onMouseLeave={clearDistrictHover}
-                                            onClick={() => toggleDistrictSelection(district.id)}
+                                {/* Capa 3: etiquetas y valores, siempre encima de todo el mapa. */}
+                                {districtVisuals.map(({ district, value, groupClassName }) => (
+                                    <g
+                                        key={`label-${district.id}`}
+                                        className={groupClassName}
+                                        onMouseEnter={() => {
+                                            setDistrictHover(district.id);
+                                            centerDistrictInSummary(stage, district.id, 'auto');
+                                        }}
+                                        onMouseLeave={clearDistrictHover}
+                                        onClick={() => toggleDistrictSelection(district.id)}
+                                    >
+                                        <text
+                                            x={district.labelX}
+                                            y={district.externalLabel ? district.labelY - 3 : district.labelY - 4}
+                                            textAnchor={district.textAnchor}
+                                            className="ep-district-label"
                                         >
-                                            <path
-                                                d={district.path}
-                                                fill={fill}
-                                                className="ep-district-shape"
-                                            >
-                                                <title>
-                                                    {`${districtName}: ${Number.isFinite(value) ? `${value.toFixed(2)} días` : 'Sin dato'}`}
-                                                </title>
-                                            </path>
-                                            {district.externalLabel && (
-                                                <line
-                                                    x1={district.centerX}
-                                                    y1={district.centerY}
-                                                    x2={district.lineEndX}
-                                                    y2={district.lineEndY}
-                                                    className="ep-district-leader"
-                                                />
-                                            )}
-                                            <text
-                                                x={district.labelX}
-                                                y={district.externalLabel ? district.labelY - 3 : district.labelY - 4}
-                                                textAnchor={district.textAnchor}
-                                                className="ep-district-label"
-                                            >
-                                                D{String(district.id).padStart(2, '0')}
-                                            </text>
-                                            <text
-                                                x={district.labelX}
-                                                y={district.externalLabel ? district.labelY + 11 : district.labelY + 14}
-                                                textAnchor={district.textAnchor}
-                                                className="ep-district-value"
-                                            >
-                                                {Number.isFinite(value) ? value.toFixed(2) : '—'}
-                                            </text>
-                                        </g>
-                                    );
-                                })}
+                                            D{String(district.id).padStart(2, '0')}
+                                        </text>
+                                        <text
+                                            x={district.labelX}
+                                            y={district.externalLabel ? district.labelY + 11 : district.labelY + 14}
+                                            textAnchor={district.textAnchor}
+                                            className="ep-district-value"
+                                        >
+                                            {Number.isFinite(value) ? value.toFixed(2) : '—'}
+                                        </text>
+                                    </g>
+                                ))}
                             </svg>
                         </div>
 
@@ -1150,13 +1198,20 @@ const SeccionesGHMap = () => {
                             ref={element => { districtSummaryRefs.current[stage] = element; }}
                         >
                             <div className="ep-district-summary-title">
-                                <strong>{activeVariable?.label}</strong>
-                                <span>{pecLabel}</span>
+                                <div>
+                                    <strong>{activeVariable?.label}</strong>
+                                    <span>{pecLabel}</span>
+                                </div>
+                                <button
+                                    type="button"
+                                    className={`ep-district-sort-button${districtListSortMode[stage] === 'lento' ? ' active' : ''}`}
+                                    onClick={toggleDistrictListSort}
+                                    title={districtListSortMode[stage] === 'lento' ? 'Regresar al orden original' : 'Ordenar de más lento a más rápido'}
+                                >
+                                    {districtListSortMode[stage] === 'lento' ? 'Orden original' : 'Más lento → rápido'}
+                                </button>
                             </div>
-                            {svgDistricts.map(district => {
-                                const row = getDistrictMapRow(stage, entidad, selection.tab, district.id);
-                                const value = getDistrictMapValue(row, activeVariable?.key);
-                                const fill = getHeatColor(value, range.min, range.max);
+                            {listedDistricts.map(({ district, row, value, fill }) => {
                                 return (
                                     <button
                                         type="button"
@@ -1945,7 +2000,7 @@ const SeccionesGHMap = () => {
           flex: 0 0 auto;
         }
         .ep-district-control-group > span {
-          display: block;
+          display: flex;
           margin-bottom: 7px;
           color: #475569;
           font-size: 0.75rem;
@@ -2012,12 +2067,11 @@ const SeccionesGHMap = () => {
           transition: filter 0.15s ease, opacity 0.15s ease;
         }
         .ep-district-group { cursor: pointer; }
-        .ep-district-group:hover .ep-district-shape,
-        .ep-district-group.active .ep-district-shape {
+        .ep-district-shape:hover,
+        .ep-district-shape.active {
           filter: drop-shadow(0 0 8px rgba(79, 227, 173, 0.72));
           opacity: 0.92;
-          stroke: #d5007f;
-;
+          stroke: #4fe3ad;
           stroke-width: 3.6;
         }
         .ep-district-leader {
@@ -2027,21 +2081,18 @@ const SeccionesGHMap = () => {
           pointer-events: none;
           vector-effect: non-scaling-stroke;
         }
-        .ep-district-group.active .ep-district-leader {
-          stroke: #d5007f;
-;
+        .ep-district-leader.active {
+          stroke: #4fe3ad;
           stroke-width: 2.2;
           opacity: 1;
         }
-        .ep-district-group.selected .ep-district-shape {
-          stroke: #d5007f;
-;
+        .ep-district-shape.selected {
+          stroke: #4fe3ad;
           stroke-width: 3.6;
           filter: drop-shadow(0 0 8px rgba(79, 227, 173, 0.72));
         }
-        .ep-district-group.selected .ep-district-leader {
-          stroke: #d5007f;
-;
+        .ep-district-leader.selected {
+          stroke: #4fe3ad;
           stroke-width: 2.2;
           opacity: 1;
         }
@@ -2060,15 +2111,13 @@ const SeccionesGHMap = () => {
         .ep-district-value { font-size: 13.3px; }
         .ep-district-group.active .ep-district-label,
         .ep-district-group.active .ep-district-value {
-          fill: #d5007f;
-;
+          fill: #4fe3ad;
           stroke: rgba(20, 60, 49, 0.96);
           stroke-width: 4.5px;
         }
         .ep-district-group.selected .ep-district-label,
         .ep-district-group.selected .ep-district-value {
-          fill: #d5007f;
-;
+          fill: #4fe3ad;
           stroke: rgba(20, 60, 49, 0.96);
           stroke-width: 4.5px;
         }
@@ -2084,9 +2133,33 @@ const SeccionesGHMap = () => {
           overscroll-behavior: contain;
         }
         .ep-district-summary-title {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 10px;
+          margin-bottom: 14px;
+        }
+        .ep-district-summary-title > div {
           display: grid;
           gap: 4px;
-          margin-bottom: 14px;
+          min-width: 0;
+        }
+        .ep-district-sort-button {
+          flex: 0 0 auto;
+          border: 1px solid #e7bad3;
+          border-radius: 999px;
+          background: #fff7fb;
+          color: #6b0040;
+          padding: 6px 9px;
+          font: 700 10.5px Outfit, sans-serif;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+        .ep-district-sort-button:hover,
+        .ep-district-sort-button.active {
+          border-color: #4fe3ad;
+          background: rgba(79, 227, 173, 0.15);
+          color: #0b5d47;
         }
         .ep-district-summary-title strong {
           color: #6b0040;
@@ -2526,7 +2599,7 @@ const SeccionesGHMap = () => {
 
             {renderStageSection({
                 stage: 1,
-                title: '1ª Etapa de Capacitación — Histórico PEC 2017-2024',
+                title: '1ª Etapa de Capacitación',
                 activeK: clusterK1,
                 setActiveK: setClusterK1,
                 clusters: clustersStage1,
@@ -2534,7 +2607,7 @@ const SeccionesGHMap = () => {
 
             {renderStageSection({
                 stage: 2,
-                title: '2ª Etapa de Capacitación — Histórico PEC 2017-2024',
+                title: '2ª Etapa de Capacitación',
                 activeK: clusterK2,
                 setActiveK: setClusterK2,
                 clusters: clustersStage2,

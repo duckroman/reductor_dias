@@ -1812,7 +1812,7 @@ const GruposHistorico = () => {
 
             {renderStageSection({
                 stage: 1,
-                title: '1ª Etapa de Capacitación — Histórico PEC 2017-2024',
+                title: '1ª Etapa de Capacitación',
                 activeK: clusterK1,
                 setActiveK: setClusterK1,
                 clusters: clustersStage1,
@@ -1820,7 +1820,7 @@ const GruposHistorico = () => {
 
             {renderStageSection({
                 stage: 2,
-                title: '2ª Etapa de Capacitación — Histórico PEC 2017-2024',
+                title: '2ª Etapa de Capacitación',
                 activeK: clusterK2,
                 setActiveK: setClusterK2,
                 clusters: clustersStage2,
