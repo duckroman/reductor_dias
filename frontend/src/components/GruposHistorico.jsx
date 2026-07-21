@@ -84,10 +84,6 @@ const getStageShortLabel = (stage) => (
     stage === 1 ? 'Etapa 1' : 'Etapa 2'
 );
 
-const getStageOrdinalLabel = (stage) => (
-    stage === 1 ? 'Primera etapa' : 'Segunda etapa'
-);
-
 // ---------------------------------------------------------------------------
 // Definición de variables por etapa
 // ---------------------------------------------------------------------------
@@ -123,36 +119,32 @@ const STAGE2_DISPLAY_ORDER = [
     'simulacros_estabilizacion',
 ];
 
-const getStageDisplayVariables = (stage, pecTab) => {
+const getStageDisplayVariables = (stage) => {
     const all = getStageVariables(stage);
     const order = stage === 1 ? STAGE1_DISPLAY_ORDER : STAGE2_DISPLAY_ORDER;
-    const variables = order.map(key => all.find(v => v.key === key)).filter(Boolean);
-
-    // En el PEC 2017-2018 la variable "Número óptimo" siempre vale 0 (no se
-    // capturó en ese ciclo), así que no tiene sentido mostrarla como columna.
-    if (pecTab === 'pec18') {
-        return variables.filter(v => v.key !== 'numero_optimo');
-    }
-
-    return variables;
+    return order.map(key => all.find(v => v.key === key)).filter(Boolean);
 };
 
 // ---------------------------------------------------------------------------
-// Comparación jerárquica
+// Puntaje de velocidad (suma ponderada)
 // ---------------------------------------------------------------------------
-const compareDistritosByPriority = (a, b, variables) => {
+// puntaje = Σ (valor_i × peso_i)  — solo variables con valor válido.
+// Mayor puntaje = distrito más lento.
+const getDistritoScore = (distrito, variables) => {
+    let score = 0;
     for (const v of variables) {
-        const aVal = toNumber(a[v.key], NaN);
-        const bVal = toNumber(b[v.key], NaN);
-        const aFinite = Number.isFinite(aVal);
-        const bFinite = Number.isFinite(bVal);
-        if (aFinite && !bFinite) return -1;
-        if (!aFinite && bFinite) return 1;
-        if (!aFinite && !bFinite) continue;
-        if (aVal !== bVal) return aVal - bVal;
+        const val = toNumber(distrito[v.key], NaN);
+        if (Number.isFinite(val)) {
+            score += val * v.weight;
+        }
     }
-    return 0;
+    return score;
 };
+
+// Comparador ascendente: menor puntaje primero (más rápido primero).
+const compareDistritosByScore = (a, b, variables) =>
+    getDistritoScore(a, variables) - getDistritoScore(b, variables);
+
 
 const sortClustersByAverage = (clusters = []) => (
     [...clusters].sort((a, b) => toNumber(a.min_val) - toNumber(b.min_val))
@@ -218,7 +210,7 @@ const downloadWorkbook = async (workbook, fileName) => {
     URL.revokeObjectURL(url);
 };
 
-const exportRowsToXlsx = async ({ fileName, sheetName, columns, rows, titleText }) => {
+const exportRowsToXlsx = async ({ fileName, sheetName, columns, rows }) => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet(sheetName.slice(0, 31));
 
@@ -228,21 +220,7 @@ const exportRowsToXlsx = async ({ fileName, sheetName, columns, rows, titleText 
         width: c.width || 20,
     }));
 
-    // ── Fila de título: indica el PEC consultado y la etapa (p. ej.
-    // "PEC 2017-2018 - Primera etapa"). Se inserta arriba del encabezado,
-    // recorriendo hacia abajo la fila de encabezado y los datos.
-    if (titleText) {
-        worksheet.insertRow(1, [titleText]);
-        const titleRow = worksheet.getRow(1);
-        worksheet.mergeCells(1, 1, 1, columns.length);
-        titleRow.font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
-        titleRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF8B004F' } };
-        titleRow.alignment = { vertical: 'middle', horizontal: 'center' };
-        titleRow.height = 22;
-    }
-
-    const headerRowNumber = titleText ? 2 : 1;
-    const headerRow = worksheet.getRow(headerRowNumber);
+    const headerRow = worksheet.getRow(1);
     headerRow.font = { bold: true, color: { argb: 'FF6B0040' } };
     headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFCE4F3' } };
     headerRow.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
@@ -571,7 +549,7 @@ const GruposHistorico = () => {
     const getStageRanking = (stage, tab) => {
         const variables = getStageVariables(stage);
         const sorted = [...getStageDistritos(stage, tab)].sort((a, b) =>
-            compareDistritosByPriority(a, b, variables)
+            compareDistritosByScore(a, b, variables)
         );
         return sorted.map((d, idx) => ({ ...d, __posicion: idx + 1 }));
     };
@@ -867,7 +845,7 @@ const GruposHistorico = () => {
 
         const { stage, entidad } = modalEntidad;
         const variables = getStageVariables(stage);
-        const displayVariables = getStageDisplayVariables(stage, distritosTab);
+        const displayVariables = getStageDisplayVariables(stage);
 
         const activeDataset = getActiveDataset(distritosTab);
         const datasetUnavailable = activeDataset === null;
@@ -881,7 +859,7 @@ const GruposHistorico = () => {
             .sort((a, b) => toNumber(a.ID_Distrito) - toNumber(b.ID_Distrito));
 
         const distritos = modalSortMode === 'lento'
-            ? [...baseDistritos].sort((a, b) => compareDistritosByPriority(b, a, variables))
+            ? [...baseDistritos].sort((a, b) => compareDistritosByScore(b, a, variables))
             : baseDistritos;
 
         const distritoColWidthPct = 26;
@@ -917,7 +895,6 @@ const GruposHistorico = () => {
                     sheetName: `${entidad} ${getStageShortLabel(stage)}`,
                     columns,
                     rows,
-                    titleText: `${pecLabel} - ${getStageOrdinalLabel(stage)}`,
                 });
             } catch (e) {
                 console.error('Error exportando distritos a Excel', e);
@@ -987,23 +964,20 @@ const GruposHistorico = () => {
                                     onClick={handleExportDistritos}
                                     disabled={exportingDistritos}
                                     title="Exportar esta tabla a Excel"
-                                    style={{ whiteSpace: 'normal', lineHeight: '1.2', padding: '6px 12px', textAlign: 'center', height: 'auto' }}
                                 >
-                                    <Download size={14} style={{ flexShrink: 0 }} />
-                                    <span>
-                                        {exportingDistritos ? 'Exportando...' : <>Exportar<br />a Excel</>}
-                                    </span>
+                                    <Download size={14} />
+                                    {exportingDistritos ? 'Exportando...' : 'Exportar a Excel'}
                                 </button>
                                 {distritosTab === 'promedio' && (
                                     <a
                                         href="/PEC_General_AD.xlsx"
                                         download="PEC_General_AD.xlsx"
                                         className="ep-export-btn"
-                                        style={{ background: '#f59e0b', color: '#fff', border: 'none', marginLeft: '6px', textDecoration: 'none', whiteSpace: 'normal', lineHeight: '1.2', padding: '6px 12px', textAlign: 'center', height: 'auto' }}
+                                        style={{ background: '#f59e0b', color: '#fff', border: 'none', marginLeft: '6px', textDecoration: 'none' }}
                                         title="Descargar DataSet Completo"
                                     >
-                                        <Download size={14} style={{ flexShrink: 0 }} />
-                                        <span>Descargar<br />DataSet</span>
+                                        <Download size={14} />
+                                        <span>Descargar DataSet</span>
                                     </a>
                                 )}
                             </div>
@@ -1066,7 +1040,7 @@ const GruposHistorico = () => {
         if (!rankingModalStage) return null;
 
         const stage = rankingModalStage;
-        const displayVariables = getStageDisplayVariables(stage, rankingTab);
+        const displayVariables = getStageDisplayVariables(stage);
 
         const activeDataset = getActiveDataset(rankingTab);
         const datasetUnavailable = activeDataset === null;
@@ -1110,7 +1084,6 @@ const GruposHistorico = () => {
                     sheetName: `Ranking ${getStageShortLabel(stage)}`,
                     columns,
                     rows,
-                    titleText: `${pecLabel} - ${getStageOrdinalLabel(stage)}`,
                 });
             } catch (e) {
                 console.error('Error exportando el ranking a Excel', e);
@@ -1135,7 +1108,7 @@ const GruposHistorico = () => {
                     })}
 
                     <div className="ep-modal-header">
-                        <div className="ep-modal-header-titles">
+                        <div>
                             <span className="ep-modal-stage-label">{getStageLabel(stage)}</span>
                             <h3>📋 Ranking nacional de los 300 distritos</h3>
                         </div>
@@ -1166,23 +1139,20 @@ const GruposHistorico = () => {
                                     onClick={handleExportRanking}
                                     disabled={exportingRanking}
                                     title="Exportar esta tabla a Excel"
-                                    style={{ whiteSpace: 'normal', lineHeight: '1.2', padding: '6px 12px', textAlign: 'center', height: 'auto' }}
                                 >
-                                    <Download size={14} style={{ flexShrink: 0 }} />
-                                    <span>
-                                        {exportingRanking ? 'Exportando...' : <>Exportar<br />a Excel</>}
-                                    </span>
+                                    <Download size={14} />
+                                    {exportingRanking ? 'Exportando...' : 'Exportar a Excel'}
                                 </button>
                                 {rankingTab === 'promedio' && (
                                     <a
                                         href="/PEC_General_AD.xlsx"
                                         download="PEC_General_AD.xlsx"
                                         className="ep-export-btn"
-                                        style={{ background: '#f59e0b', color: '#fff', border: 'none', marginLeft: '6px', textDecoration: 'none', whiteSpace: 'normal', lineHeight: '1.2', padding: '6px 12px', textAlign: 'center', height: 'auto' }}
+                                        style={{ background: '#f59e0b', color: '#fff', border: 'none', marginLeft: '6px', textDecoration: 'none' }}
                                         title="Descargar DataSet Completo"
                                     >
-                                        <Download size={14} style={{ flexShrink: 0 }} />
-                                        <span>Descargar<br />DataSet</span>
+                                        <Download size={14} />
+                                        <span>Descargar DataSet</span>
                                     </a>
                                 )}
                             </div>
@@ -1395,7 +1365,7 @@ const GruposHistorico = () => {
         .ep-general-description {
           width: 100%;
           max-width: none;
-          margin: 0px 0 24px 0;
+          margin: -4px 0 24px 0;
           padding: 0;
           border: none;
           border-radius: 0;
@@ -1403,7 +1373,6 @@ const GruposHistorico = () => {
           color: #6b0040;
           font-size: 0.94rem;
           line-height: 1.5;
-          text-align: left;
         }
         .ep-stage-map-card {
           border-radius: 16px;
@@ -1538,7 +1507,6 @@ const GruposHistorico = () => {
           letter-spacing: 0.04em;
           text-transform: uppercase;
           margin-bottom: 4px;
-          margin-left: 5px;
         }
         .ep-modal-close {
           border: none;
@@ -1699,42 +1667,32 @@ const GruposHistorico = () => {
            ================================================================ */
         .gh-pec-tabs {
           display: flex;
-          align-items: flex-end;
-          gap: 3px;
-          margin-bottom: 18px;
-          padding: 0 2px;
-          border-bottom: 2px solid rgba(213, 0, 127, 0.22);
+          gap: 4px;
+          margin-bottom: 14px;
+          padding: 4px;
+          background: rgba(213, 0, 127, 0.05);
+          border: 1px solid rgba(213, 0, 127, 0.14);
+          border-radius: 12px;
+          width: fit-content;
         }
         .gh-pec-tab {
-          position: relative;
-          top: 3px;
-          border: 1px solid rgba(213, 0, 127, 0.28);
-          border-bottom: none;
-          background: rgba(213, 0, 127, 0.07);
+          border: none;
+          background: transparent;
           color: #8b004f;
           font-size: 0.8rem;
           font-weight: 600;
-          padding: 9px 20px 8px;
-          border-radius: 10px 10px 0 0;
+          padding: 7px 16px;
+          border-radius: 9px;
           cursor: pointer;
-          transition: background 0.15s ease, color 0.15s ease, top 0.15s ease;
+          transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
           white-space: nowrap;
           letter-spacing: 0.01em;
         }
-        .gh-pec-tab:hover:not(.gh-pec-tab-active) {
-          background: rgba(213, 0, 127, 0.14);
-          top: 1px;
-        }
+        .gh-pec-tab:hover:not(.gh-pec-tab-active) { background: rgba(213, 0, 127, 0.09); }
         .gh-pec-tab-active {
-          top: 0;
-          z-index: 2;
-          background: #fffdfe;
-          color: #8b004f;
-          font-weight: 800;
-          border-color: rgba(213, 0, 127, 0.4);
-          border-bottom: 2px solid #fffdfe;
-          margin-bottom: -2px;
-          box-shadow: 0 -4px 10px rgba(139, 0, 79, 0.1);
+          background: #8b004f;
+          color: #fff;
+          box-shadow: 0 2px 8px rgba(139, 0, 79, 0.35);
         }
 
         /* ================================================================
@@ -1779,7 +1737,7 @@ const GruposHistorico = () => {
       `}</style>
 
             <div className="ep-topbar">
-                <h2 style={{ color: '#d5007f', margin: 0 }}>📊 Análisis Histórico</h2>
+                <h2 style={{ color: '#d5007f', margin: 0 }}>📊 Análisis Histórico de Grupos — PEC 2017-2024</h2>
                 <div className="ep-actions">
                     <button
                         className="sidebar-btn ep-action-btn"
@@ -1803,7 +1761,7 @@ const GruposHistorico = () => {
                     </div>
                     <p className="ep-general-description">
                         La herramienta permite agrupar los estados en 2, 3, 4 y 5 grupos con base en la velocidad que se alcanzan las metas en cada etapa de capacitación.
-
+                        Use las pestañas <strong>PEC 2023-2024</strong>, <strong>PEC 2020-2021</strong> y <strong>PEC 2017-2018</strong> dentro de cada tarjeta para comparar el histórico.
                     </p>
                 </>
             )}
@@ -1855,7 +1813,7 @@ const GruposHistorico = () => {
 
             {renderStageSection({
                 stage: 1,
-                title: '1ª Etapa de Capacitación',
+                title: '1ª Etapa de Capacitación — Histórico PEC 2017-2024',
                 activeK: clusterK1,
                 setActiveK: setClusterK1,
                 clusters: clustersStage1,
@@ -1863,7 +1821,7 @@ const GruposHistorico = () => {
 
             {renderStageSection({
                 stage: 2,
-                title: '2ª Etapa de Capacitación',
+                title: '2ª Etapa de Capacitación — Histórico PEC 2017-2024',
                 activeK: clusterK2,
                 setActiveK: setClusterK2,
                 clusters: clustersStage2,
