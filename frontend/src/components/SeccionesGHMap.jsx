@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     getEntidadesData,
     uploadEntidadesFile,
@@ -355,6 +355,43 @@ const SeccionesGHMap = () => {
     });
     const [hoveredDistrict, setHoveredDistrict] = useState({ 1: null, 2: null });
     const [selectedDistrict, setSelectedDistrict] = useState({ 1: null, 2: null });
+    const districtSummaryRefs = useRef({ 1: null, 2: null });
+    const districtRowRefs = useRef({ 1: {}, 2: {} });
+
+    const centerDistrictInSummary = (stage, districtId, behavior = 'smooth') => {
+        if (districtId === null || districtId === undefined) return;
+
+        const container = districtSummaryRefs.current[stage];
+        const row = districtRowRefs.current[stage]?.[districtId];
+        if (!container || !row) return;
+
+        // Se calcula la posición con rectángulos relativos al viewport y el
+        // scroll actual del panel. offsetTop podía quedar referido a otro
+        // contenedor y enviar el listado hasta el final.
+        const containerRect = container.getBoundingClientRect();
+        const rowRect = row.getBoundingClientRect();
+        const rowTopInsideContainer = container.scrollTop + (rowRect.top - containerRect.top);
+        const targetTop = rowTopInsideContainer
+            - (container.clientHeight / 2)
+            + (rowRect.height / 2);
+        const maxTop = Math.max(0, container.scrollHeight - container.clientHeight);
+        const clampedTop = Math.min(maxTop, Math.max(0, targetTop));
+
+        // Durante hover se usa desplazamiento inmediato para que cada nuevo
+        // distrito interrumpa al anterior y el panel pueda avanzar o regresar.
+        if (behavior === 'auto') {
+            container.scrollTop = clampedTop;
+            return;
+        }
+
+        container.scrollTo({ top: clampedTop, behavior });
+    };
+
+    useEffect(() => {
+        [1, 2].forEach(stage => {
+            centerDistrictInSummary(stage, selectedDistrict[stage]);
+        });
+    }, [selectedDistrict]);
 
     // Clustering state
     const [clusterK1, setClusterK1] = useState(3);
@@ -578,6 +615,21 @@ const SeccionesGHMap = () => {
 
         if (points.length === 0) return [];
 
+        const useExternalLabels = districts.length > 6;
+        const labelMinGap = 31;
+        const labelTop = 28;
+        const labelBottom = height - 28;
+        const usableLabelHeight = labelBottom - labelTop;
+        const maxRowsPerColumn = Math.max(1, Math.floor(usableLabelHeight / labelMinGap) + 1);
+        const sideCount = Math.ceil(districts.length / 2);
+        const columnsPerSide = useExternalLabels
+            ? Math.max(1, Math.ceil(sideCount / maxRowsPerColumn))
+            : 0;
+        const labelColumnWidth = 60;
+        const horizontalLabelSpace = useExternalLabels
+            ? 30 + columnsPerSide * labelColumnWidth
+            : 28;
+
         const xs = points.map(p => p[0]);
         const ys = points.map(p => p[1]);
         const minX = Math.min(...xs);
@@ -586,9 +638,12 @@ const SeccionesGHMap = () => {
         const maxY = Math.max(...ys);
         const spanX = maxX - minX || 1;
         const spanY = maxY - minY || 1;
-        const useExternalLabels = districts.length > 6;
-        const mapPadding = useExternalLabels ? padding : 28;
-        const scale = Math.min((width - mapPadding * 2) / spanX, (height - mapPadding * 2) / spanY);
+        const mapPaddingX = Math.max(padding, horizontalLabelSpace);
+        const mapPaddingY = useExternalLabels ? 34 : 28;
+        const scale = Math.min(
+            (width - mapPaddingX * 2) / spanX,
+            (height - mapPaddingY * 2) / spanY
+        );
         const drawWidth = spanX * scale;
         const drawHeight = spanY * scale;
         const offsetX = (width - drawWidth) / 2;
@@ -640,79 +695,64 @@ const SeccionesGHMap = () => {
             }));
         }
 
-        const centerX = width / 2;
-        const centerY = height / 2;
-        const edgeInset = 14;
-        const labelGap = 27;
-        const groups = { left: [], right: [], top: [], bottom: [] };
-
-        projectedDistricts.forEach(district => {
-            const dx = district.centerX - centerX;
-            const dy = district.centerY - centerY;
-            if (Math.abs(dx) >= Math.abs(dy)) {
-                groups[dx < 0 ? 'left' : 'right'].push(district);
-            } else {
-                groups[dy < 0 ? 'top' : 'bottom'].push(district);
-            }
-        });
-
-        const spread = (items, axisStart, axisEnd, accessor) => {
-            const ordered = [...items].sort((a, b) => accessor(a) - accessor(b));
-            if (ordered.length === 0) return new Map();
-            const available = axisEnd - axisStart;
-            const spacing = Math.min(labelGap, available / Math.max(ordered.length - 1, 1));
-            const used = spacing * Math.max(ordered.length - 1, 0);
-            const startAt = axisStart + (available - used) / 2;
-            return new Map(ordered.map((item, index) => [item.id, startAt + index * spacing]));
+        // Se divide el conjunto por posición horizontal para mantener las líneas
+        // guía cortas y, al mismo tiempo, equilibrar la cantidad de etiquetas.
+        const orderedByX = [...projectedDistricts].sort((a, b) => a.centerX - b.centerX);
+        const splitAt = Math.ceil(orderedByX.length / 2);
+        const sideGroups = {
+            left: orderedByX.slice(0, splitAt),
+            right: orderedByX.slice(splitAt),
         };
 
-        const leftY = spread(groups.left, 32, height - 32, d => d.centerY);
-        const rightY = spread(groups.right, 32, height - 32, d => d.centerY);
-        const topX = spread(groups.top, 42, width - 42, d => d.centerX);
-        const bottomX = spread(groups.bottom, 42, width - 42, d => d.centerX);
+        const layoutSide = (items, side) => {
+            const ordered = [...items].sort((a, b) => a.centerY - b.centerY);
+            const columnCount = Math.max(1, Math.ceil(ordered.length / maxRowsPerColumn));
+            const columns = Array.from({ length: columnCount }, () => []);
 
-        return projectedDistricts.map(district => {
-            const side = groups.left.includes(district) ? 'left'
-                : groups.right.includes(district) ? 'right'
-                    : groups.top.includes(district) ? 'top' : 'bottom';
+            // Reparto serpenteante: conserva el orden vertical y evita que una
+            // columna quede saturada mientras otra tiene espacios vacíos.
+            ordered.forEach((district, index) => {
+                const columnIndex = index % columnCount;
+                columns[columnIndex].push(district);
+            });
 
-            if (side === 'left') return {
-                ...district,
-                labelX: edgeInset,
-                labelY: leftY.get(district.id),
-                lineEndX: edgeInset + 34,
-                lineEndY: leftY.get(district.id),
-                textAnchor: 'start',
-                externalLabel: true,
-            };
-            if (side === 'right') return {
-                ...district,
-                labelX: width - edgeInset,
-                labelY: rightY.get(district.id),
-                lineEndX: width - edgeInset - 34,
-                lineEndY: rightY.get(district.id),
-                textAnchor: 'end',
-                externalLabel: true,
-            };
-            if (side === 'top') return {
-                ...district,
-                labelX: topX.get(district.id),
-                labelY: 17,
-                lineEndX: topX.get(district.id),
-                lineEndY: 39,
-                textAnchor: 'middle',
-                externalLabel: true,
-            };
-            return {
-                ...district,
-                labelX: bottomX.get(district.id),
-                labelY: height - 19,
-                lineEndX: bottomX.get(district.id),
-                lineEndY: height - 41,
-                textAnchor: 'middle',
-                externalLabel: true,
-            };
-        });
+            const positions = new Map();
+            columns.forEach((columnItems, columnIndex) => {
+                const count = columnItems.length;
+                const gap = count > 1
+                    ? Math.max(labelMinGap, usableLabelHeight / (count - 1))
+                    : 0;
+                const usedHeight = gap * Math.max(count - 1, 0);
+                const startY = labelTop + (usableLabelHeight - usedHeight) / 2;
+                const innerToOuter = columnCount - 1 - columnIndex;
+
+                columnItems.forEach((district, rowIndex) => {
+                    const labelY = startY + rowIndex * gap;
+                    const labelX = side === 'left'
+                        ? 10 + innerToOuter * labelColumnWidth
+                        : width - 10 - innerToOuter * labelColumnWidth;
+                    const lineEndX = side === 'left' ? labelX + 43 : labelX - 43;
+
+                    positions.set(district.id, {
+                        labelX,
+                        labelY,
+                        lineEndX,
+                        lineEndY: labelY,
+                        textAnchor: side === 'left' ? 'start' : 'end',
+                        externalLabel: true,
+                    });
+                });
+            });
+            return positions;
+        };
+
+        const leftPositions = layoutSide(sideGroups.left, 'left');
+        const rightPositions = layoutSide(sideGroups.right, 'right');
+
+        return projectedDistricts.map(district => ({
+            ...district,
+            ...(leftPositions.get(district.id) || rightPositions.get(district.id)),
+        }));
     };
 
     const getDistrictMapValue = (districtRow, variableKey) =>
@@ -1045,12 +1085,23 @@ const SeccionesGHMap = () => {
                                     const fill = getHeatColor(value, range.min, range.max);
                                     const districtName = row?.Distrito || `Distrito ${district.id}`;
 
-                                    const isActive = toNumber(activeDistrictId, NaN) === toNumber(district.id, NaN);
+                                    const isSelected = toNumber(selectedDistrict[stage], NaN) === toNumber(district.id, NaN);
+                                    const isHovered = toNumber(hoveredDistrict[stage], NaN) === toNumber(district.id, NaN);
+                                    const groupClassName = [
+                                        'ep-district-group',
+                                        (isSelected || isHovered) ? 'active' : '',
+                                        isSelected ? 'selected' : '',
+                                        isHovered ? 'hovered' : '',
+                                    ].filter(Boolean).join(' ');
+
                                     return (
                                         <g
                                             key={district.id}
-                                            className={isActive ? 'ep-district-group active' : 'ep-district-group'}
-                                            onMouseEnter={() => setDistrictHover(district.id)}
+                                            className={groupClassName}
+                                            onMouseEnter={() => {
+                                                setDistrictHover(district.id);
+                                                centerDistrictInSummary(stage, district.id, 'auto');
+                                            }}
                                             onMouseLeave={clearDistrictHover}
                                             onClick={() => toggleDistrictSelection(district.id)}
                                         >
@@ -1094,7 +1145,10 @@ const SeccionesGHMap = () => {
                             </svg>
                         </div>
 
-                        <div className="ep-district-map-summary">
+                        <div
+                            className="ep-district-map-summary"
+                            ref={element => { districtSummaryRefs.current[stage] = element; }}
+                        >
                             <div className="ep-district-summary-title">
                                 <strong>{activeVariable?.label}</strong>
                                 <span>{pecLabel}</span>
@@ -1108,7 +1162,14 @@ const SeccionesGHMap = () => {
                                         type="button"
                                         className={`ep-district-summary-row${toNumber(activeDistrictId, NaN) === toNumber(district.id, NaN) ? ' active' : ''}`}
                                         key={district.id}
-                                        onMouseEnter={() => setDistrictHover(district.id)}
+                                        ref={element => {
+                                            if (element) districtRowRefs.current[stage][district.id] = element;
+                                            else delete districtRowRefs.current[stage][district.id];
+                                        }}
+                                        onMouseEnter={() => {
+                                            setDistrictHover(district.id);
+                                            centerDistrictInSummary(stage, district.id, 'auto');
+                                        }}
                                         onMouseLeave={clearDistrictHover}
                                         onClick={() => toggleDistrictSelection(district.id)}
                                     >
@@ -1953,10 +2014,11 @@ const SeccionesGHMap = () => {
         .ep-district-group { cursor: pointer; }
         .ep-district-group:hover .ep-district-shape,
         .ep-district-group.active .ep-district-shape {
-          filter: drop-shadow(0 0 7px rgba(107, 0, 64, 0.62));
-          opacity: 0.88;
-          stroke: #6b0040;
-          stroke-width: 3.4;
+          filter: drop-shadow(0 0 8px rgba(79, 227, 173, 0.72));
+          opacity: 0.92;
+          stroke: #d5007f;
+;
+          stroke-width: 3.6;
         }
         .ep-district-leader {
           stroke: #6b0040;
@@ -1966,8 +2028,22 @@ const SeccionesGHMap = () => {
           vector-effect: non-scaling-stroke;
         }
         .ep-district-group.active .ep-district-leader {
-          stroke-width: 1.8;
-          opacity: 0.95;
+          stroke: #d5007f;
+;
+          stroke-width: 2.2;
+          opacity: 1;
+        }
+        .ep-district-group.selected .ep-district-shape {
+          stroke: #d5007f;
+;
+          stroke-width: 3.6;
+          filter: drop-shadow(0 0 8px rgba(79, 227, 173, 0.72));
+        }
+        .ep-district-group.selected .ep-district-leader {
+          stroke: #d5007f;
+;
+          stroke-width: 2.2;
+          opacity: 1;
         }
         .ep-district-label,
         .ep-district-value {
@@ -1984,8 +2060,17 @@ const SeccionesGHMap = () => {
         .ep-district-value { font-size: 13.3px; }
         .ep-district-group.active .ep-district-label,
         .ep-district-group.active .ep-district-value {
-          fill: #6b0040;
-          stroke-width: 5px;
+          fill: #d5007f;
+;
+          stroke: rgba(20, 60, 49, 0.96);
+          stroke-width: 4.5px;
+        }
+        .ep-district-group.selected .ep-district-label,
+        .ep-district-group.selected .ep-district-value {
+          fill: #d5007f;
+;
+          stroke: rgba(20, 60, 49, 0.96);
+          stroke-width: 4.5px;
         }
         .ep-district-map-summary {
           padding: 16px;
@@ -1995,6 +2080,8 @@ const SeccionesGHMap = () => {
           min-height: 0;
           overflow-y: auto;
           scrollbar-gutter: stable;
+          scroll-behavior: smooth;
+          overscroll-behavior: contain;
         }
         .ep-district-summary-title {
           display: grid;
