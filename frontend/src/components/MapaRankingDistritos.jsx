@@ -135,7 +135,7 @@ const stateShapes = mexicoGeoData.features.map(feature => ({
 const stateNameByKey = new Map(stateShapes.map(state => [normalizeText(state.name), state.name]));
 
 const readRankings = async () => {
-    const response = await fetch(RANKING_FILE);
+    const response = await fetch(RANKING_FILE, { cache: 'no-store' });
     if (!response.ok) throw new Error(`No fue posible cargar el Excel (${response.status}).`);
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(await response.arrayBuffer());

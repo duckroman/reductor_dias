@@ -104,7 +104,7 @@ const MexicoMap = ({ sheet, selectedState, onStateClick, dataVersion }) => {
           }]}
           layout={{
             geo: {
-              scope: 'north america',
+              scope: 'world',
               showframe: false,
               showcoastlines: false,
               showland: true,
@@ -135,7 +135,11 @@ const MexicoMap = ({ sheet, selectedState, onStateClick, dataVersion }) => {
             }
           }
         }}
-        config={{ displayModeBar: false, scrollZoom: false }}
+        config={{
+          displayModeBar: false,
+          scrollZoom: false,
+          topojsonURL: `${window.location.origin}${import.meta.env.BASE_URL}topojson/`
+        }}
       />
       </div>
     </div>

@@ -140,7 +140,7 @@ function DatasetViewer({ sheet, state }) {
     if (val === null || val === undefined || val === '') return '—';
     const num = parseFloat(val);
     if (isNaN(num)) return val;
-    return (num * 100).toFixed(1) + '%';
+    return (num * 100).toFixed(2) + '%';
   };
 
   if (loading) {
