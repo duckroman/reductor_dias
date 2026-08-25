@@ -8,11 +8,10 @@ import PlotlyComponent from 'react-plotly.js';
 import { Upload, Table, Map as MapIcon, Layers, X, Thermometer, Download } from 'lucide-react';
 import ExcelJS from 'exceljs';
 
-// Bundled datasets: el dataset PEC 2023-2024 se importa estáticamente porque ya
-// existe. Los datasets PEC 2020-2021 y PEC 2017-2018 se cargan dinámicamente en
-// un useEffect para que el componente compile aunque los archivos aún no existan.
+// Bundled datasets: todos los datasets históricos (PEC 2023-2024, PEC 2020-2021
+// y PEC 2017-2018) se cargan dinámicamente en un useEffect para que el componente
+// compile aunque los archivos aún no existan.
 import mexicoGeoData from '../data/mexico_geo.json';
-import distritosAnalisisData from '../data/distritos_analisis_3.json';
 import distritosAnalisisPromedio from '../data/distritos_analisis_PECPromedio.json';
 import distritosGeometriaMexico from '../data/distritos_geometria_mexico.json';
 
@@ -402,14 +401,10 @@ const SeccionesGHMap = () => {
 
     // ---------------------------------------------------------------------------
     // Datasets históricos
-    // PEC 2023-2024: importado estáticamente (siempre disponible).
-    // PEC 2020-2021 y PEC 2017-2018: cargados dinámicamente; son null si el
-    // archivo aún no existe en src/data/.
+    // PEC 2023-2024, PEC 2020-2021 y PEC 2017-2018: todos se cargan
+    // dinámicamente; son null si el archivo aún no existe en src/data/.
     // ---------------------------------------------------------------------------
-    const [distritosDataPec24] = useState({
-        etapa1: distritosAnalisisData.etapa1 || [],
-        etapa2: distritosAnalisisData.etapa2 || [],
-    });
+    const [distritosDataPec24, setDistritosDataPec24] = useState(null);
     const [distritosDataPromedio] = useState({
         etapa1: distritosAnalisisPromedio.etapa1 || [],
         etapa2: distritosAnalisisPromedio.etapa2 || [],
@@ -418,6 +413,16 @@ const SeccionesGHMap = () => {
     const [distritosDataPec18, setDistritosDataPec18] = useState(null);
 
     useEffect(() => {
+        import('../data/distritos_analisis_3.json')
+            .then(mod => {
+                const data = mod.default || mod;
+                setDistritosDataPec24({
+                    etapa1: data.etapa1 || [],
+                    etapa2: data.etapa2 || [],
+                });
+            })
+            .catch(() => setDistritosDataPec24(null));
+
         import('../data/distritos_analisis_3_PEC21.json')
             .then(mod => {
                 const data = mod.default || mod;
