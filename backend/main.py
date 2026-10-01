@@ -914,6 +914,220 @@ def get_estado_distritos(
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+# ============================================================
+# ENDPOINT: Avance por Distrito entre PEC (día de cumplimiento al 100%)
+# ============================================================
+
+# Configuración de cada PEC: archivo, etapa, nombre clave, total de días
+# y las hojas (variables) a extraer.
+_AVANCE_PEC_CONFIG = [
+    {
+        "pec": "pec18",
+        "total_dias": 56,
+        "etapa": 1,
+        "archivo": "PEC_2017-2018_1a.xlsx",
+        "hojas": {
+            "visitados": "Visitados",
+            "ccrl": "CCRL Requeridos",
+        },
+    },
+    {
+        "pec": "pec18",
+        "total_dias": 56,
+        "etapa": 2,
+        "archivo": "PEC_2017-2018_2a.xlsx",
+        "hojas": {
+            "nombramientos": "Nombramientos",
+            "capacitacion": "Capacitación",
+            "simulacros": "Asistencia a Simulacros",
+        },
+    },
+    {
+        "pec": "pec21",
+        "total_dias": 48,
+        "etapa": 1,
+        "archivo": "PE_2020-2021_1a.xlsx",
+        "hojas": {
+            "visitados": "Visitados",
+            "ccrl": "CCRL Optimo",
+        },
+    },
+    {
+        "pec": "pec21",
+        "total_dias": 48,
+        "etapa": 2,
+        "archivo": "PE_2020-2021_2a.xlsx",
+        "hojas": {
+            "nombramientos": "Nombramientos",
+            "capacitacion": "Capacitación",
+            "simulacros": "Asistencia a Simulacros",
+        },
+    },
+    {
+        "pec": "pec24",
+        "total_dias": 52,
+        "etapa": 1,
+        "archivo": "PEC_2023-2024_1a.xlsx",
+        "hojas": {
+            "visitados": "Visitados",
+            "ccrl": "CCRL Optimo",
+        },
+    },
+    {
+        "pec": "pec24",
+        "total_dias": 52,
+        "etapa": 2,
+        "archivo": "PEC_2023-2024_2a.xlsx",
+        "hojas": {
+            "nombramientos": "Nombramientos",
+            "capacitacion": "Capacitación",
+            "simulacros": "Asistencia a Simulacros",
+        },
+    },
+]
+
+
+def _parse_avance_sheet(ws, total_dias: int) -> list[dict]:
+    """
+    Lee una hoja de Excel con estructura:
+      Fila 1: título (ignorar)
+      Fila 2: encabezados (ID Entidad, Entidad, ID Distrito, Cabecera, fecha1, ..., fechaN)
+      Fila 3: etiquetas de día (ignorar)
+      Fila 4+: datos de distritos
+
+    Devuelve una lista de dicts con id_entidad, entidad, id_distrito, cabecera, dia.
+    'dia' = primer día (1-indexed) donde el valor >= 1.0, o total_dias si nunca ocurre.
+    """
+    rows = list(ws.iter_rows(values_only=True))
+    if len(rows) < 4:
+        return []
+
+    # La fila 2 (índice 1) tiene los encabezados; columnas 4+ son los días.
+    # La fila 3 (índice 2) tiene etiquetas "Día 1", "Día 2"... — la ignoramos.
+    # Los datos comienzan en fila 4 (índice 3).
+    data_rows = rows[3:]  # fila 4 en adelante
+
+    results = []
+    for row in data_rows:
+        if not row or row[0] is None:
+            continue  # saltar filas vacías
+
+        id_entidad = row[0]
+        entidad = str(row[1]).strip() if row[1] is not None else ""
+        id_distrito = row[2]
+        cabecera = str(row[3]).strip() if row[3] is not None else ""
+
+        # Columnas de días: índice 4 en adelante, hasta total_dias columnas.
+        day_values = row[4: 4 + total_dias]
+
+        dia_cumplimiento = total_dias  # valor por defecto: no alcanzó
+        for col_idx, val in enumerate(day_values):
+            try:
+                numeric = float(val) if val is not None else 0.0
+            except (TypeError, ValueError):
+                numeric = 0.0
+            if numeric >= 1.0:
+                dia_cumplimiento = col_idx + 1  # 1-indexed
+                break
+
+        results.append({
+            "id_entidad": int(id_entidad) if id_entidad is not None else None,
+            "entidad": entidad,
+            "id_distrito": int(id_distrito) if id_distrito is not None else None,
+            "cabecera": cabecera,
+            "dia": dia_cumplimiento,
+            "completo": dia_cumplimiento < total_dias,
+        })
+
+    return results
+
+
+@app.get("/avance-distritos")
+async def get_avance_distritos():
+    """
+    Devuelve el día en que cada distrito alcanzó el 100% de cumplimiento
+    para cada variable y PEC.
+
+    Estructura de respuesta:
+    {
+      "pec18": { "etapa1": { "visitados": [...], "ccrl": [...] },
+                 "etapa2": { "nombramientos": [...], "capacitacion": [...], "simulacros": [...] } },
+      "pec21": { ... },
+      "pec24": { ... },
+    }
+    """
+    resultado = {
+        "pec18": {"etapa1": {}, "etapa2": {}},
+        "pec21": {"etapa1": {}, "etapa2": {}},
+        "pec24": {"etapa1": {}, "etapa2": {}},
+    }
+
+    for cfg in _AVANCE_PEC_CONFIG:
+        archivo_path = os.path.join(DATASETS_DIR, cfg["archivo"])
+        etapa_key = f"etapa{cfg['etapa']}"
+
+        if not os.path.exists(archivo_path):
+            # Si el archivo no existe, registrar claves vacías y continuar.
+            for var_key in cfg["hojas"]:
+                resultado[cfg["pec"]][etapa_key][var_key] = []
+            continue
+
+        try:
+            wb = openpyxl.load_workbook(archivo_path, read_only=True, data_only=True)
+            for var_key, sheet_name in cfg["hojas"].items():
+                if sheet_name not in wb.sheetnames:
+                    resultado[cfg["pec"]][etapa_key][var_key] = []
+                    continue
+                ws = wb[sheet_name]
+                resultado[cfg["pec"]][etapa_key][var_key] = _parse_avance_sheet(
+                    ws, cfg["total_dias"]
+                )
+            wb.close()
+        except Exception as exc:
+            print(f"[avance-distritos] Error leyendo {cfg['archivo']}: {exc}")
+            for var_key in cfg["hojas"]:
+                resultado[cfg["pec"]][etapa_key][var_key] = []
+
+    return JSONResponse(content=resultado)
+
+
+@app.get("/campeche")
+async def get_campeche_data():
+    """
+    Devuelve los datos de desempeño por sección para Campeche.
+    """
+    campeche_path = os.path.join(DATASETS_DIR, "Campeche_Desempeño_x_seccion.xlsx")
+    if not os.path.exists(campeche_path):
+        return JSONResponse(status_code=404, content={"error": "Archivo no encontrado"})
+
+    try:
+        wb = openpyxl.load_workbook(campeche_path, data_only=True)
+        data = {}
+        for sheet_name in wb.sheetnames:
+            ws = wb[sheet_name]
+            rows = list(ws.iter_rows(values_only=True))
+            if not rows:
+                data[sheet_name] = []
+                continue
+            headers = [str(h).strip() if h is not None else '' for h in rows[0]]
+            sheet_records = []
+            for r in rows[1:]:
+                if not r or r[0] is None:
+                    continue
+                row_dict = {}
+                for h, val in zip(headers, r):
+                    if isinstance(val, float):
+                        row_dict[h] = round(val, 6)
+                    else:
+                        row_dict[h] = val
+                sheet_records.append(row_dict)
+            data[sheet_name] = sheet_records
+        wb.close()
+        return JSONResponse(content=data)
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

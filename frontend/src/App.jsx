@@ -10,7 +10,9 @@ import Presentation from './components/Presentation';
 import EntidadPromedio from './components/EntidadPromedio';
 import GruposHistorico from './components/GruposHistorico';
 import SeccionesGHMap from './components/SeccionesGHMap';
+import AvanceDistxPEC from './components/AvanceDistxPEC';
 import MapaRankingDistritos from './components/MapaRankingDistritos';
+import CampecheComponent from './components/CampecheComponent';
 import { getSheets, uploadDataFile, getActiveFile, getDatasets, selectDataset, clearCache } from './services/api';
 import { Menu, X } from 'lucide-react';
 import './App.css';
@@ -229,6 +231,27 @@ if (currentPath.replace(/\/$/, '') === '/SeccionesGHMap' || currentPath.replace(
     </div>
   );
 }
+// Ruta para Avance distrital entre PEC
+if ([
+  '/avance-distritos',
+  '/AvanceDistxPEC',
+  '/AvanceDistxPEC.jsx',
+].includes(currentPath.replace(/\/$/, ''))) {
+  return (
+    <div style={{
+      minHeight: '100vh',
+      width: '100vw',
+      background: '#fff5fb',
+      overflowX: 'hidden',
+      overflowY: 'auto',
+      padding: '24px',
+      boxSizing: 'border-box',
+    }}>
+      <AvanceDistxPEC />
+    </div>
+  );
+}
+
 // Ruta para el mapa nacional de ranking por distrito
 if ([
   '/mapa-ranking-distritos',
@@ -236,6 +259,16 @@ if ([
   '/MapaRankingDistritos.jsx',
 ].includes(currentPath.replace(/\/$/, ''))) {
   return <MapaRankingDistritos />;
+}
+
+// Ruta para el componente de Campeche
+if ([
+  '/campeche',
+  '/campeche.jsx',
+  '/Campeche',
+  '/Campeche.jsx'
+].includes(currentPath.replace(/\/$/, ''))) {
+  return <CampecheComponent />;
 }
 
   // ============================================
@@ -268,13 +301,19 @@ if ([
           </div>
           <div style={{ marginTop: '20px', textAlign: 'center', display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
             <button className="sidebar-btn" onClick={() => navigateTo('/grupos', 'entidadPromedio')} style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: '#fff' }}>
-              Acceder a Análisis Entidad Promedio
+              Acceder a An�lisis Entidad Promedio
             </button>
             <button className="sidebar-btn" onClick={() => navigateTo('/grupos_historico', 'gruposHistorico')} style={{ background: 'linear-gradient(135deg, #d5007f, #8b004f)', color: '#fff' }}>
-              📊 Histórico PEC 2017-2024
+              Histórico PEC 2017-2024
+            </button>
+            <button className="sidebar-btn" onClick={() => navigateTo('/avance-distritos', 'avanceDistritos')} style={{ background: 'linear-gradient(135deg, #8b5cf6, #06b6d4)', color: '#fff' }}>
+              Avance distrital entre PEC
             </button>
             <button className="sidebar-btn" onClick={() => navigateTo('/mapa-ranking-distritos', 'mapaRankingDistritos')} style={{ background: 'linear-gradient(135deg, #dc2626, #16a34a)', color: '#fff' }}>
               Mapa de ranking distrital VCEyEC
+            </button>
+            <button className="sidebar-btn" onClick={() => navigateTo('/campeche', 'campeche')} style={{ background: 'linear-gradient(135deg, #454248, #C5A989)', color: '#fff' }}>
+              🏛️ Desempeño Campeche
             </button>
           </div>
         </div>

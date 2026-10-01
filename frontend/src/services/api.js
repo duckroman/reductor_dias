@@ -156,3 +156,27 @@ export const getEstadoDistritos = async (state, sheet = null, day = null) => {
   return response.data;
 };
 
+// ============================================================
+// Avance por Distrito entre PEC
+// ============================================================
+
+export const getAvanceDistritos = async () => {
+  const response = await api.get('/avance-distritos');
+  return response.data;
+};
+
+// ============================================================
+// Campeche Desempeño por Sección
+// ============================================================
+
+export const getCampecheData = async () => {
+  try {
+    const response = await api.get('/campeche');
+    return response.data;
+  } catch (error) {
+    console.warn('Backend API /campeche failed, falling back to bundled JSON dataset:', error);
+    const localData = await import('../data/campeche_desempeno.json');
+    return localData.default || localData;
+  }
+};
+
