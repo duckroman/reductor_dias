@@ -56,9 +56,10 @@ const DISTRITOS_INFO = {
 // ---------------------------------------------------------------------------
 const interpolatePinkToWhite = (pct) => {
   const t = Math.min(Math.max(pct / 100, 0), 1);
-  const r = Math.round(230 + (255 - 230) * t);
-  const g = Math.round(0 + 255 * t);
-  const b = Math.round(115 + (255 - 115) * t);
+  // 0% -> Blanco (rgb(255,255,255)), 100% -> Rosa (#E60073: rgb(230,0,115))
+  const r = Math.round(255 + (230 - 255) * t);
+  const g = Math.round(255 + (0 - 255) * t);
+  const b = Math.round(255 + (115 - 255) * t);
   return `rgb(${r}, ${g}, ${b})`;
 };
 
@@ -183,9 +184,9 @@ const CampecheComponent = () => {
       z.push(valPct);
 
       const propPres = record ? formatPct(record['%Propietarios presentes']) : 'N/D';
-      const fila     = record ? formatPct(record['%Fila'])                   : 'N/D';
-      const aus      = record ? formatPct(record['%Ausentes'])               : 'N/D';
-      const req      = record ? (record['Requeridos'] || record['Requeridos '] || 'N/D') : 'N/D';
+      const fila = record ? formatPct(record['%Fila']) : 'N/D';
+      const aus = record ? formatPct(record['%Ausentes']) : 'N/D';
+      const req = record ? (record['Requeridos'] || record['Requeridos '] || 'N/D') : 'N/D';
 
       hoverTexts.push(
         `<b>Sección ${secNum}</b><br>` +
@@ -247,15 +248,15 @@ const CampecheComponent = () => {
     const worksheet = workbook.addWorksheet(sheetLabel);
 
     const COLS = [
-      { header: 'Sección',                  key: 'SECCION',                   width: 12 },
-      { header: 'Cabecera Distrital',        key: 'CABECERA_DISTRITAL_FEDERAL', width: 30 },
-      { header: 'Requeridos',               key: 'Requeridos',                 width: 14 },
-      { header: 'Prop. Presentes',          key: 'Propietarios presentes',     width: 18 },
-      { header: 'Fila',                     key: 'Fila',                       width: 12 },
-      { header: 'Ausentes',                 key: 'Ausentes',                   width: 12 },
-      { header: '% Prop. Presentes',        key: 'pct_prop',                   width: 22 },
-      { header: '% Fila',                   key: 'pct_fila',                   width: 14 },
-      { header: '% Ausentes',               key: 'pct_aus',                    width: 14 },
+      { header: 'Sección', key: 'SECCION', width: 12 },
+      { header: 'Cabecera Distrital', key: 'CABECERA_DISTRITAL_FEDERAL', width: 30 },
+      { header: 'Requeridos', key: 'Requeridos', width: 14 },
+      { header: 'Prop. Presentes', key: 'Propietarios presentes', width: 18 },
+      { header: 'Fila', key: 'Fila', width: 12 },
+      { header: 'Ausentes', key: 'Ausentes', width: 12 },
+      { header: '% Prop. Presentes', key: 'pct_prop', width: 22 },
+      { header: '% Fila', key: 'pct_fila', width: 14 },
+      { header: '% Ausentes', key: 'pct_aus', width: 14 },
     ];
     worksheet.columns = COLS;
 
@@ -268,25 +269,25 @@ const CampecheComponent = () => {
 
     // Agregar filas
     sortedTableRows.forEach((row, idx) => {
-      const req      = row['Requeridos'] || row['Requeridos '] || 0;
+      const req = row['Requeridos'] || row['Requeridos '] || 0;
       const propPres = row['Propietarios presentes'] || 0;
-      const fila     = row['Fila'] || 0;
-      const aus      = row['Ausentes'] || 0;
+      const fila = row['Fila'] || 0;
+      const aus = row['Ausentes'] || 0;
 
       const pctPropNum = getNumericPct(row['%Propietarios presentes']);
       const pctFilaNum = getNumericPct(row['%Fila']);
-      const pctAusNum  = getNumericPct(row['%Ausentes']);
+      const pctAusNum = getNumericPct(row['%Ausentes']);
 
       const addedRow = worksheet.addRow({
-        SECCION:                   Number(row.SECCION),
+        SECCION: Number(row.SECCION),
         CABECERA_DISTRITAL_FEDERAL: row.CABECERA_DISTRITAL_FEDERAL || '',
-        Requeridos:                req,
-        'Propietarios presentes':  propPres,
-        Fila:                      fila,
-        Ausentes:                  aus,
-        pct_prop:                  pctPropNum / 100,
-        pct_fila:                  pctFilaNum / 100,
-        pct_aus:                   pctAusNum  / 100,
+        Requeridos: req,
+        'Propietarios presentes': propPres,
+        Fila: fila,
+        Ausentes: aus,
+        pct_prop: pctPropNum / 100,
+        pct_fila: pctFilaNum / 100,
+        pct_aus: pctAusNum / 100,
       });
 
       // Formato de porcentaje en las columnas de %
@@ -299,7 +300,7 @@ const CampecheComponent = () => {
       const colColors = {
         pct_prop: rgbToArgbHex(interpolatePinkToWhite(pctPropNum)),
         pct_fila: rgbToArgbHex(interpolatePinkToWhite(pctFilaNum)),
-        pct_aus:  rgbToArgbHex(interpolatePinkToWhite(pctAusNum)),
+        pct_aus: rgbToArgbHex(interpolatePinkToWhite(pctAusNum)),
       };
       ['pct_prop', 'pct_fila', 'pct_aus'].forEach(k => {
         addedRow.getCell(k).fill = {
@@ -327,10 +328,10 @@ const CampecheComponent = () => {
       COLS.forEach((c, ci) => {
         const cell = worksheet.getRow(r).getCell(c.key);
         cell.border = {
-          top:    { style: 'thin', color: { argb: 'FFB2B2B2' } },
-          left:   { style: 'thin', color: { argb: 'FFB2B2B2' } },
+          top: { style: 'thin', color: { argb: 'FFB2B2B2' } },
+          left: { style: 'thin', color: { argb: 'FFB2B2B2' } },
           bottom: { style: 'thin', color: { argb: 'FFB2B2B2' } },
-          right:  { style: 'thin', color: { argb: 'FFB2B2B2' } },
+          right: { style: 'thin', color: { argb: 'FFB2B2B2' } },
         };
       });
     }
@@ -359,7 +360,7 @@ const CampecheComponent = () => {
   const mexicoHoverTexts = useMemo(
     () => mexicoLocations.map(n =>
       n.toLowerCase() === 'campeche'
-        ? '<b>Campeche</b><br>Haz clic para ver la tarjeta distrital'
+        ? '<b>Campeche</b>'
         : `<b>${n}</b>`
     ),
     [mexicoLocations]
@@ -427,7 +428,7 @@ const CampecheComponent = () => {
       {/* ── Grid principal ── */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: showCampecheCard && !isMobile ? '1fr 1.05fr' : '1fr',
+        gridTemplateColumns: !isMobile ? '1fr 1.05fr' : '1fr',
         gap: isMobile ? '14px' : '20px',
         alignItems: 'start',
       }}>
@@ -476,162 +477,136 @@ const CampecheComponent = () => {
                 doubleClick: false,
                 dragMode: false,
               }}
+              onClick={(data) => {
+                if (data && data.points && data.points.length > 0) {
+                  const clickedLocation = data.points[0].location;
+                  if (clickedLocation === 'Campeche') {
+                    setShowCampecheCard(true);
+                  }
+                }
+              }}
               useResizeHandler
               style={{ width: '100%', height: '100%' }}
             />
           </div>
-
-          <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'center' }}>
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); setShowCampecheCard(prev => !prev); }}
-              style={{
-                backgroundColor: showCampecheCard ? COLORS.grisMedio : COLORS.beige,
-                color: COLORS.blanco,
-                border: 'none',
-                padding: '9px 20px',
-                borderRadius: '8px',
-                fontWeight: 600,
-                fontSize: '0.85rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-                boxShadow: '0 4px 12px rgba(197,169,137,0.4)',
-                transition: 'all 0.2s',
-              }}
-            >
-              📍 {showCampecheCard ? 'Ocultar tarjeta de Campeche' : 'Ver tarjeta de Campeche'}
-            </button>
-          </div>
         </div>
 
         {/* ── Tarjeta Distrital de Campeche ── */}
-        {showCampecheCard && (
-          <div style={{
-            ...cardStyle,
-            border: `2px solid ${COLORS.beige}`,
-            boxShadow: '0 6px 24px rgba(0,0,0,0.1)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '18px',
-          }}>
-            {/* Encabezado tarjeta */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: `1px solid ${COLORS.grisClaro}`, paddingBottom: '12px' }}>
-              <div>
-                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: COLORS.beige, textTransform: 'uppercase', letterSpacing: '1.2px' }}>
-                  Mapa Distrital Interactivo
-                </span>
-                <h2 style={{ margin: '4px 0 0 0', fontSize: '1.35rem', fontWeight: 700, color: COLORS.grisOxford }}>
-                  CAMPECHE
-                </h2>
-                <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: COLORS.grisMedio }}>
-                  Desempeño acumulado por distrito federal
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCampecheCard(false)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', color: COLORS.grisMedio }}
-                title="Cerrar"
-              >
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Controles */}
-            <div style={{ backgroundColor: COLORS.grisCalido, padding: '14px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div>
-                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: COLORS.grisOxford, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
-                  PROCESO ELECTORAL
-                </span>
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {PEC_TABS.map(tab => (
-                    <button key={tab.id} type="button" onClick={() => setSelectedProcess(tab.id)} style={chipBtn(selectedProcess === tab.id)}>
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <span style={{ fontSize: '0.7rem', fontWeight: 700, color: COLORS.grisOxford, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
-                  VARIABLE
-                </span>
-                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '8px' }}>
-                  {VARIABLES.map(v => (
-                    <button
-                      key={v.key}
-                      type="button"
-                      onClick={() => setSelectedVariable(v.key)}
-                      style={{
-                        padding: '8px 6px',
-                        borderRadius: '8px',
-                        border: selectedVariable === v.key ? `2px solid ${COLORS.beige}` : `1px solid ${COLORS.gris}`,
-                        backgroundColor: selectedVariable === v.key ? COLORS.beige : COLORS.blanco,
-                        color: selectedVariable === v.key ? COLORS.blanco : COLORS.grisOxford,
-                        fontWeight: selectedVariable === v.key ? 700 : 500,
-                        fontSize: '0.78rem',
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                        transition: 'all 0.2s',
-                      }}
-                    >
-                      {v.shortLabel}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {/* Tarjetas de Distrito */}
+        <div style={{
+          ...cardStyle,
+          border: `2px solid ${COLORS.beige}`,
+          boxShadow: '0 6px 24px rgba(0,0,0,0.1)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '18px',
+        }}>
+          {/* Encabezado tarjeta */}
+          <div style={{ borderBottom: `1px solid ${COLORS.grisClaro}`, paddingBottom: '12px' }}>
             <div>
-              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: COLORS.grisOxford, display: 'block', marginBottom: '10px' }}>
-                Selecciona un Distrito para ver el mapa de secciones:
+              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: COLORS.beige, textTransform: 'uppercase', letterSpacing: '1.2px' }}>
+                Mapa Distrital Interactivo
               </span>
-              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '14px' }}>
-                {[1, 2].map(distId => {
-                  const info   = DISTRITOS_INFO[distId];
-                  const avgVal = districtAverages[distId];
-                  const active = selectedDistrictModal === distId;
-                  return (
-                    <div
-                      key={distId}
-                      onClick={() => { setSelectedDistrictModal(distId); setModalView('map'); }}
-                      style={{
-                        backgroundColor: active ? COLORS.grisCalido : COLORS.blanco,
-                        borderRadius: '12px',
-                        border: `2px solid ${active ? COLORS.beige : COLORS.grisClaro}`,
-                        padding: '14px',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s',
-                        boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-                        minHeight: '120px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: 'space-between',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ backgroundColor: COLORS.grisOxford, color: COLORS.blanco, padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700 }}>
-                          Distrito {distId}
-                        </span>
-                        <ChevronRight size={18} color={COLORS.beige} />
-                      </div>
-                      <h4 style={{ margin: '8px 0 4px', fontSize: '0.9rem', color: COLORS.grisOxford, fontWeight: 700 }}>
-                        {info.cabecera}
-                      </h4>
-                      <div style={{ borderTop: `1px solid ${COLORS.grisClaro}`, paddingTop: '8px', marginTop: '4px' }}>
-                        <div style={{ fontSize: '0.72rem', color: COLORS.grisMedio }}>Promedio {selectedVariable}:</div>
-                        <div style={{ fontSize: '1.25rem', fontWeight: 800, color: COLORS.grisOxford }}>{avgVal.toFixed(1)}%</div>
-                      </div>
-                    </div>
-                  );
-                })}
+              <h2 style={{ margin: '4px 0 0 0', fontSize: '1.35rem', fontWeight: 700, color: COLORS.grisOxford }}>
+                CAMPECHE
+              </h2>
+              <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: COLORS.grisMedio }}>
+                Desempeño acumulado por distrito federal
+              </p>
+            </div>
+          </div>
+
+          {/* Controles */}
+          <div style={{ backgroundColor: COLORS.grisCalido, padding: '14px', borderRadius: '10px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: COLORS.grisOxford, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                PROCESO ELECTORAL
+              </span>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {PEC_TABS.map(tab => (
+                  <button key={tab.id} type="button" onClick={() => setSelectedProcess(tab.id)} style={chipBtn(selectedProcess === tab.id)}>
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <span style={{ fontSize: '0.7rem', fontWeight: 700, color: COLORS.grisOxford, textTransform: 'uppercase', display: 'block', marginBottom: '8px' }}>
+                VARIABLE
+              </span>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(3, 1fr)', gap: '8px' }}>
+                {VARIABLES.map(v => (
+                  <button
+                    key={v.key}
+                    type="button"
+                    onClick={() => setSelectedVariable(v.key)}
+                    style={{
+                      padding: '8px 6px',
+                      borderRadius: '8px',
+                      border: selectedVariable === v.key ? `2px solid ${COLORS.beige}` : `1px solid ${COLORS.gris}`,
+                      backgroundColor: selectedVariable === v.key ? COLORS.beige : COLORS.blanco,
+                      color: selectedVariable === v.key ? COLORS.blanco : COLORS.grisOxford,
+                      fontWeight: selectedVariable === v.key ? 700 : 500,
+                      fontSize: '0.78rem',
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    {v.shortLabel}
+                  </button>
+                ))}
               </div>
             </div>
           </div>
-        )}
+
+          {/* Tarjetas de Distrito */}
+          <div>
+            <span style={{ fontSize: '0.82rem', fontWeight: 700, color: COLORS.grisOxford, display: 'block', marginBottom: '10px' }}>
+              Selecciona un Distrito para ver el mapa de secciones:
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '14px' }}>
+              {[1, 2].map(distId => {
+                const info = DISTRITOS_INFO[distId];
+                const avgVal = districtAverages[distId];
+                const active = selectedDistrictModal === distId;
+                return (
+                  <div
+                    key={distId}
+                    onClick={() => { setSelectedDistrictModal(distId); setModalView('map'); }}
+                    style={{
+                      backgroundColor: active ? COLORS.grisCalido : COLORS.blanco,
+                      borderRadius: '12px',
+                      border: `2px solid ${active ? COLORS.beige : COLORS.grisClaro}`,
+                      padding: '14px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+                      minHeight: '120px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ backgroundColor: COLORS.grisOxford, color: COLORS.blanco, padding: '3px 8px', borderRadius: '6px', fontSize: '0.72rem', fontWeight: 700 }}>
+                        Distrito {distId}
+                      </span>
+                      <ChevronRight size={18} color={COLORS.beige} />
+                    </div>
+                    <h4 style={{ margin: '8px 0 4px', fontSize: '0.9rem', color: COLORS.grisOxford, fontWeight: 700 }}>
+                      {info.cabecera}
+                    </h4>
+                    <div style={{ borderTop: `1px solid ${COLORS.grisClaro}`, paddingTop: '8px', marginTop: '4px' }}>
+                      <div style={{ fontSize: '0.72rem', color: COLORS.grisMedio }}>Promedio {selectedVariable}:</div>
+                      <div style={{ fontSize: '1.25rem', fontWeight: 800, color: COLORS.grisOxford }}>{avgVal.toFixed(1)}%</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ═══════════════════════════════════════════════════════════════ */}
@@ -691,8 +666,8 @@ const CampecheComponent = () => {
                   border: `1px solid ${COLORS.grisMedio}`,
                 }}>
                   {[
-                    { key: 'map',   label: 'Mapa de Calor', icon: <MapIcon   size={15} /> },
-                    { key: 'table', label: 'Tabla',         icon: <TableIcon size={15} /> },
+                    { key: 'map', label: 'Mapa de Calor', icon: <MapIcon size={15} /> },
+                    { key: 'table', label: 'Tabla', icon: <TableIcon size={15} /> },
                   ].map(v => (
                     <button
                       key={v.key}
@@ -738,9 +713,9 @@ const CampecheComponent = () => {
                   <div style={{ backgroundColor: COLORS.blanco, padding: '12px 16px', borderRadius: '10px', border: `1px solid ${COLORS.grisClaro}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <strong style={{ fontSize: '0.88rem', color: COLORS.grisOxford }}>Escala del Mapa de Calor — Secciones del Distrito {selectedDistrictModal}</strong>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: COLORS.rosaFuerte }}>0% (Rosa)</span>
-                      <div style={{ width: '130px', height: '13px', borderRadius: '7px', background: `linear-gradient(to right, ${COLORS.rosaFuerte}, ${COLORS.blanco})`, border: `1px solid ${COLORS.gris}` }} />
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: COLORS.grisOxford }}>100% (Blanco)</span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: COLORS.grisOxford }}>0% (Blanco)</span>
+                      <div style={{ width: '130px', height: '13px', borderRadius: '7px', background: `linear-gradient(to right, ${COLORS.blanco}, ${COLORS.rosaFuerte})`, border: `1px solid ${COLORS.gris}` }} />
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: COLORS.rosaFuerte }}>100% (Rosa)</span>
                     </div>
                   </div>
 
@@ -754,7 +729,7 @@ const CampecheComponent = () => {
                           locations: modalHeatmapPlotData.locations,
                           z: modalHeatmapPlotData.z,
                           featureidkey: 'id',         // ← top-level id del feature
-                          colorscale: [[0, COLORS.rosaFuerte], [1, COLORS.blanco]],
+                          colorscale: [[0, COLORS.blanco], [1, COLORS.rosaFuerte]],
                           zmin: 0,
                           zmax: 100,
                           colorbar: {
@@ -855,9 +830,9 @@ const CampecheComponent = () => {
                           {sortedTableRows.map((row, idx) => {
                             const pctPropNum = getNumericPct(row['%Propietarios presentes']);
                             const pctFilaNum = getNumericPct(row['%Fila']);
-                            const pctAusNum  = getNumericPct(row['%Ausentes']);
-                            const reqVal     = row['Requeridos'] || row['Requeridos '] || 0;
-                            const rowBg      = idx % 2 === 0 ? COLORS.blanco : COLORS.grisCalido;
+                            const pctAusNum = getNumericPct(row['%Ausentes']);
+                            const reqVal = row['Requeridos'] || row['Requeridos '] || 0;
+                            const rowBg = idx % 2 === 0 ? COLORS.blanco : COLORS.grisCalido;
 
                             return (
                               <tr key={idx} style={{ backgroundColor: rowBg, borderBottom: `1px solid ${COLORS.grisClaro}` }}>
