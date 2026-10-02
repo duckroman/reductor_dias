@@ -872,7 +872,7 @@ const CampecheComponent = () => {
                                   size: sectionFontSize,
                                   color: COLORS.grisOxford,
                                 },
-                                hoverinfo: 'none',
+                                hoverinfo: 'skip',
                                 showlegend: false,
                               }
                             ]}
