@@ -10,7 +10,8 @@ import {
   FileSpreadsheet,
   ZoomIn,
   ZoomOut,
-  RotateCcw
+  RotateCcw,
+  NotebookPen
 } from 'lucide-react';
 
 import mexicoGeoData from '../data/mexico_geo.json';
@@ -102,7 +103,7 @@ const CampecheComponent = () => {
   const [modalView, setModalView] = useState('map');
   const [sortConfig, setSortConfig] = useState({ key: 'SECCION', direction: 'asc' });
   const [zoomScale, setZoomScale] = useState(1);
-  const [sectionFontSize, setSectionFontSize] = useState(2);
+  const [sectionFontSize, setSectionFontSize] = useState(1);
 
   // Responsive
   const [windowWidth, setWindowWidth] = useState(
@@ -861,20 +862,20 @@ const CampecheComponent = () => {
                                   font: { family: 'Outfit, sans-serif', size: 12, color: COLORS.blanco },
                                 },
                               },
-                              {
-                                type: 'scattergeo',
-                                lon: modalHeatmapPlotData.textLons,
-                                lat: modalHeatmapPlotData.textLats,
-                                text: modalHeatmapPlotData.textLabels,
-                                mode: 'text',
-                                textfont: {
-                                  family: 'Outfit, sans-serif',
-                                  size: sectionFontSize,
-                                  color: COLORS.grisOxford,
-                                },
-                                hoverinfo: 'skip',
-                                showlegend: false,
-                              }
+                              // /*                               {
+                              //                                 type: 'scattergeo',
+                              //                                 lon: modalHeatmapPlotData.textLons,
+                              //                                 lat: modalHeatmapPlotData.textLats,
+                              //                                 text: modalHeatmapPlotData.textLabels,
+                              //                                 mode: 'text',
+                              //                                 textfont: {
+                              //                                   family: 'Outfit, sans-serif',
+                              //                                   size: sectionFontSize,
+                              //                                   color: COLORS.blanco,
+                              //                                 },
+                              //                                 hoverinfo: 'skip',
+                              //                                 showlegend: false,
+                              //                               } */
                             ]}
                             layout={{
                               geo: { fitbounds: 'locations', visible: false },
