@@ -7,7 +7,10 @@ import {
   X,
   ChevronRight,
   ArrowUpDown,
-  FileSpreadsheet
+  FileSpreadsheet,
+  ZoomIn,
+  ZoomOut,
+  RotateCcw
 } from 'lucide-react';
 
 import mexicoGeoData from '../data/mexico_geo.json';
@@ -98,6 +101,8 @@ const CampecheComponent = () => {
   // Modal state (Vista: 'map' | 'table')
   const [modalView, setModalView] = useState('map');
   const [sortConfig, setSortConfig] = useState({ key: 'SECCION', direction: 'asc' });
+  const [zoomScale, setZoomScale] = useState(1);
+  const [sectionFontSize, setSectionFontSize] = useState(2);
 
   // Responsive
   const [windowWidth, setWindowWidth] = useState(
@@ -169,11 +174,31 @@ const CampecheComponent = () => {
 
   // Datos para el mapa de calor Plotly: usa `id` de top-level del feature
   const modalHeatmapPlotData = useMemo(() => {
-    if (!modalDistrictSectionsGeo) return { locations: [], z: [], hoverTexts: [] };
+    if (!modalDistrictSectionsGeo) return { locations: [], z: [], hoverTexts: [], textLons: [], textLats: [], textLabels: [] };
 
     const locations = [];
     const z = [];
     const hoverTexts = [];
+    const textLons = [];
+    const textLats = [];
+    const textLabels = [];
+
+    const getCentroid = (geometry) => {
+      if (!geometry || !geometry.coordinates) return null;
+      const pts = [];
+      const extract = (c) => {
+        if (Array.isArray(c) && c.length >= 2 && typeof c[0] === 'number') {
+          pts.push(c);
+        } else if (Array.isArray(c)) {
+          c.forEach(extract);
+        }
+      };
+      extract(geometry.coordinates);
+      if (pts.length === 0) return null;
+      let sumLon = 0, sumLat = 0;
+      pts.forEach(p => { sumLon += p[0]; sumLat += p[1]; });
+      return [sumLon / pts.length, sumLat / pts.length];
+    };
 
     modalDistrictSectionsGeo.features.forEach(feat => {
       const secNum = Number(feat.id); // id de top-level = seccion
@@ -196,9 +221,16 @@ const CampecheComponent = () => {
         `<b>% Fila:</b> ${fila}<br>` +
         `<b>% Ausentes:</b> ${aus}`
       );
+
+      const center = getCentroid(feat.geometry);
+      if (center) {
+        textLons.push(center[0]);
+        textLats.push(center[1]);
+        textLabels.push(String(secNum));
+      }
     });
 
-    return { locations, z, hoverTexts };
+    return { locations, z, hoverTexts, textLons, textLats, textLabels };
   }, [modalDistrictSectionsGeo, sectionDataMap, selectedVariable, selectedDistrictModal]);
 
   // Filas de tabla por distrito
@@ -573,7 +605,7 @@ const CampecheComponent = () => {
                 return (
                   <div
                     key={distId}
-                    onClick={() => { setSelectedDistrictModal(distId); setModalView('map'); }}
+                    onClick={() => { setSelectedDistrictModal(distId); setModalView('map'); setZoomScale(1); }}
                     style={{
                       backgroundColor: active ? COLORS.grisCalido : COLORS.blanco,
                       borderRadius: '12px',
@@ -712,53 +744,220 @@ const CampecheComponent = () => {
                   {/* Leyenda */}
                   <div style={{ backgroundColor: COLORS.blanco, padding: '12px 16px', borderRadius: '10px', border: `1px solid ${COLORS.grisClaro}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                     <strong style={{ fontSize: '0.88rem', color: COLORS.grisOxford }}>Escala del Mapa de Calor — Secciones del Distrito {selectedDistrictModal}</strong>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: COLORS.grisOxford }}>0% (Blanco)</span>
-                      <div style={{ width: '130px', height: '13px', borderRadius: '7px', background: `linear-gradient(to right, ${COLORS.blanco}, ${COLORS.rosaFuerte})`, border: `1px solid ${COLORS.gris}` }} />
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: COLORS.rosaFuerte }}>100% (Rosa)</span>
-                    </div>
+
                   </div>
 
-                  {/* Mapa Plotly */}
-                  <div style={{ backgroundColor: COLORS.blanco, borderRadius: '14px', padding: '12px', boxShadow: '0 4px 16px rgba(0,0,0,0.06)', height: isMobile ? '360px' : '520px' }}>
-                    {modalDistrictSectionsGeo && (
-                      <Plot
-                        data={[{
-                          type: 'choropleth',
-                          geojson: modalDistrictSectionsGeo,
-                          locations: modalHeatmapPlotData.locations,
-                          z: modalHeatmapPlotData.z,
-                          featureidkey: 'id',         // ← top-level id del feature
-                          colorscale: [[0, COLORS.blanco], [1, COLORS.rosaFuerte]],
-                          zmin: 0,
-                          zmax: 100,
-                          colorbar: {
-                            title: { text: '%', font: { color: COLORS.grisOxford, size: 12 } },
-                            ticksuffix: '%',
-                            tickfont: { color: COLORS.grisOxford },
-                            len: 0.7,
-                          },
-                          marker: { line: { color: COLORS.grisMedio, width: 0.4 } },
-                          hoverinfo: 'text',
-                          text: modalHeatmapPlotData.hoverTexts,
-                          hoverlabel: {
-                            bgcolor: COLORS.grisOxford,
-                            bordercolor: COLORS.beige,
-                            font: { family: 'Outfit, sans-serif', size: 12, color: COLORS.blanco },
-                          },
-                        }]}
-                        layout={{
-                          geo: { fitbounds: 'locations', visible: false },
-                          margin: { t: 8, b: 8, l: 8, r: 40 },
-                          autosize: true,
-                          paper_bgcolor: COLORS.blanco,
-                          plot_bgcolor: COLORS.blanco,
-                        }}
-                        config={{ scrollZoom: false, displayModeBar: false }}
-                        useResizeHandler
-                        style={{ width: '100%', height: '100%' }}
-                      />
-                    )}
+                  {/* Mapa de Calor y Regla Métrica en marcos independientes */}
+                  <div style={{ display: 'flex', gap: '14px', height: isMobile ? '380px' : '520px', alignItems: 'stretch' }}>
+
+                    {/* Marco del Mapa (con Zoom exclusivo) */}
+                    <div style={{
+                      flex: 1,
+                      backgroundColor: COLORS.blanco,
+                      borderRadius: '14px',
+                      padding: '12px',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                      position: 'relative',
+                      overflow: 'hidden',
+                    }}>
+                      {/* Botones de Zoom flotantes para el mapa */}
+                      <div style={{
+                        position: 'absolute',
+                        top: '20px',
+                        left: '20px',
+                        zIndex: 10,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.92)',
+                        padding: '6px',
+                        borderRadius: '10px',
+                        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                        border: `1px solid ${COLORS.grisClaro}`,
+                        backdropFilter: 'blur(4px)',
+                      }}>
+                        <button
+                          type="button"
+                          onClick={() => setZoomScale(prev => Math.min(prev + 0.25, 3))}
+                          style={{
+                            backgroundColor: COLORS.blanco,
+                            border: `1px solid ${COLORS.gris}`,
+                            borderRadius: '6px',
+                            padding: '6px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: COLORS.grisOxford,
+                          }}
+                          title="Acercar mapa (+)"
+                        >
+                          <ZoomIn size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setZoomScale(prev => Math.max(prev - 0.25, 0.75))}
+                          style={{
+                            backgroundColor: COLORS.blanco,
+                            border: `1px solid ${COLORS.gris}`,
+                            borderRadius: '6px',
+                            padding: '6px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: COLORS.grisOxford,
+                          }}
+                          title="Alejar mapa (-)"
+                        >
+                          <ZoomOut size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setZoomScale(1)}
+                          style={{
+                            backgroundColor: COLORS.blanco,
+                            border: `1px solid ${COLORS.gris}`,
+                            borderRadius: '6px',
+                            padding: '6px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: COLORS.grisOxford,
+                          }}
+                          title="Restablecer zoom (100%)"
+                        >
+                          <RotateCcw size={16} />
+                        </button>
+                      </div>
+
+                      {modalDistrictSectionsGeo && (
+                        <div style={{
+                          width: '100%',
+                          height: '100%',
+                          transform: `scale(${zoomScale})`,
+                          transformOrigin: 'center center',
+                          transition: 'transform 0.2s ease-out',
+                        }}>
+                          <Plot
+                            data={[
+                              {
+                                type: 'choropleth',
+                                geojson: modalDistrictSectionsGeo,
+                                locations: modalHeatmapPlotData.locations,
+                                z: modalHeatmapPlotData.z,
+                                featureidkey: 'id',
+                                colorscale: [[0, COLORS.blanco], [1, COLORS.rosaFuerte]],
+                                zmin: 0,
+                                zmax: 100,
+                                showscale: false,
+                                marker: { line: { color: COLORS.grisMedio, width: 0.4 } },
+                                hoverinfo: 'text',
+                                text: modalHeatmapPlotData.hoverTexts,
+                                hoverlabel: {
+                                  bgcolor: COLORS.grisOxford,
+                                  bordercolor: COLORS.beige,
+                                  font: { family: 'Outfit, sans-serif', size: 12, color: COLORS.blanco },
+                                },
+                              },
+                              {
+                                type: 'scattergeo',
+                                lon: modalHeatmapPlotData.textLons,
+                                lat: modalHeatmapPlotData.textLats,
+                                text: modalHeatmapPlotData.textLabels,
+                                mode: 'text',
+                                textfont: {
+                                  family: 'Outfit, sans-serif',
+                                  size: sectionFontSize,
+                                  color: COLORS.grisOxford,
+                                },
+                                hoverinfo: 'none',
+                                showlegend: false,
+                              }
+                            ]}
+                            layout={{
+                              geo: { fitbounds: 'locations', visible: false },
+                              margin: { t: 8, b: 8, l: 8, r: 8 },
+                              autosize: true,
+                              paper_bgcolor: COLORS.blanco,
+                              plot_bgcolor: COLORS.blanco,
+                            }}
+                            config={{ scrollZoom: false, displayModeBar: false }}
+                            useResizeHandler
+                            style={{ width: '100%', height: '100%' }}
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Marco independiente para la Regla Métrica (Colorbar Rectangular) */}
+                    <div style={{
+                      width: '110px',
+                      backgroundColor: COLORS.blanco,
+                      borderRadius: '14px',
+                      padding: '16px 10px',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: `1px solid ${COLORS.grisClaro}`,
+                    }}>
+                      <div style={{
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        color: COLORS.grisOxford,
+                        marginBottom: '12px',
+                        textAlign: 'center',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px',
+                      }}>
+                        Escala (%)
+                      </div>
+
+                      {/* Regla métrica rectangular con hitos 100%, 80%, 60%, 40%, 20%, 0% */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        height: '320px',
+                        position: 'relative',
+                      }}>
+                        {/* Barra de gradiente rectangular estricta */}
+                        <div style={{
+                          width: '20px',
+                          height: '100%',
+                          borderRadius: '0px',
+                          background: `linear-gradient(to top, ${COLORS.blanco}, ${COLORS.rosaFuerte})`,
+                          border: `1px solid ${COLORS.grisOxford}`,
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.08)',
+                        }} />
+
+                        {/* Hitos graduales y etiquetas */}
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          height: '100%',
+                          fontSize: '0.73rem',
+                          fontWeight: 600,
+                          color: COLORS.grisOxford,
+                          lineHeight: 1,
+                        }}>
+                          {[100, 80, 60, 40, 20, 0].map(val => (
+                            <div key={val} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                              <span style={{ fontSize: '0.65rem', color: COLORS.grisMedio }}>—</span>
+                              <span style={{ color: val === 100 ? COLORS.rosaFuerte : COLORS.grisOxford, fontWeight: val === 100 || val === 0 ? 700 : 600 }}>
+                                {val}%
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
                   </div>
                 </div>
               )}
