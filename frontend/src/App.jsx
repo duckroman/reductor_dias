@@ -13,6 +13,7 @@ import SeccionesGHMap from './components/SeccionesGHMap';
 import AvanceDistxPEC from './components/AvanceDistxPEC';
 import MapaRankingDistritos from './components/MapaRankingDistritos';
 import CampecheComponent from './components/CampecheComponent';
+import Recontrataciones from './components/Recontrataciones';
 import { getSheets, uploadDataFile, getActiveFile, getDatasets, selectDataset, clearCache } from './services/api';
 import { Menu, X } from 'lucide-react';
 import './App.css';
@@ -271,6 +272,16 @@ if ([
   return <CampecheComponent />;
 }
 
+// Ruta para el componente de Recontrataciones (Fichas Vocales)
+if ([
+  '/recontrataciones',
+  '/recontrataciones.jsx',
+  '/Recontrataciones',
+  '/Recontrataciones.jsx'
+].includes(currentPath.replace(/\/$/, ''))) {
+  return <Recontrataciones />;
+}
+
   // ============================================
   // PANTALLA 1: Selección de Etapa
   // ============================================
@@ -314,6 +325,9 @@ if ([
             </button>
             <button className="sidebar-btn" onClick={() => navigateTo('/campeche', 'campeche')} style={{ background: 'linear-gradient(135deg, #454248, #C5A989)', color: '#fff' }}>
               🏛️ Desempeño Campeche
+            </button>
+            <button className="sidebar-btn" onClick={() => navigateTo('/recontrataciones', 'recontrataciones')} style={{ background: 'linear-gradient(135deg, #E60073, #454248)', color: '#fff' }}>
+              🛡️ Recontrataciones (Vocales)
             </button>
           </div>
         </div>
@@ -486,6 +500,21 @@ if ([
             >
               <span className="sidebar-icon">📽️</span>
               <span className="sidebar-label" style={{ fontWeight: '600', color: activeTab === 'presentation' ? '#fff' : '#c084fc' }}>Presentación Ejecutiva</span>
+            </button>
+            <button
+              className={`sidebar-btn ${activeTab === 'recontrataciones' ? 'active' : ''}`}
+              onClick={() => { 
+                navigateTo('/recontrataciones', 'recontrataciones');
+                setMobileMenuOpen(false);
+              }}
+              style={{
+                background: activeTab === 'recontrataciones' ? '#E60073' : 'linear-gradient(135deg, rgba(230, 0, 115, 0.2), rgba(69, 66, 72, 0.4))',
+                border: '1px solid #E60073',
+                marginTop: '8px'
+              }}
+            >
+              <span className="sidebar-icon">🛡️</span>
+              <span className="sidebar-label" style={{ fontWeight: '600', color: '#fff' }}>Recontrataciones (Vocales)</span>
             </button>
           </div>
         )}
