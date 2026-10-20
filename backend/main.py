@@ -1092,6 +1092,7 @@ async def get_avance_distritos():
 
 
 @app.get("/campeche")
+@app.get("/api/campeche")
 async def get_campeche_data():
     """
     Devuelve los datos de desempeño por sección para Campeche.
@@ -1126,6 +1127,112 @@ async def get_campeche_data():
         return JSONResponse(content=data)
     except Exception as exc:
         return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
+@app.get("/api/recontrataciones/{estado}")
+@app.get("/recontrataciones/{estado}")
+def get_recontrataciones_estado(estado: str):
+    """
+    Obtiene los datos del dataset de recontrataciones para un estado dado.
+    Identifica el estado a partir de la última palabra del nombre del archivo Excel antes de la extensión.
+    Ejemplo: 20261020_recontrataciones_aguascalientes.xlsx -> aguascalientes
+    """
+    import glob
+    import unicodedata
+
+    def normalize(text):
+        if not text:
+            return ""
+        nfkd = unicodedata.normalize('NFKD', text)
+        return "".join([c for c in nfkd if not unicodedata.combining(c)]).lower().replace(' ', '_').replace('-', '_').strip()
+
+    target_norm = normalize(estado)
+    files = glob.glob(os.path.join(DATASETS_DIR, "*.xlsx"))
+    matching_file = None
+
+    for f in files:
+        fname = os.path.basename(f)
+        # Quitar la extensión .xlsx
+        name_without_ext = os.path.splitext(fname)[0]
+        # Extraer la última palabra del nombre antes de la extensión (separador _ o - o espacio)
+        parts = [p for p in name_without_ext.replace('-', '_').split('_') if p.strip()]
+        last_word = parts[-1] if parts else ""
+        last_word_norm = normalize(last_word)
+
+        if last_word_norm == target_norm or target_norm in last_word_norm or last_word_norm in target_norm:
+            matching_file = f
+            break
+
+    if not matching_file or not os.path.exists(matching_file):
+        return JSONResponse(status_code=404, content={"error": f"Dataset de recontrataciones no encontrado para {estado}"})
+
+    try:
+        wb = openpyxl.load_workbook(matching_file, data_only=True)
+        ws = wb.active
+        all_rows = list(ws.iter_rows(values_only=True))
+        wb.close()
+
+        # Extraer metadatos de cabecera si existen
+        proceso = all_rows[3][1] if len(all_rows) > 3 and all_rows[3] else None
+        tema = all_rows[4][1] if len(all_rows) > 4 and all_rows[4] else None
+        fecha_corte = all_rows[6][7] if len(all_rows) > 6 and len(all_rows[6]) > 7 else None
+
+        # Fila 9 contiene los encabezados reales (Fila 8 en 0-indexed)
+        # Columnas:
+        # Col 0: Entidad
+        # Col 1: Distrito
+        # Col 2: Cabecera distrital federal
+        # Col 3: Total de ciudadanos/as a contactar (A)
+        # Col 4: Contactados no localizados (B)
+        # Col 5: Comunicacion establecida (C)
+        # Col 6: Pendiente por contactar (A-B-C)
+        # Col 7: Aceptaron recontratacion
+        # Col 8: JLE invito a RPP a entrevistas (solo JLE)
+        # Col 9: Observaciones
+        
+        totales = None
+        distritos = []
+
+        for row_idx in range(10, len(all_rows)):
+            r = all_rows[row_idx]
+            if not r or r[0] is None:
+                continue
+
+            distrito_str = str(r[1]).strip() if r[1] is not None else ""
+            entidad_str = str(r[0]).strip() if r[0] is not None else ""
+            cabecera_str = str(r[2]).strip() if r[2] is not None else ""
+
+            row_data = {
+                "entidad": entidad_str,
+                "distrito": distrito_str,
+                "cabecera": cabecera_str,
+                "total_contactar": r[3] if r[3] is not None else 0,
+                "contactados_no_localizados": r[4] if r[4] is not None else 0,
+                "comunicacion_establecida": r[5] if r[5] is not None else 0,
+                "pendiente_contactar": r[6] if r[6] is not None else 0,
+                "aceptaron_recontratacion": r[7] if r[7] is not None else 0,
+                "invito_rpp": str(r[8]).strip() if r[8] is not None else "",
+                "observaciones": str(r[9]).strip() if len(r) > 9 and r[9] is not None else ""
+            }
+
+            if distrito_str.upper() == "JLE":
+                totales = row_data
+            elif distrito_str:
+                distritos.append(row_data)
+
+        return JSONResponse(content={
+            "proceso": proceso,
+            "tema": tema,
+            "fecha_corte": fecha_corte,
+            "totales": totales,
+            "distritos": distritos,
+            "archivo": os.path.basename(matching_file)
+        })
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
+
 
 
 if __name__ == "__main__":

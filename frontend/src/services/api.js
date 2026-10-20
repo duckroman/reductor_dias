@@ -180,3 +180,24 @@ export const getCampecheData = async () => {
   }
 };
 
+// ============================================================
+// Recontrataciones por Estado
+// ============================================================
+
+export const getRecontratacionesEstado = async (estado) => {
+  try {
+    const response = await api.get(`/recontrataciones/${encodeURIComponent(estado)}`);
+    return response.data;
+  } catch (error) {
+    // Intento directo con fallback a http://127.0.0.1:8000
+    try {
+      const directResponse = await axios.get(`http://127.0.0.1:8000/recontrataciones/${encodeURIComponent(estado)}`);
+      return directResponse.data;
+    } catch (e) {
+      console.warn(`No se pudo obtener el dataset de recontrataciones para ${estado}:`, error);
+      return null;
+    }
+  }
+};
+
+

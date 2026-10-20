@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import PlotlyComponent from 'react-plotly.js';
 import {
   Shield,
@@ -9,22 +9,26 @@ import {
   Check,
   X,
   RotateCcw,
-  Download,
-  Upload,
-  Layers,
   ChevronRight,
   ArrowLeft,
   Sparkles,
-  Info,
-  Maximize2
+  Users,
+  PhoneCall,
+  UserCheck,
+  CheckCircle2,
+  AlertCircle,
+  Building2,
+  Layers,
+  FileSpreadsheet,
+  MessageSquare
 } from 'lucide-react';
 import mexicoGeoData from '../data/mexico_geo.json';
-import distritosGeoData from '../data/distritos_geometria_mexico.json';
+import { getRecontratacionesEstado } from '../services/api';
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
 // ===========================================================================
-// Paleta de Colores Oficial
+// Paleta Oficial (Gris Oxford, Beige, Grises Institucionales - Sin Rosa)
 // ===========================================================================
 const COLORS = {
   grisOxford: '#454248',
@@ -35,12 +39,13 @@ const COLORS = {
   grisCalido: '#DDD4CE',
   negro: '#000000',
   blanco: '#FFFFFF',
-  rosaFuerte: '#E60073',
+  fondoClaro: '#F5F6F8',
+  bordeSuave: '#E2E5E8'
 };
 
-const STORAGE_KEY = 'ine_recontrataciones_vocalias_v1';
+const STORAGE_KEY = 'ine_recontrataciones_vocalias_v4';
 
-// Mapeo básico de catálogo de 32 entidades con distritos aproximados
+// 32 Entidades federativas
 const ENTIDADES_CATALOGO = [
   { id: 1, name: 'Aguascalientes', key: 'aguascalientes', distritos: 3 },
   { id: 2, name: 'Baja California', key: 'baja california', distritos: 9 },
@@ -76,46 +81,23 @@ const ENTIDADES_CATALOGO = [
   { id: 32, name: 'Zacatecas', key: 'zacatecas', distritos: 4 },
 ];
 
-// Valores por defecto
-const DEFAULT_VOCALIA_DATA = {
-  vocalEjecutivo: {
-    nombre: 'Lic. Roberto Morales Peña',
-    antiguedadCargo: '4 años, 2 meses',
-    antiguedadIne: '14 años',
-    nivel: 'Rango Titular L-3',
-    estatus: 'Titular Activo',
-    folio: 'SPEN-VE-2024'
-  },
-  vocalCapacitacion: {
-    nombre: 'Mtra. Elena Gómez Valenzuela',
-    antiguedadCargo: '2 años, 8 meses',
-    antiguedadIne: '9 años',
-    nivel: 'Rango Especialista C-2',
-    estatus: 'Titular Activo',
-    folio: 'SPEN-VCE-2024'
-  }
-};
-
-// Generador de datos iniciales
-const generateInitialStore = () => {
+const generateInitialVocales = () => {
   const store = {};
   ENTIDADES_CATALOGO.forEach(ent => {
     store[ent.name] = {
       vocalEjecutivo: {
-        nombre: `Vocal Ejecutivo(a) - ${ent.name}`,
+        nombre: `Lic. Vocal Ejecutivo(a) - ${ent.name}`,
         antiguedadCargo: '3 años',
         antiguedadIne: '10 años',
-        nivel: 'Nivel SPEN Tipo A',
-        estatus: 'Vigente',
-        folio: `VE-${ent.id.toString().padStart(2, '0')}-2024`
+        folio: `VE-${ent.id.toString().padStart(2, '0')}-2026`,
+        estatus: 'Titular Activo'
       },
       vocalCapacitacion: {
-        nombre: `Vocal de Capacitación - ${ent.name}`,
+        nombre: `Mtro(a). Vocal de Capacitación - ${ent.name}`,
         antiguedadCargo: '2 años',
         antiguedadIne: '7 años',
-        nivel: 'Nivel SPEN Tipo B',
-        estatus: 'Vigente',
-        folio: `VCE-${ent.id.toString().padStart(2, '0')}-2024`
+        folio: `VCE-${ent.id.toString().padStart(2, '0')}-2026`,
+        estatus: 'Titular Activo'
       }
     };
   });
@@ -128,37 +110,41 @@ export default function Recontrataciones() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) return JSON.parse(saved);
     } catch (e) {
-      console.warn('Error reading from localStorage', e);
+      console.warn('Error reading localStorage', e);
     }
-    return generateInitialStore();
+    return generateInitialVocales();
   });
 
-  const [selectedState, setSelectedState] = useState('Campeche');
-  const [viewMode, setViewMode] = useState('nacional'); // 'nacional' | 'estatal_distritos'
-  const [editingCard, setEditingCard] = useState(null); // 'vocalEjecutivo' | 'vocalCapacitacion' | null
+  const [selectedState, setSelectedState] = useState(null);
+  const [stateDataset, setStateDataset] = useState(null);
+  const [loadingDataset, setLoadingDataset] = useState(false);
+
+  // Pestañas de la tarjeta: 'resumen_jle' | 'distritos' | 'vocales'
+  const [cardTab, setCardTab] = useState('resumen_jle');
+
+  // Distrito seleccionado dentro de la pestaña distritos
+  const [selectedDistritoItem, setSelectedDistritoItem] = useState(null);
+
+  // Edición in-situ de vocales
+  const [editingCard, setEditingCard] = useState(null);
   const [editFormData, setEditFormData] = useState({});
   const [toastMessage, setToastMessage] = useState(null);
-  const fileInputRef = useRef(null);
 
-  // Guardar en localStorage ante cualquier cambio
+  // Persistencia local
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(vocalesStore));
     } catch (e) {
-      console.error('Error saving to localStorage', e);
+      console.error('Error saving localStorage', e);
     }
   }, [vocalesStore]);
 
-  // Mostrar mensaje tipo toast
   const showToast = (msg) => {
     setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage(null);
-    }, 3200);
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Normalizador de nombres de estado
-  const normalizeStateName = (str) => {
+  const normalize = (str) => {
     if (!str) return '';
     return str
       .toLowerCase()
@@ -168,32 +154,53 @@ export default function Recontrataciones() {
       .trim();
   };
 
-  // Entidad actual seleccionada
-  const currentEntityMeta = useMemo(() => {
-    return ENTIDADES_CATALOGO.find(e => normalizeStateName(e.name) === normalizeStateName(selectedState)) || {
-      id: 0,
-      name: selectedState || 'Entidad no seleccionada',
-      distritos: 0
-    };
+  // Cargar dataset del estado
+  useEffect(() => {
+    if (!selectedState) {
+      setStateDataset(null);
+      return;
+    }
+
+    setLoadingDataset(true);
+    getRecontratacionesEstado(selectedState)
+      .then(res => {
+        setStateDataset(res);
+      })
+      .catch(err => {
+        console.warn('Error fetching dataset for state:', selectedState, err);
+        setStateDataset(null);
+      })
+      .finally(() => {
+        setLoadingDataset(false);
+      });
   }, [selectedState]);
 
-  // Datos de los vocales del estado actual
-  const currentVocales = useMemo(() => {
-    if (!selectedState) return DEFAULT_VOCALIA_DATA;
-    return vocalesStore[selectedState] || vocalesStore[currentEntityMeta.name] || DEFAULT_VOCALIA_DATA;
-  }, [vocalesStore, selectedState, currentEntityMeta]);
+  // Selección al hacer clic en el mapa
+  const handleMapClick = (stateName) => {
+    setSelectedState(stateName);
+    setCardTab('resumen_jle');
+    setSelectedDistritoItem(null);
+    setEditingCard(null);
+  };
 
-  // Iniciar edición
+  const currentVocales = useMemo(() => {
+    if (!selectedState) return null;
+    return vocalesStore[selectedState] || generateInitialVocales()[selectedState] || {
+      vocalEjecutivo: { nombre: 'Por asignar', antiguedadCargo: 'N/A', antiguedadIne: 'N/A' },
+      vocalCapacitacion: { nombre: 'Por asignar', antiguedadCargo: 'N/A', antiguedadIne: 'N/A' }
+    };
+  }, [vocalesStore, selectedState]);
+
+  // Manejo de edición in-situ de vocales
   const handleStartEdit = (roleKey) => {
     setEditingCard(roleKey);
     setEditFormData({ ...currentVocales[roleKey] });
   };
 
-  // Guardar edición
   const handleSaveEdit = (roleKey) => {
     const updated = {
       ...vocalesStore,
-      [currentEntityMeta.name]: {
+      [selectedState]: {
         ...currentVocales,
         [roleKey]: {
           ...currentVocales[roleKey],
@@ -203,61 +210,15 @@ export default function Recontrataciones() {
     };
     setVocalesStore(updated);
     setEditingCard(null);
-    showToast(`✅ Ficha de ${roleKey === 'vocalEjecutivo' ? 'Vocal Ejecutivo' : 'Vocal de Capacitación'} guardada con éxito.`);
+    showToast(`✅ Ficha guardada con éxito.`);
   };
 
-  // Cancelar edición
   const handleCancelEdit = () => {
     setEditingCard(null);
     setEditFormData({});
   };
 
-  // Restablecer valores de la entidad
-  const handleResetCurrent = () => {
-    if (window.confirm(`¿Deseas restablecer los valores originales para ${currentEntityMeta.name}?`)) {
-      const initial = generateInitialStore();
-      setVocalesStore(prev => ({
-        ...prev,
-        [currentEntityMeta.name]: initial[currentEntityMeta.name]
-      }));
-      setEditingCard(null);
-      showToast(`🔄 Valores de ${currentEntityMeta.name} restablecidos.`);
-    }
-  };
-
-  // Exportar respaldo en JSON
-  const handleExportJSON = () => {
-    const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(vocalesStore, null, 2));
-    const dlAnchor = document.createElement('a');
-    dlAnchor.setAttribute('href', dataStr);
-    dlAnchor.setAttribute('download', `vocalias_ine_recontrataciones_${new Date().toISOString().slice(0, 10)}.json`);
-    dlAnchor.click();
-    showToast('💾 Respaldo JSON exportado exitosamente.');
-  };
-
-  // Importar respaldo JSON
-  const handleImportJSON = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const parsed = JSON.parse(event.target.result);
-        if (typeof parsed === 'object') {
-          setVocalesStore(parsed);
-          showToast('📥 Base de datos de vocales cargada correctamente.');
-        }
-      } catch (err) {
-        alert('Archivo JSON no válido.');
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = null;
-  };
-
-  // ---------------------------------------------------------------------------
-  // Geometrías para Plotly
-  // ---------------------------------------------------------------------------
+  // Geometría del mapa
   const locations = useMemo(() => {
     if (!mexicoGeoData || !mexicoGeoData.features) return [];
     return mexicoGeoData.features.map(f => f.properties.name);
@@ -265,34 +226,24 @@ export default function Recontrataciones() {
 
   const zValues = useMemo(() => {
     return locations.map(name => {
-      const isSel = normalizeStateName(name) === normalizeStateName(selectedState);
-      return isSel ? 100 : 40;
+      if (!selectedState) return 20;
+      return normalize(name) === normalize(selectedState) ? 100 : 35;
     });
   }, [locations, selectedState]);
 
-  // Geometría distrital para la entidad seleccionada (Nivel 2)
-  const distritosEstaduales = useMemo(() => {
-    if (!distritosGeoData) return [];
-    const key = normalizeStateName(selectedState);
-    // Buscar coincidencia en keys de distritos_geometria_mexico
-    for (const [k, dList] of Object.entries(distritosGeoData)) {
-      if (normalizeStateName(k) === key || k.toLowerCase().includes(key) || key.includes(k.toLowerCase())) {
-        return dList;
-      }
-    }
-    return [];
-  }, [selectedState]);
+  // Datos JLE del dataset
+  const jleData = stateDataset?.totales;
 
   return (
     <div style={{
-      minHeight: '100vh',
-      background: `linear-gradient(135deg, ${COLORS.grisOxford} 0%, #201f22 100%)`,
-      color: COLORS.blanco,
+      width: '100vw',
+      height: '100vh',
+      background: COLORS.fondoClaro,
       fontFamily: "'Outfit', 'Segoe UI', sans-serif",
       display: 'flex',
       flexDirection: 'column',
-      padding: '24px 32px',
-      boxSizing: 'border-box'
+      position: 'relative',
+      overflow: 'hidden'
     }}>
       {/* Toast Notification */}
       {toastMessage && (
@@ -300,571 +251,793 @@ export default function Recontrataciones() {
           position: 'fixed',
           top: 24,
           right: 32,
-          zIndex: 9999,
-          background: 'rgba(230, 0, 115, 0.95)',
+          zIndex: 99999,
+          background: COLORS.grisOxford,
           color: COLORS.blanco,
-          padding: '14px 22px',
-          borderRadius: '12px',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.4)',
-          fontWeight: '600',
-          backdropFilter: 'blur(8px)',
-          border: `1px solid ${COLORS.beige}`,
+          padding: '12px 20px',
+          borderRadius: '10px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+          fontWeight: 600,
           display: 'flex',
           alignItems: 'center',
           gap: 10,
-          animation: 'slideIn 0.3s ease-out'
+          border: `1px solid ${COLORS.beige}`,
+          fontSize: '0.88rem'
         }}>
-          <Sparkles size={18} color={COLORS.beige} />
+          <Sparkles size={16} color={COLORS.beige} />
           {toastMessage}
         </div>
       )}
 
-      {/* Header Superior */}
+      {/* Header Superior Limpio */}
       <header style={{
+        height: '56px',
+        background: COLORS.blanco,
+        borderBottom: `1px solid ${COLORS.bordeSuave}`,
         display: 'flex',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        background: 'rgba(32, 31, 34, 0.75)',
-        backdropFilter: 'blur(16px)',
-        border: `1px solid rgba(197, 169, 137, 0.25)`,
-        padding: '18px 28px',
-        borderRadius: '16px',
-        marginBottom: '24px',
-        boxShadow: '0 8px 30px rgba(0,0,0,0.35)'
+        justifyContent: 'space-between',
+        padding: '0 24px',
+        zIndex: 50,
+        boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{
-            background: `linear-gradient(135deg, ${COLORS.rosaFuerte}, #8b004f)`,
-            width: 48,
-            height: 48,
-            borderRadius: 12,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: `0 4px 15px rgba(230, 0, 115, 0.4)`
-          }}>
-            <Shield size={26} color={COLORS.blanco} />
-          </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h1 style={{ margin: 0, fontSize: '1.45rem', fontWeight: 800, letterSpacing: '0.5px' }}>
-                RECONTRATACIONES INE
-              </h1>
-              <span style={{
-                background: 'rgba(230, 0, 115, 0.15)',
-                color: COLORS.rosaFuerte,
-                border: `1px solid ${COLORS.rosaFuerte}`,
-                padding: '2px 10px',
-                borderRadius: '20px',
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '1px'
-              }}>
-                Fichas Ejecutivas SPEN
-              </span>
-            </div>
-            <p style={{ margin: '4px 0 0', color: COLORS.grisClaro, fontSize: '0.85rem' }}>
-              Gestión interactiva in-situ de Vocales Ejecutivos y de Capacitación Electoral
-            </p>
-          </div>
-        </div>
-
-        {/* Acciones y Persistencia */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button
-            onClick={handleExportJSON}
-            title="Exportar respaldo de datos a archivo JSON"
-            style={{
-              background: 'rgba(69, 66, 72, 0.8)',
-              border: `1px solid ${COLORS.grisMedio}`,
-              color: COLORS.blanco,
-              padding: '9px 16px',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              transition: 'all 0.2s'
-            }}
-          >
-            <Download size={15} color={COLORS.beige} />
-            Exportar JSON
-          </button>
-
-          <button
-            onClick={() => fileInputRef.current && fileInputRef.current.click()}
-            title="Cargar respaldo desde archivo JSON"
-            style={{
-              background: 'rgba(69, 66, 72, 0.8)',
-              border: `1px solid ${COLORS.grisMedio}`,
-              color: COLORS.blanco,
-              padding: '9px 16px',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              fontSize: '0.82rem',
-              fontWeight: 600,
-              transition: 'all 0.2s'
-            }}
-          >
-            <Upload size={15} color={COLORS.rosaFuerte} />
-            Importar JSON
-          </button>
-          <input
-            type="file"
-            accept=".json"
-            ref={fileInputRef}
-            style={{ display: 'none' }}
-            onChange={handleImportJSON}
-          />
-
-          <button
-            onClick={handleResetCurrent}
-            title="Restablecer esta entidad"
-            style={{
-              background: 'rgba(230, 0, 115, 0.1)',
-              border: `1px solid rgba(230, 0, 115, 0.3)`,
-              color: COLORS.rosaFuerte,
-              padding: '9px 14px',
-              borderRadius: '10px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              fontSize: '0.82rem',
-              fontWeight: 600
-            }}
-          >
-            <RotateCcw size={15} />
-            Reset
-          </button>
-        </div>
-      </header>
-
-      {/* Grid Principal: Mapa a la Izquierda, Fichas de Videojuego a la Derecha */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1.15fr 0.85fr',
-        gap: '24px',
-        flex: 1
-      }}>
-        {/* =========================================================================
-            PANEL IZQUIERDO: Mapa Interactivo Nacional / Distrital (Escalable)
-           ========================================================================= */}
-        <section style={{
-          background: 'rgba(25, 24, 27, 0.7)',
-          backdropFilter: 'blur(14px)',
-          borderRadius: '18px',
-          border: `1px solid rgba(197, 169, 137, 0.2)`,
-          padding: '20px',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 12px 35px rgba(0,0,0,0.35)',
-          overflow: 'hidden'
-        }}>
-          {/* Barra de control del Mapa */}
           <div style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '16px'
+            background: COLORS.grisOxford,
+            color: COLORS.blanco,
+            fontWeight: 800,
+            fontSize: '0.82rem',
+            padding: '4px 10px',
+            borderRadius: '6px',
+            letterSpacing: '1px'
           }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Layers size={18} color={COLORS.rosaFuerte} />
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700 }}>
-                  {viewMode === 'nacional' ? 'Visor Geográfico Nacional' : `Detalle Distrital: ${selectedState}`}
-                </h3>
-              </div>
-              <span style={{ fontSize: '0.8rem', color: COLORS.gris }}>
-                {viewMode === 'nacional'
-                  ? 'Haz clic en cualquier estado para desplegar sus credenciales y datos'
-                  : `Visualización de los ${currentEntityMeta.distritos || distritosEstaduales.length || 'N'} distritos federales`}
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', gap: 10 }}>
-              {viewMode === 'estatal_distritos' ? (
-                <button
-                  onClick={() => setViewMode('nacional')}
-                  style={{
-                    background: `linear-gradient(135deg, ${COLORS.rosaFuerte}, #99004d)`,
-                    border: 'none',
-                    color: COLORS.blanco,
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    fontSize: '0.8rem',
-                    boxShadow: '0 4px 12px rgba(230, 0, 115, 0.35)'
-                  }}
-                >
-                  <ArrowLeft size={16} /> Volver a México
-                </button>
-              ) : (
-                <button
-                  onClick={() => setViewMode('estatal_distritos')}
-                  style={{
-                    background: 'rgba(197, 169, 137, 0.15)',
-                    border: `1px solid ${COLORS.beige}`,
-                    color: COLORS.beige,
-                    padding: '8px 16px',
-                    borderRadius: '8px',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    fontSize: '0.8rem',
-                    transition: 'all 0.2s'
-                  }}
-                >
-                  Ver Distritos de {selectedState} <ChevronRight size={16} />
-                </button>
-              )}
-            </div>
+            INE
           </div>
-
-          {/* Selector de acceso directo rápido */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            marginBottom: 12,
-            background: 'rgba(0,0,0,0.3)',
-            padding: '8px 14px',
-            borderRadius: '10px'
+          <span style={{ fontWeight: 800, fontSize: '1.05rem', color: COLORS.grisOxford }}>
+            Recontrataciones
+          </span>
+          <span style={{
+            background: COLORS.grisCalido,
+            color: COLORS.grisOxford,
+            fontSize: '0.72rem',
+            fontWeight: 700,
+            padding: '2px 8px',
+            borderRadius: '12px'
           }}>
-            <span style={{ fontSize: '0.78rem', color: COLORS.beige, fontWeight: 700, textTransform: 'uppercase' }}>
-              Entidad Seleccionada:
+            PE Concurrente
+          </span>
+        </div>
+
+        {selectedState && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontSize: '0.85rem', color: COLORS.grisMedio }}>
+              Estado: <b style={{ color: COLORS.grisOxford }}>{selectedState}</b>
             </span>
-            <select
-              value={selectedState}
-              onChange={(e) => {
-                setSelectedState(e.target.value);
-                setEditingCard(null);
+            <button
+              onClick={() => {
+                setSelectedState(null);
+                setStateDataset(null);
+                setSelectedDistritoItem(null);
               }}
               style={{
-                background: COLORS.grisOxford,
-                color: COLORS.blanco,
-                border: `1px solid ${COLORS.grisMedio}`,
-                borderRadius: '6px',
+                background: COLORS.fondoClaro,
+                border: `1px solid ${COLORS.bordeSuave}`,
+                color: COLORS.grisOxford,
                 padding: '4px 10px',
-                fontSize: '0.85rem',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
                 fontWeight: 600,
-                outline: 'none',
                 cursor: 'pointer'
               }}
             >
-              {ENTIDADES_CATALOGO.map(ent => (
-                <option key={ent.id} value={ent.name}>
-                  {ent.id.toString().padStart(2, '0')} - {ent.name}
-                </option>
-              ))}
-            </select>
-            <span style={{ marginLeft: 'auto', fontSize: '0.78rem', color: COLORS.grisClaro }}>
-              Distritos Federales: <b style={{ color: COLORS.rosaFuerte }}>{currentEntityMeta.distritos}</b>
-            </span>
+              Cerrar tarjeta
+            </button>
           </div>
+        )}
+      </header>
 
-          {/* Renderizado de Mapa con Plotly */}
+      {/* =====================================================================
+          MAPA DE MÉXICO - PANTALLA COMPLETA
+         ===================================================================== */}
+      <main style={{
+        flex: 1,
+        position: 'relative',
+        width: '100%',
+        height: 'calc(100vh - 56px)',
+        overflow: 'hidden'
+      }}>
+        <Plot
+          data={[{
+            type: 'choropleth',
+            geojson: mexicoGeoData,
+            locations: locations,
+            z: zValues,
+            featureidkey: 'properties.name',
+            colorscale: [
+              [0, '#EAECEF'],
+              [0.35, '#DEE2E6'],
+              [0.7, COLORS.beige],
+              [1, COLORS.grisOxford]
+            ],
+            zmin: 0,
+            zmax: 100,
+            showscale: false,
+            marker: {
+              line: {
+                color: locations.map(n =>
+                  normalize(n) === normalize(selectedState)
+                    ? COLORS.grisOxford
+                    : '#CBD0D5'
+                ),
+                width: locations.map(n =>
+                  normalize(n) === normalize(selectedState) ? 2.5 : 0.8
+                )
+              }
+            },
+            hoverinfo: 'text',
+            text: locations.map(name => {
+              return `<b>${name.toUpperCase()}</b><br>👉 Clic para desplegar información del dataset y vocales`;
+            }),
+            hoverlabel: {
+              bgcolor: COLORS.blanco,
+              bordercolor: COLORS.grisOxford,
+              font: { family: 'Outfit, sans-serif', size: 12, color: COLORS.grisOxford }
+            }
+          }]}
+          layout={{
+            geo: {
+              scope: 'world',
+              showframe: false,
+              showcoastlines: false,
+              showland: true,
+              landcolor: '#F8F9FA',
+              showocean: true,
+              oceancolor: '#EBF1F6',
+              showlakes: false,
+              projection: { type: 'mercator' },
+              center: { lat: 23.6345, lon: -102.5528 },
+              lonaxis: { range: [-118.5, -86] },
+              lataxis: { range: [14.2, 33] },
+              bgcolor: '#F5F6F8'
+            },
+            margin: { t: 0, r: 0, b: 0, l: 0 },
+            paper_bgcolor: '#F5F6F8',
+            plot_bgcolor: '#F5F6F8',
+            font: { color: COLORS.grisOxford },
+            dragmode: false,
+            autosize: true
+          }}
+          useResizeHandler={true}
+          style={{ width: '100%', height: '100%' }}
+          onClick={(event) => {
+            if (event && event.points && event.points[0]) {
+              const clickedState = event.points[0].location;
+              if (clickedState) {
+                handleMapClick(clickedState);
+              }
+            }
+          }}
+          config={{
+            displayModeBar: false,
+            scrollZoom: false,
+            responsive: true
+          }}
+        />
+
+        {/* Indicador de ayuda al inicio */}
+        {!selectedState && (
           <div style={{
-            flex: 1,
-            minHeight: '440px',
-            background: 'radial-gradient(circle at center, #1c1a1f 0%, #0d0c0e 100%)',
-            borderRadius: '14px',
-            border: '1px solid rgba(255,255,255,0.06)',
-            position: 'relative',
-            overflow: 'hidden'
+            position: 'absolute',
+            bottom: 24,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(8px)',
+            padding: '12px 24px',
+            borderRadius: '30px',
+            border: `1px solid ${COLORS.bordeSuave}`,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            fontSize: '0.88rem',
+            fontWeight: 600,
+            color: COLORS.grisOxford,
+            pointerEvents: 'none',
+            zIndex: 10
           }}>
-            {viewMode === 'nacional' ? (
-              <Plot
-                data={[{
-                  type: 'choropleth',
-                  geojson: mexicoGeoData,
-                  locations: locations,
-                  z: zValues,
-                  featureidkey: 'properties.name',
-                  colorscale: [
-                    [0, COLORS.grisOxford],
-                    [0.4, '#5a565f'],
-                    [0.6, COLORS.beige],
-                    [1, COLORS.rosaFuerte]
-                  ],
-                  zmin: 0,
-                  zmax: 100,
-                  showscale: false,
-                  marker: {
-                    line: {
-                      color: locations.map(n =>
-                        normalizeStateName(n) === normalizeStateName(selectedState)
-                          ? COLORS.blanco
-                          : 'rgba(255,255,255,0.22)'
-                      ),
-                      width: locations.map(n =>
-                        normalizeStateName(n) === normalizeStateName(selectedState) ? 2.5 : 0.8
-                      )
-                    }
-                  },
-                  hoverinfo: 'text',
-                  text: locations.map(name => {
-                    const voc = vocalesStore[name];
-                    const ve = voc ? voc.vocalEjecutivo.nombre : 'Por definir';
-                    return `<b>${name.toUpperCase()}</b><br>🏛️ Vocal Ejecutivo: ${ve}<br>👉 Clic para seleccionar ficha`;
-                  }),
-                  hoverlabel: {
-                    bgcolor: COLORS.negro,
-                    bordercolor: COLORS.rosaFuerte,
-                    font: { family: 'Outfit, sans-serif', size: 12, color: COLORS.blanco }
-                  }
-                }]}
-                layout={{
-                  geo: {
-                    scope: 'world',
-                    showframe: false,
-                    showcoastlines: false,
-                    showland: true,
-                    landcolor: '#161518',
-                    showocean: true,
-                    oceancolor: '#0b0a0c',
-                    showlakes: false,
-                    projection: { type: 'mercator' },
-                    center: { lat: 23.6345, lon: -102.5528 },
-                    lonaxis: { range: [-118.5, -86] },
-                    lataxis: { range: [14.2, 33] },
-                    bgcolor: 'transparent'
-                  },
-                  margin: { t: 0, r: 0, b: 0, l: 0 },
-                  paper_bgcolor: 'transparent',
-                  plot_bgcolor: 'transparent',
-                  font: { color: COLORS.grisClaro },
-                  dragmode: false,
-                  autosize: true
-                }}
-                useResizeHandler={true}
-                style={{ width: '100%', height: '100%' }}
-                onClick={(event) => {
-                  if (event && event.points && event.points[0]) {
-                    const clickedState = event.points[0].location;
-                    if (clickedState) {
-                      setSelectedState(clickedState);
-                      setEditingCard(null);
-                    }
-                  }
-                }}
-                config={{
-                  displayModeBar: false,
-                  scrollZoom: false,
-                  responsive: true
-                }}
-              />
-            ) : (
-              /* Vista Nivel 2: Distritos Electorales del Estado */
-              <div style={{
-                height: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                padding: '24px',
-                boxSizing: 'border-box',
-                overflowY: 'auto'
-              }}>
-                <div style={{
-                  background: 'rgba(230, 0, 115, 0.08)',
-                  border: `1px solid ${COLORS.rosaFuerte}`,
-                  borderRadius: '12px',
-                  padding: '16px',
-                  marginBottom: '16px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <div>
-                    <h4 style={{ margin: 0, color: COLORS.blanco, fontSize: '1rem', fontWeight: 700 }}>
-                      🗺️ Subdivisión Distrital Electoral - {selectedState}
-                    </h4>
-                    <p style={{ margin: '4px 0 0', fontSize: '0.8rem', color: COLORS.grisCalido }}>
-                      {distritosEstaduales.length > 0
-                        ? `Se detectaron ${distritosEstaduales.length} polígonos distritales vectoriales listos para drill-down isométrico.`
-                        : `Configuración para ${currentEntityMeta.distritos} distritos uninominales.`}
-                    </p>
-                  </div>
-                  <span style={{
-                    background: COLORS.rosaFuerte,
-                    color: COLORS.blanco,
-                    fontWeight: 800,
-                    fontSize: '0.75rem',
-                    padding: '4px 12px',
-                    borderRadius: '20px'
-                  }}>
-                    Nivel 2 Activo
-                  </span>
-                </div>
+            <Building2 size={18} color={COLORS.beige} />
+            Haz clic sobre cualquier estado para desplegar su tarjeta informativa
+          </div>
+        )}
 
-                {/* Grid de Distritos */}
+        {/* =====================================================================
+            TARJETA LATERAL DESPLEGABLE DEL ESTADO
+           ===================================================================== */}
+        {selectedState && (
+          <div style={{
+            position: 'absolute',
+            top: 16,
+            right: 20,
+            width: '520px',
+            maxWidth: 'calc(100vw - 40px)',
+            maxHeight: 'calc(100% - 32px)',
+            background: COLORS.blanco,
+            borderRadius: '18px',
+            border: `1px solid ${COLORS.bordeSuave}`,
+            boxShadow: '0 12px 35px rgba(0,0,0,0.12)',
+            display: 'flex',
+            flexDirection: 'column',
+            zIndex: 100,
+            overflow: 'hidden',
+            animation: 'fadeIn 0.2s ease-out'
+          }}>
+            {/* Header de la Tarjeta del Estado */}
+            <div style={{
+              padding: '18px 22px',
+              background: COLORS.fondoClaro,
+              borderBottom: `1px solid ${COLORS.bordeSuave}`,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div>
+                <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', color: COLORS.beige, letterSpacing: '1px' }}>
+                  Estado Seleccionado
+                </span>
+                <h2 style={{ margin: '2px 0 0', fontSize: '1.35rem', fontWeight: 800, color: COLORS.grisOxford }}>
+                  {selectedState}
+                </h2>
+              </div>
+
+              <button
+                onClick={() => setSelectedState(null)}
+                style={{
+                  background: COLORS.blanco,
+                  border: `1px solid ${COLORS.bordeSuave}`,
+                  color: COLORS.grisOxford,
+                  borderRadius: '50%',
+                  width: 32,
+                  height: 32,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Pestañas de la Tarjeta */}
+            <div style={{
+              display: 'flex',
+              background: '#EBEEF2',
+              padding: '4px',
+              borderBottom: `1px solid ${COLORS.bordeSuave}`
+            }}>
+              <button
+                onClick={() => setCardTab('resumen_jle')}
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: cardTab === 'resumen_jle' ? COLORS.blanco : 'transparent',
+                  color: cardTab === 'resumen_jle' ? COLORS.grisOxford : COLORS.grisMedio,
+                  fontWeight: 700,
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  boxShadow: cardTab === 'resumen_jle' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6
+                }}
+              >
+                <FileSpreadsheet size={14} color={cardTab === 'resumen_jle' ? COLORS.beige : COLORS.grisMedio} />
+                Datos JLE
+              </button>
+
+              <button
+                onClick={() => {
+                  setCardTab('distritos');
+                  setSelectedDistritoItem(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: cardTab === 'distritos' ? COLORS.blanco : 'transparent',
+                  color: cardTab === 'distritos' ? COLORS.grisOxford : COLORS.grisMedio,
+                  fontWeight: 700,
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  boxShadow: cardTab === 'distritos' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6
+                }}
+              >
+                <Layers size={14} color={cardTab === 'distritos' ? COLORS.beige : COLORS.grisMedio} />
+                Mostrar Distritos {stateDataset ? `(${stateDataset.distritos.length})` : ''}
+              </button>
+
+              <button
+                onClick={() => setCardTab('vocales')}
+                style={{
+                  flex: 1,
+                  padding: '9px 12px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: cardTab === 'vocales' ? COLORS.blanco : 'transparent',
+                  color: cardTab === 'vocales' ? COLORS.grisOxford : COLORS.grisMedio,
+                  fontWeight: 700,
+                  fontSize: '0.8rem',
+                  cursor: 'pointer',
+                  boxShadow: cardTab === 'vocales' ? '0 2px 6px rgba(0,0,0,0.06)' : 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6
+                }}
+              >
+                <User size={14} color={cardTab === 'vocales' ? COLORS.beige : COLORS.grisMedio} />
+                Vocales (Editar)
+              </button>
+            </div>
+
+            {/* Contenido Dinámico */}
+            <div style={{
+              flex: 1,
+              overflowY: 'auto',
+              padding: '20px 22px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px'
+            }}>
+              {/* PESTAÑA: VOCALES (SIEMPRE DISPONIBLE E INDEPENDIENTE DEL DATASET) */}
+              {cardTab === 'vocales' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <span style={{ fontSize: '0.8rem', color: COLORS.grisMedio }}>
+                    Figuras de la Junta Local Ejecutiva de <b>{selectedState}</b>. Puedes editar sus datos in-situ.
+                  </span>
+
+                  {/* Vocal Ejecutivo */}
+                  <EditableVocalCard
+                    roleKey="vocalEjecutivo"
+                    title="Vocal Ejecutivo(a)"
+                    subtitle="Junta Local Ejecutiva"
+                    data={editingCard === 'vocalEjecutivo' ? editFormData : currentVocales.vocalEjecutivo}
+                    isEditing={editingCard === 'vocalEjecutivo'}
+                    badgeColor={COLORS.grisOxford}
+                    avatarInitials="VE"
+                    onStartEdit={() => handleStartEdit('vocalEjecutivo')}
+                    onSaveEdit={() => handleSaveEdit('vocalEjecutivo')}
+                    onCancelEdit={handleCancelEdit}
+                    onChangeField={(f, v) => setEditFormData(prev => ({ ...prev, [f]: v }))}
+                  />
+
+                  {/* Vocal de Capacitación */}
+                  <EditableVocalCard
+                    roleKey="vocalCapacitacion"
+                    title="Vocal de Capacitación"
+                    subtitle="Educación Cívica y Capacitación"
+                    data={editingCard === 'vocalCapacitacion' ? editFormData : currentVocales.vocalCapacitacion}
+                    isEditing={editingCard === 'vocalCapacitacion'}
+                    badgeColor={COLORS.beige}
+                    avatarInitials="VC"
+                    onStartEdit={() => handleStartEdit('vocalCapacitacion')}
+                    onSaveEdit={() => handleSaveEdit('vocalCapacitacion')}
+                    onCancelEdit={handleCancelEdit}
+                    onChangeField={(f, v) => setEditFormData(prev => ({ ...prev, [f]: v }))}
+                  />
+                </div>
+              ) : loadingDataset ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: COLORS.grisMedio }}>
+                  Cargando datos del dataset de {selectedState}...
+                </div>
+              ) : !stateDataset ? (
+                /* Estado sin dataset */
                 <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
-                  gap: '14px'
+                  padding: '30px 20px',
+                  textAlign: 'center',
+                  background: COLORS.fondoClaro,
+                  borderRadius: '14px',
+                  border: `1px dashed ${COLORS.bordeSuave}`
                 }}>
-                  {Array.from({ length: currentEntityMeta.distritos || distritosEstaduales.length || 2 }).map((_, idx) => {
-                    const distNum = idx + 1;
-                    return (
-                      <div
-                        key={distNum}
+                  <FileSpreadsheet size={36} color={COLORS.beige} style={{ margin: '0 auto 10px' }} />
+                  <h4 style={{ margin: '0 0 6px', color: COLORS.grisOxford }}>Dataset no disponible</h4>
+                  <p style={{ margin: 0, fontSize: '0.82rem', color: COLORS.grisMedio, lineHeight: 1.4 }}>
+                    Aún no se ha cargado el archivo Excel correspondiente a <b>{selectedState}</b> en la carpeta <code>datasets/</code>.
+                  </p>
+                  <button
+                    onClick={() => setCardTab('vocales')}
+                    style={{
+                      marginTop: '16px',
+                      background: COLORS.grisOxford,
+                      color: COLORS.blanco,
+                      border: 'none',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <User size={14} color={COLORS.beige} /> Consultar o Editar Vocales
+                  </button>
+                </div>
+              ) : cardTab === 'resumen_jle' ? (
+                /* =============================================================
+                   PESTAÑA: DATOS JLE DEL DATASET
+                   ============================================================= */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{
+                    fontSize: '0.78rem',
+                    color: COLORS.grisMedio,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <span>Fila: <b style={{ color: COLORS.grisOxford }}>JLE</b></span>
+                    <span>Archivo: <b>{stateDataset.archivo}</b></span>
+                  </div>
+
+                  {/* Variables en Grid */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '10px'
+                  }}>
+                    {/* Total a contactar (A) */}
+                    <DatasetFieldCard
+                      title="Total de ciudadanos/as a contactar (A)"
+                      value={jleData?.total_contactar ?? 0}
+                      icon={<Users size={16} color={COLORS.grisOxford} />}
+                      borderColor={COLORS.grisOxford}
+                    />
+
+                    {/* Contactados no localizados (B) */}
+                    <DatasetFieldCard
+                      title="Ciudadanos/as contactados, pero no localizados (B)"
+                      value={jleData?.contactados_no_localizados ?? 0}
+                      icon={<PhoneCall size={16} color={COLORS.grisMedio} />}
+                      borderColor={COLORS.grisMedio}
+                    />
+
+                    {/* Comunicación establecida (C) */}
+                    <DatasetFieldCard
+                      title="Ciudadanos/as con comunicación establecida (C)"
+                      value={jleData?.comunicacion_establecida ?? 0}
+                      icon={<UserCheck size={16} color={COLORS.beige} />}
+                      borderColor={COLORS.beige}
+                      highlight
+                    />
+
+                    {/* Pendiente por contactar (A-B-C) */}
+                    <DatasetFieldCard
+                      title="Ciudadanía pendiente por contactar (A-B-C)"
+                      value={jleData?.pendiente_contactar ?? 0}
+                      icon={<AlertCircle size={16} color={COLORS.grisOxford} />}
+                      borderColor={COLORS.grisOxford}
+                    />
+                  </div>
+
+                  {/* Aceptaron la recontratación */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, #FAF8F5, #FFFFFF)',
+                    borderRadius: '12px',
+                    padding: '14px 16px',
+                    border: `1.5px solid ${COLORS.beige}`,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <div>
+                      <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', color: COLORS.beige }}>
+                        Ciudadanos/as que aceptaron la recontratación
+                      </div>
+                      <div style={{ fontSize: '1.6rem', fontWeight: 800, color: COLORS.grisOxford, marginTop: 2 }}>
+                        {jleData?.aceptaron_recontratacion ?? 0}
+                      </div>
+                    </div>
+                    <CheckCircle2 size={32} color={COLORS.beige} />
+                  </div>
+
+                  {/* ¿La JLE ya invitó a las RPP? */}
+                  <div style={{
+                    background: COLORS.fondoClaro,
+                    borderRadius: '12px',
+                    padding: '12px 14px',
+                    border: `1px solid ${COLORS.bordeSuave}`
+                  }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.grisMedio, textTransform: 'uppercase' }}>
+                      ¿La JLE ya invitó a las Representaciones de Partidos Políticos a las entrevistas de recontratación?
+                    </span>
+                    <div style={{ fontSize: '1rem', fontWeight: 800, color: COLORS.grisOxford, marginTop: 4 }}>
+                      {jleData?.invito_rpp || 'Sin respuesta'}
+                    </div>
+                  </div>
+
+                  {/* Observaciones (en su caso) */}
+                  <div style={{
+                    background: COLORS.fondoClaro,
+                    borderRadius: '12px',
+                    padding: '12px 14px',
+                    border: `1px solid ${COLORS.bordeSuave}`
+                  }}>
+                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.grisMedio, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <MessageSquare size={13} /> Observaciones (en su caso)
+                    </span>
+                    <div style={{ fontSize: '0.85rem', color: COLORS.grisOxford, marginTop: 4 }}>
+                      {jleData?.observaciones ? jleData.observaciones : 'Sin observaciones registradas.'}
+                    </div>
+                  </div>
+
+                  {/* Botones de acción rápida dentro de la tarjeta */}
+                  <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                    <button
+                      onClick={() => setCardTab('distritos')}
+                      style={{
+                        flex: 1,
+                        background: COLORS.grisOxford,
+                        color: COLORS.blanco,
+                        border: 'none',
+                        padding: '10px',
+                        borderRadius: '10px',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6
+                      }}
+                    >
+                      <Layers size={15} /> Mostrar Distritos ({stateDataset.distritos.length})
+                    </button>
+
+                    <button
+                      onClick={() => setCardTab('vocales')}
+                      style={{
+                        flex: 1,
+                        background: COLORS.fondoClaro,
+                        color: COLORS.grisOxford,
+                        border: `1px solid ${COLORS.bordeSuave}`,
+                        padding: '10px',
+                        borderRadius: '10px',
+                        fontWeight: 700,
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 6
+                      }}
+                    >
+                      <User size={15} color={COLORS.beige} /> Figuras Vocales
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* =============================================================
+                   PESTAÑA: DISTRITOS
+                   ============================================================= */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  {selectedDistritoItem ? (
+                    /* Detalle del distrito seleccionado */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      <button
+                        onClick={() => setSelectedDistritoItem(null)}
                         style={{
-                          background: 'rgba(40, 38, 43, 0.85)',
-                          border: `1px solid rgba(197, 169, 137, 0.25)`,
-                          borderRadius: '12px',
-                          padding: '16px',
+                          background: 'none',
+                          border: 'none',
+                          color: COLORS.beige,
+                          fontWeight: 700,
+                          fontSize: '0.8rem',
+                          cursor: 'pointer',
                           display: 'flex',
-                          flexDirection: 'column',
-                          gap: 8,
-                          transition: 'all 0.2s',
-                          cursor: 'pointer'
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.borderColor = COLORS.rosaFuerte;
-                          e.currentTarget.style.transform = 'translateY(-3px)';
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.borderColor = 'rgba(197, 169, 137, 0.25)';
-                          e.currentTarget.style.transform = 'translateY(0)';
+                          alignItems: 'center',
+                          gap: 6,
+                          alignSelf: 'flex-start'
                         }}
                       >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{
-                            background: COLORS.grisOxford,
-                            color: COLORS.beige,
-                            fontSize: '0.72rem',
-                            fontWeight: 700,
-                            padding: '3px 8px',
-                            borderRadius: '6px'
-                          }}>
-                            0{distNum} DTO
-                          </span>
-                          <span style={{ fontSize: '0.7rem', color: COLORS.grisMedio }}>Federal</span>
+                        <ArrowLeft size={14} /> Volver a lista de distritos
+                      </button>
+
+                      <div style={{
+                        background: COLORS.fondoClaro,
+                        borderRadius: '12px',
+                        padding: '14px 16px',
+                        border: `1px solid ${COLORS.bordeSuave}`
+                      }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', color: COLORS.beige }}>
+                          Distrito Federal {selectedDistritoItem.distrito}
+                        </span>
+                        <h3 style={{ margin: '2px 0 0', fontSize: '1.15rem', color: COLORS.grisOxford }}>
+                          Cabecera: {selectedDistritoItem.cabecera}
+                        </h3>
+                      </div>
+
+                      {/* Variables con la misma nomenclatura y campos */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: '10px'
+                      }}>
+                        <DatasetFieldCard
+                          title="Total a contactar (A)"
+                          value={selectedDistritoItem.total_contactar}
+                          icon={<Users size={16} color={COLORS.grisOxford} />}
+                          borderColor={COLORS.grisOxford}
+                        />
+
+                        <DatasetFieldCard
+                          title="No localizados (B)"
+                          value={selectedDistritoItem.contactados_no_localizados}
+                          icon={<PhoneCall size={16} color={COLORS.grisMedio} />}
+                          borderColor={COLORS.grisMedio}
+                        />
+
+                        <DatasetFieldCard
+                          title="Comunicación establecida (C)"
+                          value={selectedDistritoItem.comunicacion_establecida}
+                          icon={<UserCheck size={16} color={COLORS.beige} />}
+                          borderColor={COLORS.beige}
+                          highlight
+                        />
+
+                        <DatasetFieldCard
+                          title="Pendiente por contactar"
+                          value={selectedDistritoItem.pendiente_contactar}
+                          icon={<AlertCircle size={16} color={COLORS.grisOxford} />}
+                          borderColor={COLORS.grisOxford}
+                        />
+                      </div>
+
+                      <div style={{
+                        background: 'linear-gradient(135deg, #FAF8F5, #FFFFFF)',
+                        borderRadius: '12px',
+                        padding: '14px 16px',
+                        border: `1.5px solid ${COLORS.beige}`,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}>
+                        <div>
+                          <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', color: COLORS.beige }}>
+                            Aceptaron la recontratación
+                          </div>
+                          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: COLORS.grisOxford, marginTop: 2 }}>
+                            {selectedDistritoItem.aceptaron_recontratacion}
+                          </div>
                         </div>
-                        <div style={{ fontWeight: 700, fontSize: '0.92rem', color: COLORS.blanco }}>
-                          Junta Distrital {distNum}
-                        </div>
-                        <div style={{ fontSize: '0.75rem', color: COLORS.grisClaro }}>
-                          Cabecera: <span style={{ color: COLORS.beige }}>En asignación</span>
-                        </div>
-                        <div style={{
-                          marginTop: 'auto',
-                          paddingTop: '8px',
-                          borderTop: '1px solid rgba(255,255,255,0.06)',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          fontSize: '0.7rem',
-                          color: COLORS.grisMedio
-                        }}>
-                          <span>Capacitación: OK</span>
-                          <span style={{ color: COLORS.rosaFuerte, fontWeight: 700 }}>Activo</span>
+                        <CheckCircle2 size={30} color={COLORS.beige} />
+                      </div>
+
+                      <div style={{
+                        background: COLORS.fondoClaro,
+                        borderRadius: '12px',
+                        padding: '12px 14px',
+                        border: `1px solid ${COLORS.bordeSuave}`
+                      }}>
+                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.grisMedio, textTransform: 'uppercase' }}>
+                          Observaciones
+                        </span>
+                        <div style={{ fontSize: '0.85rem', color: COLORS.grisOxford, marginTop: 4 }}>
+                          {selectedDistritoItem.observaciones ? selectedDistritoItem.observaciones : 'Sin observaciones en este distrito.'}
                         </div>
                       </div>
-                    );
-                  })}
+                    </div>
+                  ) : (
+                    /* Lista de distritos */
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      <span style={{ fontSize: '0.8rem', color: COLORS.grisMedio }}>
+                        Selecciona un distrito para consultar sus datos correspondientes:
+                      </span>
+
+                      {stateDataset.distritos.map((dist) => (
+                        <div
+                          key={dist.distrito}
+                          onClick={() => setSelectedDistritoItem(dist)}
+                          style={{
+                            background: COLORS.fondoClaro,
+                            border: `1px solid ${COLORS.bordeSuave}`,
+                            borderRadius: '12px',
+                            padding: '14px 16px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            transition: 'all 0.15s'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = COLORS.beige;
+                            e.currentTarget.style.background = '#FFFFFF';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = COLORS.bordeSuave;
+                            e.currentTarget.style.background = COLORS.fondoClaro;
+                          }}
+                        >
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span style={{
+                                background: COLORS.grisOxford,
+                                color: COLORS.blanco,
+                                fontWeight: 800,
+                                fontSize: '0.72rem',
+                                padding: '2px 7px',
+                                borderRadius: '5px'
+                              }}>
+                                DTO {dist.distrito}
+                              </span>
+                              <span style={{ fontWeight: 800, fontSize: '0.95rem', color: COLORS.grisOxford }}>
+                                {dist.cabecera}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: COLORS.grisMedio, marginTop: 4 }}>
+                              A contactar: <b>{dist.total_contactar}</b> • Aceptaron: <b style={{ color: COLORS.beige }}>{dist.aceptaron_recontratacion}</b>
+                            </div>
+                          </div>
+                          <ChevronRight size={18} color={COLORS.grisMedio} />
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* =========================================================================
-            PANEL DERECHO: Fichas Duales Estilo Credencial de Videojuego
-           ========================================================================= */}
-        <section style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '18px'
-        }}>
-          {/* Header del bloque de credenciales */}
-          <div style={{
-            background: 'rgba(32, 31, 34, 0.7)',
-            backdropFilter: 'blur(12px)',
-            borderRadius: '14px',
-            padding: '12px 18px',
-            border: `1px solid rgba(197, 169, 137, 0.2)`,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <div>
-              <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: COLORS.beige, fontWeight: 700, letterSpacing: '1px' }}>
-                Junta Local Ejecutiva
-              </span>
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: 800, color: COLORS.blanco }}>
-                {selectedState}
-              </h2>
-            </div>
-            <div style={{
-              background: 'rgba(230, 0, 115, 0.15)',
-              border: `1px solid ${COLORS.rosaFuerte}`,
-              color: COLORS.rosaFuerte,
-              padding: '4px 12px',
-              borderRadius: '20px',
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6
-            }}>
-              <Award size={14} /> 2 Fichas Oficiales
+              )}
             </div>
           </div>
+        )}
+      </main>
+    </div>
+  );
+}
 
-          {/* =======================================================================
-              TARJETA 1: Vocal Ejecutivo de la Junta Estatal Local
-             ======================================================================= */}
-          <CredentialCard
-            roleKey="vocalEjecutivo"
-            title="Vocal Ejecutivo(a)"
-            subtitle="Junta Local Ejecutiva"
-            data={editingCard === 'vocalEjecutivo' ? editFormData : currentVocales.vocalEjecutivo}
-            isEditing={editingCard === 'vocalEjecutivo'}
-            badgeColor={COLORS.rosaFuerte}
-            avatarInitials="VE"
-            onStartEdit={() => handleStartEdit('vocalEjecutivo')}
-            onSaveEdit={() => handleSaveEdit('vocalEjecutivo')}
-            onCancelEdit={handleCancelEdit}
-            onChangeField={(field, val) => setEditFormData(prev => ({ ...prev, [field]: val }))}
-          />
-
-          {/* =======================================================================
-              TARJETA 2: Vocal de Capacitación Electoral y Educación Cívica
-             ======================================================================= */}
-          <CredentialCard
-            roleKey="vocalCapacitacion"
-            title="Vocal de Capacitación"
-            subtitle="Educación Cívica y Capacitación Electoral"
-            data={editingCard === 'vocalCapacitacion' ? editFormData : currentVocales.vocalCapacitacion}
-            isEditing={editingCard === 'vocalCapacitacion'}
-            badgeColor={COLORS.beige}
-            avatarInitials="VC"
-            onStartEdit={() => handleStartEdit('vocalCapacitacion')}
-            onSaveEdit={() => handleSaveEdit('vocalCapacitacion')}
-            onCancelEdit={handleCancelEdit}
-            onChangeField={(field, val) => setEditFormData(prev => ({ ...prev, [field]: val }))}
-          />
-        </section>
+// ===========================================================================
+// Tarjetas de Campo de Dataset
+// ===========================================================================
+function DatasetFieldCard({ title, value, icon, borderColor, highlight }) {
+  return (
+    <div style={{
+      background: highlight ? 'linear-gradient(135deg, #FAF8F5, #FFFFFF)' : COLORS.fondoClaro,
+      borderRadius: '10px',
+      padding: '12px 14px',
+      border: `1px solid ${highlight ? COLORS.beige : COLORS.bordeSuave}`,
+      borderLeft: `3px solid ${borderColor}`,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: 2
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: COLORS.grisMedio, textTransform: 'uppercase', lineHeight: 1.2 }}>
+          {title}
+        </span>
+        {icon}
+      </div>
+      <div style={{
+        fontSize: '1.4rem',
+        fontWeight: 800,
+        color: highlight ? COLORS.beige : COLORS.grisOxford,
+        marginTop: 4
+      }}>
+        {value}
       </div>
     </div>
   );
 }
 
 // ===========================================================================
-// Componente de Tarjeta / Ficha Tipo Videojuego (Dual Credential Card)
+// Tarjeta Editable de Vocal (In-Situ)
 // ===========================================================================
-function CredentialCard({
+function EditableVocalCard({
   roleKey,
   title,
   subtitle,
@@ -879,334 +1052,202 @@ function CredentialCard({
 }) {
   return (
     <div style={{
-      background: 'rgba(28, 27, 30, 0.85)',
-      backdropFilter: 'blur(16px)',
-      borderRadius: '16px',
-      border: isEditing
-        ? `2px solid ${COLORS.rosaFuerte}`
-        : `1px solid rgba(197, 169, 137, 0.25)`,
-      boxShadow: isEditing
-        ? `0 0 25px rgba(230, 0, 115, 0.35)`
-        : `0 10px 25px rgba(0,0,0,0.35)`,
-      padding: '20px',
-      position: 'relative',
-      overflow: 'hidden',
-      transition: 'all 0.25s ease'
+      background: COLORS.blanco,
+      borderRadius: '14px',
+      border: isEditing ? `2px solid ${COLORS.beige}` : `1px solid ${COLORS.bordeSuave}`,
+      boxShadow: isEditing ? '0 6px 20px rgba(197, 169, 137, 0.25)' : '0 2px 8px rgba(0,0,0,0.03)',
+      padding: '16px',
+      position: 'relative'
     }}>
-      {/* Detalle visual decorativo estilo credencial SPEN / Cyberpunk */}
-      <div style={{
-        position: 'absolute',
-        top: 0,
-        right: 0,
-        width: 120,
-        height: 120,
-        background: `radial-gradient(circle, ${badgeColor}22 0%, transparent 70%)`,
-        pointerEvents: 'none'
-      }} />
-
-      {/* Franja superior de estatus y acciones */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: '16px'
-      }}>
-        <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-          {/* Avatar / Foto estilo Gamer / Ficha */}
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{
-            width: 54,
-            height: 54,
-            borderRadius: '14px',
-            background: `linear-gradient(135deg, ${COLORS.grisOxford}, #1e1d20)`,
+            width: 44,
+            height: 44,
+            borderRadius: '10px',
+            background: COLORS.fondoClaro,
             border: `2px solid ${badgeColor}`,
+            color: COLORS.grisOxford,
+            fontWeight: 800,
+            fontSize: '1rem',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 800,
-            fontSize: '1.15rem',
-            color: COLORS.blanco,
-            boxShadow: `0 4px 12px ${badgeColor}33`,
-            position: 'relative'
+            justifyContent: 'center'
           }}>
             {avatarInitials}
-            <div style={{
-              position: 'absolute',
-              bottom: -4,
-              right: -4,
-              width: 14,
-              height: 14,
-              borderRadius: '50%',
-              background: '#22c55e',
-              border: '2px solid #1c1b1e'
-            }} />
           </div>
-
           <div>
-            <div style={{
-              fontSize: '0.72rem',
-              fontWeight: 800,
-              textTransform: 'uppercase',
-              color: badgeColor,
-              letterSpacing: '1px'
-            }}>
+            <div style={{ fontSize: '0.68rem', fontWeight: 800, color: badgeColor, textTransform: 'uppercase' }}>
               {subtitle}
             </div>
-            <div style={{
-              fontSize: '1.1rem',
-              fontWeight: 800,
-              color: COLORS.blanco
-            }}>
+            <div style={{ fontSize: '1rem', fontWeight: 800, color: COLORS.grisOxford }}>
               {title}
             </div>
           </div>
         </div>
 
-        {/* Botón de Editar / Guardar In-Situ */}
         <div>
           {isEditing ? (
-            <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 5 }}>
               <button
                 onClick={onSaveEdit}
                 style={{
-                  background: COLORS.rosaFuerte,
-                  border: 'none',
+                  background: COLORS.grisOxford,
                   color: COLORS.blanco,
-                  padding: '6px 12px',
-                  borderRadius: '8px',
+                  border: 'none',
+                  padding: '5px 10px',
+                  borderRadius: '6px',
                   cursor: 'pointer',
                   fontWeight: 700,
-                  fontSize: '0.78rem',
+                  fontSize: '0.72rem',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 4,
-                  boxShadow: '0 4px 12px rgba(230, 0, 115, 0.4)'
+                  gap: 4
                 }}
               >
-                <Check size={14} /> Guardar
+                <Check size={12} /> Guardar
               </button>
               <button
                 onClick={onCancelEdit}
                 style={{
-                  background: 'rgba(255,255,255,0.1)',
-                  border: `1px solid ${COLORS.grisMedio}`,
-                  color: COLORS.blanco,
-                  padding: '6px 10px',
-                  borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: 600,
-                  fontSize: '0.78rem',
-                  display: 'flex',
-                  alignItems: 'center'
+                  background: COLORS.fondoClaro,
+                  color: COLORS.grisOxford,
+                  border: `1px solid ${COLORS.bordeSuave}`,
+                  padding: '5px 7px',
+                  borderRadius: '6px',
+                  cursor: 'pointer'
                 }}
               >
-                <X size={14} />
+                <X size={12} />
               </button>
             </div>
           ) : (
             <button
               onClick={onStartEdit}
-              title="Editar datos in-situ"
               style={{
-                background: 'rgba(197, 169, 137, 0.12)',
-                border: `1px solid rgba(197, 169, 137, 0.35)`,
-                color: COLORS.beige,
-                padding: '6px 12px',
-                borderRadius: '8px',
-                cursor: 'pointer',
+                background: COLORS.fondoClaro,
+                border: `1px solid ${COLORS.bordeSuave}`,
+                color: COLORS.grisOxford,
+                padding: '5px 9px',
+                borderRadius: '6px',
+                fontSize: '0.72rem',
                 fontWeight: 600,
-                fontSize: '0.78rem',
+                cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 5,
-                transition: 'all 0.2s'
+                gap: 4
               }}
             >
-              <Edit3 size={13} /> Editar Ficha
+              <Edit3 size={11} /> Editar
             </button>
           )}
         </div>
       </div>
 
-      {/* Contenido de Campos de la Ficha */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Campo 1: Nombre de la persona */}
+      {/* Campos */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {/* Nombre */}
         <div style={{
-          background: 'rgba(0,0,0,0.3)',
-          borderRadius: '10px',
-          padding: '10px 14px',
-          border: '1px solid rgba(255,255,255,0.05)'
+          background: COLORS.fondoClaro,
+          padding: '8px 10px',
+          borderRadius: '8px',
+          border: `1px solid ${COLORS.bordeSuave}`
         }}>
-          <div style={{
-            fontSize: '0.7rem',
-            color: COLORS.gris,
-            textTransform: 'uppercase',
-            fontWeight: 700,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            marginBottom: 4
-          }}>
-            <User size={13} color={COLORS.rosaFuerte} />
+          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: COLORS.grisMedio, textTransform: 'uppercase' }}>
             Nombre del Funcionario(a):
-          </div>
+          </span>
           {isEditing ? (
             <input
               type="text"
               value={data.nombre || ''}
               onChange={(e) => onChangeField('nombre', e.target.value)}
-              placeholder="Ingresa el nombre completo"
               style={{
                 width: '100%',
-                background: '#121113',
-                border: `1px solid ${COLORS.rosaFuerte}`,
-                borderRadius: '6px',
-                color: COLORS.blanco,
-                padding: '6px 10px',
-                fontSize: '0.92rem',
+                background: COLORS.blanco,
+                border: `1px solid ${COLORS.beige}`,
+                borderRadius: '5px',
+                padding: '4px 6px',
+                fontSize: '0.82rem',
                 fontWeight: 600,
-                outline: 'none',
+                marginTop: 3,
                 boxSizing: 'border-box'
               }}
             />
           ) : (
-            <div style={{
-              fontSize: '1rem',
-              fontWeight: 700,
-              color: COLORS.blanco,
-              letterSpacing: '0.2px'
-            }}>
+            <div style={{ fontSize: '0.88rem', fontWeight: 800, color: COLORS.grisOxford, marginTop: 2 }}>
               {data.nombre || 'No asignado'}
             </div>
           )}
         </div>
 
-        {/* Campos 2 y 3: Antigüedades en Grid Dual */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: 12
-        }}>
-          {/* Antigüedad en el Cargo */}
+        {/* Antigüedades */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           <div style={{
-            background: 'rgba(0,0,0,0.25)',
-            borderRadius: '10px',
-            padding: '10px 14px',
-            border: '1px solid rgba(255,255,255,0.05)'
+            background: COLORS.fondoClaro,
+            padding: '8px 10px',
+            borderRadius: '8px',
+            border: `1px solid ${COLORS.bordeSuave}`
           }}>
-            <div style={{
-              fontSize: '0.68rem',
-              color: COLORS.gris,
-              textTransform: 'uppercase',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              marginBottom: 4
-            }}>
-              <Clock size={12} color={COLORS.beige} />
-              Antigüedad en el Cargo:
-            </div>
+            <span style={{ fontSize: '0.62rem', fontWeight: 700, color: COLORS.grisMedio, textTransform: 'uppercase' }}>
+              Antigüedad Cargo:
+            </span>
             {isEditing ? (
               <input
                 type="text"
                 value={data.antiguedadCargo || ''}
                 onChange={(e) => onChangeField('antiguedadCargo', e.target.value)}
-                placeholder="Ej. 3 años, 4 meses"
                 style={{
                   width: '100%',
-                  background: '#121113',
-                  border: `1px solid ${COLORS.beige}`,
-                  borderRadius: '6px',
-                  color: COLORS.blanco,
-                  padding: '5px 8px',
-                  fontSize: '0.85rem',
+                  background: COLORS.blanco,
+                  border: `1px solid ${COLORS.bordeSuave}`,
+                  borderRadius: '5px',
+                  padding: '4px 6px',
+                  fontSize: '0.78rem',
                   fontWeight: 600,
-                  outline: 'none',
+                  marginTop: 3,
                   boxSizing: 'border-box'
                 }}
               />
             ) : (
-              <div style={{
-                fontSize: '0.92rem',
-                fontWeight: 700,
-                color: COLORS.beige
-              }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: COLORS.beige, marginTop: 2 }}>
                 {data.antiguedadCargo || 'Sin registro'}
               </div>
             )}
           </div>
 
-          {/* Antigüedad en el INE */}
           <div style={{
-            background: 'rgba(0,0,0,0.25)',
-            borderRadius: '10px',
-            padding: '10px 14px',
-            border: '1px solid rgba(255,255,255,0.05)'
+            background: COLORS.fondoClaro,
+            padding: '8px 10px',
+            borderRadius: '8px',
+            border: `1px solid ${COLORS.bordeSuave}`
           }}>
-            <div style={{
-              fontSize: '0.68rem',
-              color: COLORS.gris,
-              textTransform: 'uppercase',
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 5,
-              marginBottom: 4
-            }}>
-              <Award size={12} color={COLORS.rosaFuerte} />
-              Antigüedad en el INE:
-            </div>
+            <span style={{ fontSize: '0.62rem', fontWeight: 700, color: COLORS.grisMedio, textTransform: 'uppercase' }}>
+              Antigüedad INE:
+            </span>
             {isEditing ? (
               <input
                 type="text"
                 value={data.antiguedadIne || ''}
                 onChange={(e) => onChangeField('antiguedadIne', e.target.value)}
-                placeholder="Ej. 12 años"
                 style={{
                   width: '100%',
-                  background: '#121113',
-                  border: `1px solid ${COLORS.rosaFuerte}`,
-                  borderRadius: '6px',
-                  color: COLORS.blanco,
-                  padding: '5px 8px',
-                  fontSize: '0.85rem',
+                  background: COLORS.blanco,
+                  border: `1px solid ${COLORS.bordeSuave}`,
+                  borderRadius: '5px',
+                  padding: '4px 6px',
+                  fontSize: '0.78rem',
                   fontWeight: 600,
-                  outline: 'none',
+                  marginTop: 3,
                   boxSizing: 'border-box'
                 }}
               />
             ) : (
-              <div style={{
-                fontSize: '0.92rem',
-                fontWeight: 700,
-                color: COLORS.rosaFuerte
-              }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: COLORS.grisOxford, marginTop: 2 }}>
                 {data.antiguedadIne || 'Sin registro'}
               </div>
             )}
           </div>
-        </div>
-
-        {/* Footer de Ficha: Estatus y Folio del Funcionario */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          paddingTop: 8,
-          borderTop: '1px solid rgba(255,255,255,0.07)',
-          fontSize: '0.72rem',
-          color: COLORS.grisMedio
-        }}>
-          <span>Folio: <b style={{ color: COLORS.grisClaro }}>{data.folio || 'SPEN-ACTIVO'}</b></span>
-          <span style={{
-            background: 'rgba(34, 197, 94, 0.12)',
-            color: '#4ade80',
-            padding: '2px 8px',
-            borderRadius: '4px',
-            fontWeight: 700
-          }}>
-            ● {data.estatus || 'Activo SPEN'}
-          </span>
         </div>
       </div>
     </div>
