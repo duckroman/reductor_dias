@@ -831,49 +831,7 @@ export default function Recontrataciones() {
                   </div>
 
                   {/* Botones de acción rápida dentro de la tarjeta */}
-                  <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-                    <button
-                      onClick={() => setCardTab('distritos')}
-                      style={{
-                        flex: 1,
-                        background: COLORS.grisOxford,
-                        color: COLORS.blanco,
-                        border: 'none',
-                        padding: '10px',
-                        borderRadius: '10px',
-                        fontWeight: 700,
-                        fontSize: '0.82rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 6
-                      }}
-                    >
-                      <Layers size={15} /> Mostrar Distritos ({stateDataset?.distritos?.length ?? 0})
-                    </button>
-
-                    <button
-                      onClick={() => setCardTab('vocales')}
-                      style={{
-                        flex: 1,
-                        background: COLORS.fondoClaro,
-                        color: COLORS.grisOxford,
-                        border: `1px solid ${COLORS.bordeSuave}`,
-                        padding: '10px',
-                        borderRadius: '10px',
-                        fontWeight: 700,
-                        fontSize: '0.82rem',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 6
-                      }}
-                    >
-                      <User size={15} color={COLORS.beige} /> Figuras Vocales
-                    </button>
-                  </div>
+                  
                 </div>
               ) : (
                 /* =============================================================
