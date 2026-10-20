@@ -693,6 +693,7 @@ export default function Recontrataciones() {
                     total={jleData?.total_contactar}
                     notLocated={jleData?.contactados_no_localizados}
                     contacted={jleData?.comunicacion_establecida}
+                    accepted={jleData?.aceptaron_recontratacion}
                     pending={jleData?.pendiente_contactar}
                   />
 
@@ -876,6 +877,7 @@ export default function Recontrataciones() {
                         total={selectedDistritoItem.total_contactar}
                         notLocated={selectedDistritoItem.contactados_no_localizados}
                         contacted={selectedDistritoItem.comunicacion_establecida}
+                        accepted={selectedDistritoItem.aceptaron_recontratacion}
                         pending={selectedDistritoItem.pendiente_contactar}
                       />
 
@@ -1015,16 +1017,21 @@ export default function Recontrataciones() {
   );
 }
 
-function ContactDistributionChart({ total, notLocated, contacted, pending }) {
-  const segments = [
-    { label: 'No localizados (B)', value: notLocated, color: COLORS.grisMedio },
-    { label: 'Comunicación establecida (C)', value: contacted, color: COLORS.beige },
-    { label: 'Pendientes por contactar', value: pending, color: COLORS.grisOxford },
-  ].map(segment => ({
-    ...segment,
-    value: Number.isFinite(Number(segment.value)) ? Math.max(0, Number(segment.value)) : 0,
-  })).filter(segment => segment.value > 0);
+function ContactDistributionChart({ total, notLocated, contacted, accepted, pending }) {
+  const toCount = (value) => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
   const totalValue = Number.isFinite(Number(total)) ? Number(total) : 0;
+  const contactedValue = toCount(contacted);
+  const acceptedValue = Math.min(toCount(accepted), contactedValue);
+  const segments = [
+    { label: 'No localizados (B)', value: toCount(notLocated), color: COLORS.grisMedio },
+    {
+      label: 'Comunicación establecida, sin aceptación',
+      value: contactedValue - acceptedValue,
+      color: COLORS.beige,
+    },
+    { label: 'Aceptaron la recontratación', value: acceptedValue, color: '#6F8F72' },
+    { label: 'Pendientes por contactar', value: toCount(pending), color: COLORS.grisOxford },
+  ];
 
   return (
     <section
@@ -1036,58 +1043,59 @@ function ContactDistributionChart({ total, notLocated, contacted, pending }) {
         padding: '14px 12px 8px',
       }}
     >
-      <div style={{
-        fontSize: '0.72rem',
-        fontWeight: 800,
-        color: COLORS.grisOxford,
-        textTransform: 'uppercase',
-        textAlign: 'center',
-      }}>
+      <div style={{ fontSize: '0.72rem', fontWeight: 800, color: COLORS.grisOxford, textTransform: 'uppercase', textAlign: 'center' }}>
         Desglose de ciudadanos/as a contactar
       </div>
-      {segments.length ? (
-        <Plot
-          data={[{
-            type: 'pie',
-            labels: segments.map(segment => segment.label),
-            values: segments.map(segment => segment.value),
-            textinfo: 'label+value+percent',
-            textposition: 'inside',
-            insidetextorientation: 'horizontal',
-            marker: {
-              colors: segments.map(segment => segment.color),
-              line: { color: COLORS.blanco, width: 2 },
-            },
-            hovertemplate: '%{label}<br>%{value:,} ciudadanos/as (%{percent})<extra></extra>',
-            sort: false,
-          }]}
-          layout={{
-            height: 260,
-            margin: { t: 8, r: 8, b: 8, l: 8 },
-            paper_bgcolor: 'transparent',
-            plot_bgcolor: 'transparent',
-            font: { family: 'Outfit, Segoe UI, sans-serif', color: COLORS.grisOxford, size: 11 },
-            showlegend: false,
-          }}
-          config={{
-            displayModeBar: false,
-            responsive: true,
-          }}
-          useResizeHandler
-          style={{ width: '100%', height: 260 }}
-        />
-      ) : (
-        <div style={{
-          height: 180,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: COLORS.grisMedio,
-          fontSize: '0.82rem',
-        }}>
-          Sin cantidades para mostrar.
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 220 }}>
+        <div style={{ flex: '0 0 48%', minWidth: 0, height: 220 }}>
+          {segments.some(segment => segment.value > 0) ? (
+            <Plot
+              data={[{
+                type: 'pie',
+                labels: segments.map(segment => segment.label),
+                values: segments.map(segment => segment.value),
+                textinfo: 'none',
+                marker: {
+                  colors: segments.map(segment => segment.color),
+                  line: { color: COLORS.blanco, width: 2 },
+                },
+                hovertemplate: '%{label}<br>%{value:,} ciudadanos/as (%{percent})<extra></extra>',
+                sort: false,
+              }]}
+              layout={{
+                height: 220,
+                margin: { t: 4, r: 4, b: 4, l: 4 },
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                showlegend: false,
+              }}
+              config={{ displayModeBar: false, responsive: true }}
+              useResizeHandler
+              style={{ width: '100%', height: 220 }}
+            />
+          ) : (
+            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: COLORS.grisMedio, fontSize: '0.78rem', textAlign: 'center' }}>
+              Sin cantidades para mostrar.
+            </div>
+          )}
         </div>
-      )}
+        <div aria-label="Referencia de colores y porcentajes" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {segments.map(segment => {
+            const percentage = totalValue > 0 ? (segment.value / totalValue) * 100 : 0;
+            return (
+              <div key={segment.label} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: '0.7rem', lineHeight: 1.3 }}>
+                <span aria-hidden="true" style={{ width: 10, height: 10, flex: '0 0 10px', marginTop: 2, borderRadius: '50%', background: segment.color }} />
+                <span style={{ flex: 1, color: COLORS.grisOxford }}>
+                  {segment.label}
+                  <br />
+                  <b>{segment.value.toLocaleString('es-MX')}</b>
+                  <span style={{ color: COLORS.grisMedio }}> · {percentage.toFixed(1)}%</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
       <div style={{
         textAlign: 'center',
         fontSize: '0.72rem',
@@ -1095,7 +1103,7 @@ function ContactDistributionChart({ total, notLocated, contacted, pending }) {
         padding: '0 8px 4px',
       }}>
         Total a contactar: <b style={{ color: COLORS.grisOxford }}>{totalValue.toLocaleString('es-MX')}</b>
-        {' · '}Las personas que aceptaron están incluidas en comunicación establecida.
+        {' · '}Las aceptaciones se separan de comunicación establecida.
       </div>
     </section>
   );
