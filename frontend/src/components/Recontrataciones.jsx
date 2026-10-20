@@ -562,7 +562,7 @@ export default function Recontrataciones() {
                 }}
               >
                 <Layers size={14} color={cardTab === 'distritos' ? COLORS.beige : COLORS.grisMedio} />
-                Mostrar Distritos {stateDataset ? `(${stateDataset.distritos.length})` : ''}
+                Mostrar Distritos {stateDataset?.distritos?.length ? `(${stateDataset.distritos.length})` : ''}
               </button>
 
               <button
@@ -686,7 +686,7 @@ export default function Recontrataciones() {
                     alignItems: 'center'
                   }}>
                     <span>Fila: <b style={{ color: COLORS.grisOxford }}>JLE</b></span>
-                    <span>Archivo: <b>{stateDataset.archivo}</b></span>
+                    <span>Archivo: <b>{stateDataset?.archivo ?? '—'}</b></span>
                   </div>
 
                   {/* Variables en Grid */}
@@ -800,7 +800,7 @@ export default function Recontrataciones() {
                         gap: 6
                       }}
                     >
-                      <Layers size={15} /> Mostrar Distritos ({stateDataset.distritos.length})
+                      <Layers size={15} /> Mostrar Distritos ({stateDataset?.distritos?.length ?? 0})
                     </button>
 
                     <button
@@ -942,7 +942,7 @@ export default function Recontrataciones() {
                         Selecciona un distrito para consultar sus datos correspondientes:
                       </span>
 
-                      {stateDataset.distritos.map((dist) => (
+                      {(stateDataset?.distritos ?? []).map((dist) => (
                         <div
                           key={dist.distrito}
                           onClick={() => setSelectedDistritoItem(dist)}
