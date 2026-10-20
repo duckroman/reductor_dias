@@ -689,6 +689,13 @@ export default function Recontrataciones() {
                     <span>Archivo: <b>{stateDataset?.archivo ?? '—'}</b></span>
                   </div>
 
+                  <ContactDistributionChart
+                    total={jleData?.total_contactar}
+                    notLocated={jleData?.contactados_no_localizados}
+                    contacted={jleData?.comunicacion_establecida}
+                    pending={jleData?.pendiente_contactar}
+                  />
+
                   {/* Variables en Grid */}
                   <div style={{
                     display: 'grid',
@@ -865,6 +872,13 @@ export default function Recontrataciones() {
                         </h3>
                       </div>
 
+                      <ContactDistributionChart
+                        total={selectedDistritoItem.total_contactar}
+                        notLocated={selectedDistritoItem.contactados_no_localizados}
+                        contacted={selectedDistritoItem.comunicacion_establecida}
+                        pending={selectedDistritoItem.pendiente_contactar}
+                      />
+
                       {/* Variables con la misma nomenclatura y campos */}
                       <div style={{
                         display: 'grid',
@@ -998,6 +1012,92 @@ export default function Recontrataciones() {
         )}
       </main>
     </div>
+  );
+}
+
+function ContactDistributionChart({ total, notLocated, contacted, pending }) {
+  const segments = [
+    { label: 'No localizados (B)', value: notLocated, color: COLORS.grisMedio },
+    { label: 'Comunicación establecida (C)', value: contacted, color: COLORS.beige },
+    { label: 'Pendientes por contactar', value: pending, color: COLORS.grisOxford },
+  ].map(segment => ({
+    ...segment,
+    value: Number.isFinite(Number(segment.value)) ? Math.max(0, Number(segment.value)) : 0,
+  })).filter(segment => segment.value > 0);
+  const totalValue = Number.isFinite(Number(total)) ? Number(total) : 0;
+
+  return (
+    <section
+      aria-label="Distribución de ciudadanos por situación de contacto"
+      style={{
+        background: COLORS.blanco,
+        border: `1px solid ${COLORS.bordeSuave}`,
+        borderRadius: '12px',
+        padding: '14px 12px 8px',
+      }}
+    >
+      <div style={{
+        fontSize: '0.72rem',
+        fontWeight: 800,
+        color: COLORS.grisOxford,
+        textTransform: 'uppercase',
+        textAlign: 'center',
+      }}>
+        Desglose de ciudadanos/as a contactar
+      </div>
+      {segments.length ? (
+        <Plot
+          data={[{
+            type: 'pie',
+            labels: segments.map(segment => segment.label),
+            values: segments.map(segment => segment.value),
+            textinfo: 'label+value+percent',
+            textposition: 'inside',
+            insidetextorientation: 'horizontal',
+            marker: {
+              colors: segments.map(segment => segment.color),
+              line: { color: COLORS.blanco, width: 2 },
+            },
+            hovertemplate: '%{label}<br>%{value:,} ciudadanos/as (%{percent})<extra></extra>',
+            sort: false,
+          }]}
+          layout={{
+            height: 260,
+            margin: { t: 8, r: 8, b: 8, l: 8 },
+            paper_bgcolor: 'transparent',
+            plot_bgcolor: 'transparent',
+            font: { family: 'Outfit, Segoe UI, sans-serif', color: COLORS.grisOxford, size: 11 },
+            showlegend: false,
+          }}
+          config={{
+            displayModeBar: false,
+            responsive: true,
+          }}
+          useResizeHandler
+          style={{ width: '100%', height: 260 }}
+        />
+      ) : (
+        <div style={{
+          height: 180,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: COLORS.grisMedio,
+          fontSize: '0.82rem',
+        }}>
+          Sin cantidades para mostrar.
+        </div>
+      )}
+      <div style={{
+        textAlign: 'center',
+        fontSize: '0.72rem',
+        color: COLORS.grisMedio,
+        padding: '0 8px 4px',
+      }}>
+        Total a contactar: <b style={{ color: COLORS.grisOxford }}>{totalValue.toLocaleString('es-MX')}</b>
+        {' · '}Las personas que aceptaron están incluidas en comunicación establecida.
+      </div>
+    </section>
   );
 }
 
