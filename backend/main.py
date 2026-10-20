@@ -1136,35 +1136,68 @@ def get_recontrataciones_estado(estado: str):
     Obtiene los datos del dataset de recontrataciones para un estado dado.
     Identifica el estado a partir de la última palabra del nombre del archivo Excel antes de la extensión.
     Ejemplo: 20261020_recontrataciones_aguascalientes.xlsx -> aguascalientes
+    Robusto ante VPS Linux / Windows, rutas relativas/absolutas y mayúsculas/minúsculas.
     """
-    import glob
     import unicodedata
 
     def normalize(text):
         if not text:
             return ""
-        nfkd = unicodedata.normalize('NFKD', text)
+        nfkd = unicodedata.normalize('NFKD', str(text))
         return "".join([c for c in nfkd if not unicodedata.combining(c)]).lower().replace(' ', '_').replace('-', '_').strip()
 
     target_norm = normalize(estado)
-    files = glob.glob(os.path.join(DATASETS_DIR, "*.xlsx"))
-    matching_file = None
 
-    for f in files:
-        fname = os.path.basename(f)
-        # Quitar la extensión .xlsx
+    # 1. Búsqueda multi-ruta resiliente de la carpeta datasets
+    possible_dataset_dirs = [
+        DATASETS_DIR,
+        os.path.join(os.getcwd(), "datasets"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "datasets"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "datasets"),
+        "/var/www/reductor_dias/datasets"
+    ]
+
+    target_dir = None
+    for d in possible_dataset_dirs:
+        if d and os.path.isdir(d):
+            target_dir = os.path.abspath(d)
+            break
+
+    if not target_dir:
+        return JSONResponse(status_code=500, content={"error": "Carpeta datasets no encontrada en el servidor"})
+
+    # 2. Exploración de archivos en target_dir (case-insensitive para Linux VPS)
+    matching_file = None
+    try:
+        available_files = os.listdir(target_dir)
+    except Exception as err:
+        return JSONResponse(status_code=500, content={"error": f"Error al leer datasets: {err}"})
+
+    for fname in available_files:
+        if not fname.lower().endswith(('.xlsx', '.xlsm', '.xls')) or fname.startswith('~$'):
+            continue
+
         name_without_ext = os.path.splitext(fname)[0]
-        # Extraer la última palabra del nombre antes de la extensión (separador _ o - o espacio)
-        parts = [p for p in name_without_ext.replace('-', '_').split('_') if p.strip()]
+        # Extraer partes divididas por guion bajo, medio o espacio
+        parts = [p for p in name_without_ext.replace('-', '_').replace(' ', '_').split('_') if p.strip()]
         last_word = parts[-1] if parts else ""
         last_word_norm = normalize(last_word)
+        full_name_norm = normalize(name_without_ext)
 
-        if last_word_norm == target_norm or target_norm in last_word_norm or last_word_norm in target_norm:
-            matching_file = f
+        # Coincidencia por última palabra o si el estado está en el nombre del archivo
+        if last_word_norm == target_norm or target_norm in last_word_norm or target_norm in full_name_norm:
+            matching_file = os.path.join(target_dir, fname)
             break
 
     if not matching_file or not os.path.exists(matching_file):
-        return JSONResponse(status_code=404, content={"error": f"Dataset de recontrataciones no encontrado para {estado}"})
+        return JSONResponse(
+            status_code=404,
+            content={
+                "error": f"Dataset de recontrataciones no encontrado para {estado}",
+                "carpeta_explorada": target_dir,
+                "archivos_encontrados": [f for f in available_files if not f.startswith('~$')]
+            }
+        )
 
     try:
         wb = openpyxl.load_workbook(matching_file, data_only=True)

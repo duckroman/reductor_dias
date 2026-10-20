@@ -185,17 +185,24 @@ export const getCampecheData = async () => {
 // ============================================================
 
 export const getRecontratacionesEstado = async (estado) => {
+  // 1. Probar ruta relativa estándar (/api/recontrataciones/... o /recontrataciones/...)
   try {
     const response = await api.get(`/recontrataciones/${encodeURIComponent(estado)}`);
-    return response.data;
-  } catch (error) {
-    // Intento directo con fallback a http://127.0.0.1:8000
+    if (response && response.data) return response.data;
+  } catch (err1) {
+    // Si falla /api/..., probar directo a la raíz relativa /recontrataciones/... (útil con Nginx en VPS)
     try {
-      const directResponse = await axios.get(`http://127.0.0.1:8000/recontrataciones/${encodeURIComponent(estado)}`);
-      return directResponse.data;
-    } catch (e) {
-      console.warn(`No se pudo obtener el dataset de recontrataciones para ${estado}:`, error);
-      return null;
+      const response2 = await axios.get(`/recontrataciones/${encodeURIComponent(estado)}`);
+      if (response2 && response2.data) return response2.data;
+    } catch (err2) {
+      // Si estamos en desarrollo local puro en puerto separado, probar 127.0.0.1:8000
+      try {
+        const directResponse = await axios.get(`http://127.0.0.1:8000/recontrataciones/${encodeURIComponent(estado)}`);
+        return directResponse.data;
+      } catch (err3) {
+        console.warn(`No se pudo obtener el dataset de recontrataciones para ${estado}:`, err3);
+        return null;
+      }
     }
   }
 };
