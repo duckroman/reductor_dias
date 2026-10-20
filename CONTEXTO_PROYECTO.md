@@ -62,7 +62,7 @@ reductor_dias/
 │   └── requirements.txt            # Dependencias Python
 └── frontend/
     ├── package.json
-    ├── vite.config.js              # Proxy a backend:8000
+    ├── vite.config.js              # Proxy de desarrollo configurable
     ├── index.html
     └── src/
         ├── App.jsx                 # Layout: Selección Etapa→Dataset→Dashboard
@@ -175,13 +175,14 @@ python generar_datos.py
 cd backend && uvicorn main:app --reload --port 8000
 
 # 4. Iniciar frontend (en otra terminal)
+# Definir VITE_API_PROXY_TARGET en frontend/.env.local para desarrollo local
 cd frontend && npm run dev
 ```
 
 ## ⚠️ Notas Importantes
 
-- El backend usa CORS habilitado para `localhost:5173` (Vite dev server)
-- El frontend tiene proxy configurado en `vite.config.js` hacia `localhost:8000`
+- El frontend consume la API con rutas relativas bajo `/api`; en desarrollo, Vite usa el proxy definido por `VITE_API_PROXY_TARGET` en `frontend/.env.local`.
+- El backend lee los Excel desde `DATASETS_DIR` (por defecto, `datasets/` en la raíz del repositorio).
 - Los datos del Excel se leen bajo demanda y se cachean en memoria; la caché se limpia al cambiar de dataset o etapa
 - El Kneedle algorithm se usa para encontrar el "knee point" en la curva de rendimiento marginal
 - **No se cargan datos al arrancar**: El usuario debe seleccionar etapa y dataset primero

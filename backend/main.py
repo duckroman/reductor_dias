@@ -17,10 +17,11 @@ import openpyxl
 from openpyxl.utils import get_column_letter
 import pandas as pd
 import numpy as np
+from pathlib import Path
 
 app = FastAPI(title="Reductor de Dias - INE", version="3.0.0")
 
-# CORS para desarrollo local
+# CORS para clientes externos cuando frontend y API se sirven desde orígenes distintos.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -32,8 +33,11 @@ app.add_middleware(
 # ============================================================
 # CONSTANTES: Datasets por Etapa
 # ============================================================
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DATASETS_DIR = os.path.join(BASE_DIR, "datasets")
+BASE_DIR = str(Path(__file__).resolve().parent.parent)
+_configured_datasets_dir = Path(os.environ.get("DATASETS_DIR", "datasets")).expanduser()
+if not _configured_datasets_dir.is_absolute():
+    _configured_datasets_dir = Path(BASE_DIR) / _configured_datasets_dir
+DATASETS_DIR = str(_configured_datasets_dir.resolve())
 
 DATASETS_POR_ETAPA = {
     1: [
@@ -632,7 +636,8 @@ async def upload_file(stage: int = Query(None), file: UploadFile = File(...)):
     """Sube un archivo de Excel para reemplazar los datos de analisis."""
     global _sheets_cache, _available_sheets, _active_filename, _active_file_path, _active_stage
     try:
-        filepath = os.path.join(BASE_DIR, "cumplimiento_visitas_custom.xlsx")
+        os.makedirs(DATASETS_DIR, exist_ok=True)
+        filepath = os.path.join(DATASETS_DIR, "cumplimiento_visitas_custom.xlsx")
         print(f"--- Recibiendo archivo etapa {stage}: {file.filename} ---")
 
         contents = await file.read()
@@ -730,6 +735,7 @@ def get_entidades_data():
 async def upload_entidades_file(file: UploadFile = File(...)):
     global _entidades_df_cache, _entidades_filepath, _entidades_filename
     try:
+        os.makedirs(DATASETS_DIR, exist_ok=True)
         filepath = os.path.join(DATASETS_DIR, "Analisis_entidad_promedio_custom.xlsx")
         contents = await file.read()
         if not contents:
@@ -1042,7 +1048,7 @@ def _parse_avance_sheet(ws, total_dias: int) -> list[dict]:
     return results
 
 
-@app.get("/avance-distritos")
+@app.get("/api/avance-distritos")
 async def get_avance_distritos():
     """
     Devuelve el día en que cada distrito alcanzó el 100% de cumplimiento
@@ -1091,7 +1097,6 @@ async def get_avance_distritos():
     return JSONResponse(content=resultado)
 
 
-@app.get("/campeche")
 @app.get("/api/campeche")
 async def get_campeche_data():
     """
@@ -1130,56 +1135,27 @@ async def get_campeche_data():
 
 
 @app.get("/api/recontrataciones/debug")
-@app.get("/recontrataciones/debug")
 def debug_recontrataciones():
     """
-    Endpoint de diagnóstico: lista los archivos encontrados en datasets/
-    y el directorio resuelto. Útil para depurar desde producción.
+    Endpoint de diagnóstico para comprobar la disponibilidad de datasets.
     """
-    import unicodedata
-
-    possible_dataset_dirs = [
-        DATASETS_DIR,
-        os.path.join(os.getcwd(), "datasets"),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "datasets"),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "datasets"),
-        "/var/www/reductor_dias/datasets"
-    ]
-
-    resolved = None
-    checked = []
-    for d in possible_dataset_dirs:
-        abs_d = os.path.abspath(d) if d else None
-        checked.append({"path": abs_d, "exists": os.path.isdir(abs_d) if abs_d else False})
-        if abs_d and os.path.isdir(abs_d) and resolved is None:
-            resolved = abs_d
-
-    archivos = []
-    if resolved:
-        try:
-            archivos = sorted(os.listdir(resolved))
-        except Exception as e:
-            archivos = [f"ERROR: {e}"]
+    directory_exists = os.path.isdir(DATASETS_DIR)
+    archivos = sorted(os.listdir(DATASETS_DIR)) if directory_exists else []
 
     return JSONResponse(content={
-        "BASE_DIR": BASE_DIR,
-        "DATASETS_DIR": DATASETS_DIR,
-        "cwd": os.getcwd(),
-        "resolved_dir": resolved,
-        "paths_checked": checked,
-        "archivos_en_resolved": archivos,
+        "datasets_dir_configured": bool(os.environ.get("DATASETS_DIR")),
+        "datasets_dir_exists": directory_exists,
         "xlsx_files": [f for f in archivos if f.lower().endswith(('.xlsx', '.xls', '.xlsm')) and not f.startswith('~$')]
     })
 
 
 @app.get("/api/recontrataciones/{estado}")
-@app.get("/recontrataciones/{estado}")
 def get_recontrataciones_estado(estado: str):
     """
     Obtiene los datos del dataset de recontrataciones para un estado dado.
     Identifica el estado a partir de la última palabra del nombre del archivo Excel antes de la extensión.
     Ejemplo: 20261020_recontrataciones_aguascalientes.xlsx -> aguascalientes
-    Robusto ante VPS Linux / Windows, rutas relativas/absolutas y mayúsculas/minúsculas.
+    Usa el directorio de datasets configurado y compara nombres sin distinguir acentos o mayúsculas.
     """
     import unicodedata
 
@@ -1191,25 +1167,11 @@ def get_recontrataciones_estado(estado: str):
 
     target_norm = normalize(estado)
 
-    # 1. Búsqueda multi-ruta resiliente de la carpeta datasets
-    possible_dataset_dirs = [
-        DATASETS_DIR,
-        os.path.join(os.getcwd(), "datasets"),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "datasets"),
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), "datasets"),
-        "/var/www/reductor_dias/datasets"
-    ]
-
-    target_dir = None
-    for d in possible_dataset_dirs:
-        if d and os.path.isdir(d):
-            target_dir = os.path.abspath(d)
-            break
-
-    if not target_dir:
+    target_dir = DATASETS_DIR
+    if not os.path.isdir(target_dir):
         return JSONResponse(status_code=500, content={"error": "Carpeta datasets no encontrada en el servidor"})
 
-    # 2. Exploración de archivos en target_dir (case-insensitive para Linux VPS)
+    # Exploración de archivos en target_dir.
     matching_file = None
     try:
         available_files = os.listdir(target_dir)

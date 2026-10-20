@@ -39,7 +39,7 @@ conda create -n dataINE python=3.11 -y
 conda activate dataINE
 
 # Instalar las dependencias de Python
-pip install fastapi uvicorn pandas numpy scipy scikit-learn kneed openpyxl
+pip install -r backend/requirements.txt
 ```
 
 *(Opcional)* Si necesitas volver a generar los datos sintéticos de cumplimiento:
@@ -70,14 +70,23 @@ En la terminal donde tienes activado tu entorno `dataINE`, ejecuta:
 cd backend
 uvicorn main:app --reload
 ```
-> El servidor estará disponible en **http://localhost:8000**. (La documentación automática de la API se encuentra en http://localhost:8000/docs).
+El directorio de Excel predeterminado es `datasets/` en la raíz del repositorio. Para usar otro directorio, configura la variable de entorno `DATASETS_DIR` antes de iniciar FastAPI; una ruta relativa se resuelve desde la raíz del repositorio.
 
 ### Iniciar el Servidor Frontend
-En la terminal del frontend, ejecuta:
+Vite solo necesita el destino del proxy al backend en desarrollo. Define `VITE_API_PROXY_TARGET` en `frontend/.env.local`:
+```dotenv
+VITE_API_PROXY_TARGET=http://127.0.0.1:8000
+```
+
+Este proxy solo se activa al ejecutar el servidor de desarrollo; no se incorpora al build de producción. Después, en la terminal del frontend, ejecuta:
 ```bash
+cd frontend
 npm run dev
 ```
-> La interfaz de usuario estará disponible en **http://localhost:5173**. 
+
+### Despliegue
+
+El frontend consume la API con rutas relativas bajo `/api`; no requiere configurar el dominio público. En producción, sirve el build de `frontend/` y configura el proxy inverso del servidor web para reenviar `/api` a FastAPI, conservando el mismo origen para frontend y API. `DATASETS_DIR` permite ubicar los Excel en un volumen o directorio independiente del código. No hay configuración de PM2, Nginx ni pipeline CI/CD versionada en este repositorio.
 
 Cualquier cambio que realices en el código del backend (`.py`) o frontend (`.jsx`, `.css`) se recargará automáticamente en el navegador gracias al "Hot Reloading".
 

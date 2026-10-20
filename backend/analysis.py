@@ -15,6 +15,30 @@ from kneed import KneeLocator
 import os
 import math
 
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+_configured_datasets_dir = os.path.expanduser(os.environ.get("DATASETS_DIR", "datasets"))
+if not os.path.isabs(_configured_datasets_dir):
+    _configured_datasets_dir = os.path.join(BASE_DIR, _configured_datasets_dir)
+DATASETS_DIR = os.path.abspath(_configured_datasets_dir)
+
+
+def _find_default_data_file():
+    """Busca los archivos heredados primero en el directorio configurado y luego en la raíz del proyecto."""
+    filenames = [
+        "PEC_2023-2024.xlsx",
+        "cumplimiento_visitas_custom.xlsx",
+        "cumplimiento_completo_v1_poblado.xlsx",
+        "cumplimiento_visitas_nuevo.xlsx",
+        "cumplimiento_visitas.xlsx",
+    ]
+    for directory in (DATASETS_DIR, BASE_DIR):
+        for name in filenames:
+            path = os.path.join(directory, name)
+            if os.path.exists(path):
+                return path
+    return None
+
+
 def safe_float(val):
     if val is None or pd.isna(val) or math.isinf(val):
         return None
@@ -28,14 +52,9 @@ def load_data(filepath=None, sheet_name=None):
     """Carga los datos del Excel y retorna un DataFrame limpio.
     Si sheet_name es None, usa la primera hoja."""
     if filepath is None:
-        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        for name in ["PEC_2023-2024.xlsx", "cumplimiento_visitas_custom.xlsx", 
-                     "cumplimiento_completo_v1_poblado.xlsx", "cumplimiento_visitas_nuevo.xlsx", 
-                     "cumplimiento_visitas.xlsx"]:
-            p = os.path.join(base, name)
-            if os.path.exists(p):
-                filepath = p
-                break
+        filepath = _find_default_data_file()
+    if filepath is None:
+        raise FileNotFoundError(f"No se encontró un archivo Excel en {DATASETS_DIR} ni en {BASE_DIR}")
 
     kwargs = {'header': 1}
     if sheet_name:
@@ -93,14 +112,7 @@ def load_data(filepath=None, sheet_name=None):
 def get_sheet_names(filepath=None):
     """Devuelve la lista de hojas disponibles en el Excel."""
     if filepath is None:
-        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        for name in ["PEC_2023-2024.xlsx", "cumplimiento_visitas_custom.xlsx", 
-                     "cumplimiento_completo_v1_poblado.xlsx", "cumplimiento_visitas_nuevo.xlsx", 
-                     "cumplimiento_visitas.xlsx"]:
-            p = os.path.join(base, name)
-            if os.path.exists(p):
-                filepath = p
-                break
+        filepath = _find_default_data_file()
     
     if not filepath or not os.path.exists(filepath):
         return []
@@ -781,4 +793,3 @@ def compute_entidades_clustering(df, stage, k):
         })
         
     return cluster_profiles
-
