@@ -23,8 +23,8 @@ app = FastAPI(title="Reductor de Dias - INE", version="3.0.0")
 # CORS para desarrollo local
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -1127,6 +1127,49 @@ async def get_campeche_data():
         return JSONResponse(content=data)
     except Exception as exc:
         return JSONResponse(status_code=500, content={"error": str(exc)})
+
+
+@app.get("/api/recontrataciones/debug")
+@app.get("/recontrataciones/debug")
+def debug_recontrataciones():
+    """
+    Endpoint de diagnóstico: lista los archivos encontrados en datasets/
+    y el directorio resuelto. Útil para depurar desde producción.
+    """
+    import unicodedata
+
+    possible_dataset_dirs = [
+        DATASETS_DIR,
+        os.path.join(os.getcwd(), "datasets"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "datasets"),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), "datasets"),
+        "/var/www/reductor_dias/datasets"
+    ]
+
+    resolved = None
+    checked = []
+    for d in possible_dataset_dirs:
+        abs_d = os.path.abspath(d) if d else None
+        checked.append({"path": abs_d, "exists": os.path.isdir(abs_d) if abs_d else False})
+        if abs_d and os.path.isdir(abs_d) and resolved is None:
+            resolved = abs_d
+
+    archivos = []
+    if resolved:
+        try:
+            archivos = sorted(os.listdir(resolved))
+        except Exception as e:
+            archivos = [f"ERROR: {e}"]
+
+    return JSONResponse(content={
+        "BASE_DIR": BASE_DIR,
+        "DATASETS_DIR": DATASETS_DIR,
+        "cwd": os.getcwd(),
+        "resolved_dir": resolved,
+        "paths_checked": checked,
+        "archivos_en_resolved": archivos,
+        "xlsx_files": [f for f in archivos if f.lower().endswith(('.xlsx', '.xls', '.xlsm')) and not f.startswith('~$')]
+    })
 
 
 @app.get("/api/recontrataciones/{estado}")
