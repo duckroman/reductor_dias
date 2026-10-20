@@ -346,6 +346,48 @@ export default function Recontrataciones() {
         height: 'calc(100vh - 56px)',
         overflow: 'hidden'
       }}>
+        <label style={{
+          position: 'absolute',
+          top: 16,
+          left: 20,
+          zIndex: 20,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 9,
+          padding: '10px 12px',
+          background: 'rgba(255,255,255,0.96)',
+          border: `1px solid ${COLORS.bordeSuave}`,
+          borderRadius: '10px',
+          boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+          color: COLORS.grisOxford,
+          fontSize: '0.78rem',
+          fontWeight: 700
+        }}>
+          <Building2 size={16} color={COLORS.beige} />
+          <span>Elegir estado</span>
+          <select
+            aria-label="Elegir estado"
+            value={selectedState ?? ''}
+            onChange={(event) => {
+              if (event.target.value) handleMapClick(event.target.value);
+            }}
+            style={{
+              maxWidth: 'min(48vw, 220px)',
+              padding: '7px 28px 7px 9px',
+              border: `1px solid ${COLORS.bordeSuave}`,
+              borderRadius: '7px',
+              background: COLORS.blanco,
+              color: COLORS.grisOxford,
+              font: 'inherit',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="">Selecciona...</option>
+            {[...ENTIDADES_CATALOGO]
+              .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+              .map(({ name }) => <option key={name} value={name}>{name}</option>)}
+          </select>
+        </label>
         <Plot
           data={[{
             type: 'choropleth',
