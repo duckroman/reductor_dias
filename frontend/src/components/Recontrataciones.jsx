@@ -168,12 +168,15 @@ export default function Recontrataciones() {
 
   const normalize = (str) => {
     if (!str) return '';
-    return str
+    const normalized = str
       .toLowerCase()
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .replace(/[^a-z0-9]/g, '')
       .trim();
+    return ['ciudaddemexico', 'distritofederal'].includes(normalized)
+      ? 'ciudaddemexico'
+      : normalized;
   };
 
   useEffect(() => {

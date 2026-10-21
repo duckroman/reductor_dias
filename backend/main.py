@@ -1195,7 +1195,10 @@ def normalize_recontrataciones_estado(text):
 
     nfkd = unicodedata.normalize("NFKD", str(text or ""))
     without_accents = "".join(c for c in nfkd if not unicodedata.combining(c)).casefold()
-    return re.sub(r"[^a-z0-9]", "", without_accents)
+    normalized = re.sub(r"[^a-z0-9]", "", without_accents)
+    if normalized in {"ciudaddemexico", "distritofederal"}:
+        return "ciudaddemexico"
+    return normalized
 
 
 @app.get("/api/recontrataciones/{estado}")
