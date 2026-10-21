@@ -397,13 +397,23 @@ export default function Recontrataciones() {
         position: 'relative',
         width: '100%',
         height: 'calc(100vh - 56px)',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
       }}>
+        <div style={{
+          flex: '0 0 auto',
+          margin: '2px clamp(8px, 1.5vw, 20px)',
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          gap: 8,
+        }}>
         <label style={{
-          position: 'absolute',
-          top: 16,
-          left: 20,
-          zIndex: 20,
+          flex: '1 1 250px',
+          width: 'fit-content',
+          maxWidth: '100%',
           display: 'flex',
           alignItems: 'center',
           gap: 9,
@@ -441,6 +451,98 @@ export default function Recontrataciones() {
               .map(({ name }) => <option key={name} value={name}>{name}</option>)}
           </select>
         </label>
+        <section style={{
+          position: 'relative',
+          zIndex: 15,
+          marginLeft: 'auto',
+        }}>
+          <button
+            type="button"
+            aria-expanded={isDatasetAvailabilityOpen}
+            aria-controls="dataset-availability-panel"
+            onClick={() => setIsDatasetAvailabilityOpen((isOpen) => !isOpen)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '9px 12px',
+              background: 'rgba(255,255,255,0.97)',
+              border: `1px solid ${COLORS.bordeSuave}`,
+              borderRadius: '9px',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+              color: COLORS.grisOxford,
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            <FileSpreadsheet size={15} color={COLORS.beige} />
+            Disponibilidad de datasets
+            {!datasetStatesError && (
+              <span style={{ color: COLORS.grisMedio }}>
+                {statesWithDataset.length}/{ENTIDADES_CATALOGO.length}
+              </span>
+            )}
+            <ChevronDown
+              size={15}
+              style={{
+                transform: isDatasetAvailabilityOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.15s ease',
+              }}
+            />
+          </button>
+          {isDatasetAvailabilityOpen && (
+            <div
+              id="dataset-availability-panel"
+              style={{
+                position: 'absolute',
+                top: '100%',
+                right: 0,
+                width: 'min(480px, calc(100vw - 16px))',
+                maxHeight: '42vh',
+                overflow: 'auto',
+                marginTop: 8,
+                padding: '12px',
+                background: 'rgba(255,255,255,0.97)',
+                border: `1px solid ${COLORS.bordeSuave}`,
+                borderRadius: '10px',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+              }}
+            >
+              {datasetStatesError ? (
+                <div role="alert" style={{ fontSize: '0.76rem', color: '#A33A35' }}>{datasetStatesError}</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', color: COLORS.grisOxford }}>
+                  <thead>
+                    <tr>
+                      <th scope="col" style={{ width: '50%', padding: '5px', textAlign: 'left', borderBottom: `1px solid ${COLORS.bordeSuave}` }}>
+                        Con información ({statesWithDataset.length})
+                      </th>
+                      <th scope="col" style={{ width: '50%', padding: '5px', textAlign: 'left', borderBottom: `1px solid ${COLORS.bordeSuave}` }}>
+                        Sin información ({statesWithoutDataset.length})
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: Math.max(statesWithDataset.length, statesWithoutDataset.length) }, (_, idx) => (
+                      <tr key={idx}>
+                        <td style={{ padding: '4px 5px', borderBottom: `1px solid ${COLORS.fondoClaro}` }}>{statesWithDataset[idx] ?? ''}</td>
+                        <td style={{ padding: '4px 5px', borderBottom: `1px solid ${COLORS.fondoClaro}` }}>{statesWithoutDataset[idx] ?? ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </section>
+        </div>
+        <div style={{
+          position: 'relative',
+          flex: '1 1 auto',
+          minHeight: 0,
+          width: '100%',
+        }}>
         <Plot
           data={[{
             type: 'choropleth',
@@ -518,90 +620,7 @@ export default function Recontrataciones() {
             responsive: true
           }}
         />
-
-        <section style={{
-          position: 'absolute',
-          left: 20,
-          bottom: 24,
-          zIndex: 15,
-        }}>
-          <button
-            type="button"
-            aria-expanded={isDatasetAvailabilityOpen}
-            aria-controls="dataset-availability-panel"
-            onClick={() => setIsDatasetAvailabilityOpen((isOpen) => !isOpen)}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '9px 12px',
-              background: 'rgba(255,255,255,0.97)',
-              border: `1px solid ${COLORS.bordeSuave}`,
-              borderRadius: '9px',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
-              color: COLORS.grisOxford,
-              fontSize: '0.75rem',
-              fontWeight: 700,
-              cursor: 'pointer',
-            }}
-          >
-            <FileSpreadsheet size={15} color={COLORS.beige} />
-            Disponibilidad de datasets
-            {!datasetStatesError && (
-              <span style={{ color: COLORS.grisMedio }}>
-                {statesWithDataset.length}/{ENTIDADES_CATALOGO.length}
-              </span>
-            )}
-            <ChevronDown
-              size={15}
-              style={{
-                transform: isDatasetAvailabilityOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.15s ease',
-              }}
-            />
-          </button>
-          {isDatasetAvailabilityOpen && (
-            <div
-              id="dataset-availability-panel"
-              style={{
-                width: 'min(480px, calc(100vw - 40px))',
-                maxHeight: '42vh',
-                overflow: 'auto',
-                marginTop: 8,
-                padding: '12px',
-                background: 'rgba(255,255,255,0.97)',
-                border: `1px solid ${COLORS.bordeSuave}`,
-                borderRadius: '10px',
-                boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
-              }}
-            >
-              {datasetStatesError ? (
-                <div role="alert" style={{ fontSize: '0.76rem', color: '#A33A35' }}>{datasetStatesError}</div>
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', color: COLORS.grisOxford }}>
-                  <thead>
-                    <tr>
-                      <th scope="col" style={{ width: '50%', padding: '5px', textAlign: 'left', borderBottom: `1px solid ${COLORS.bordeSuave}` }}>
-                        Con información ({statesWithDataset.length})
-                      </th>
-                      <th scope="col" style={{ width: '50%', padding: '5px', textAlign: 'left', borderBottom: `1px solid ${COLORS.bordeSuave}` }}>
-                        Sin información ({statesWithoutDataset.length})
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Array.from({ length: Math.max(statesWithDataset.length, statesWithoutDataset.length) }, (_, idx) => (
-                      <tr key={idx}>
-                        <td style={{ padding: '4px 5px', borderBottom: `1px solid ${COLORS.fondoClaro}` }}>{statesWithDataset[idx] ?? ''}</td>
-                        <td style={{ padding: '4px 5px', borderBottom: `1px solid ${COLORS.fondoClaro}` }}>{statesWithoutDataset[idx] ?? ''}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          )}
-        </section>
+        </div>
 
         {/* =====================================================================
             TARJETA LATERAL DESPLEGABLE DEL ESTADO
