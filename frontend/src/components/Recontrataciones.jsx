@@ -134,6 +134,7 @@ export default function Recontrataciones() {
 
   const [selectedState, setSelectedState] = useState(null);
   const [stateDataset, setStateDataset] = useState(null);
+  const [datasetLoadError, setDatasetLoadError] = useState(null);
   const [loadingDataset, setLoadingDataset] = useState(false);
   const [availableDatasetStates, setAvailableDatasetStates] = useState([]);
   const [datasetStatesError, setDatasetStatesError] = useState(null);
@@ -191,10 +192,12 @@ export default function Recontrataciones() {
   useEffect(() => {
     if (!selectedState) {
       setStateDataset(null);
+      setDatasetLoadError(null);
       return;
     }
 
     setLoadingDataset(true);
+    setDatasetLoadError(null);
     getRecontratacionesEstado(selectedState)
       .then(res => {
         setStateDataset(res);
@@ -202,6 +205,10 @@ export default function Recontrataciones() {
       .catch(err => {
         console.warn('Error fetching dataset for state:', selectedState, err);
         setStateDataset(null);
+        setDatasetLoadError(
+          err.response?.data?.error
+          || `No fue posible leer el dataset de ${selectedState}.`
+        );
       })
       .finally(() => {
         setLoadingDataset(false);
@@ -822,7 +829,6 @@ export default function Recontrataciones() {
                   Cargando datos del dataset de {selectedState}...
                 </div>
               ) : !stateDataset ? (
-                /* Estado sin dataset */
                 <div style={{
                   padding: '30px 20px',
                   textAlign: 'center',
@@ -831,10 +837,14 @@ export default function Recontrataciones() {
                   border: `1px dashed ${COLORS.bordeSuave}`
                 }}>
                   <FileSpreadsheet size={36} color={COLORS.beige} style={{ margin: '0 auto 10px' }} />
-                  <h4 style={{ margin: '0 0 6px', color: COLORS.grisOxford }}>Dataset no disponible</h4>
-                  <p style={{ margin: 0, fontSize: '0.82rem', color: COLORS.grisMedio, lineHeight: 1.4 }}>
-                    Aún no se ha cargado el archivo Excel correspondiente a <b>{selectedState}</b> en la carpeta <code>datasets/</code>.
-                  </p>
+                <h4 style={{ margin: '0 0 6px', color: COLORS.grisOxford }}>
+                  {datasetLoadError ? 'No se pudieron cargar los datos' : 'Dataset no disponible'}
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.82rem', color: COLORS.grisMedio, lineHeight: 1.4 }}>
+                  {datasetLoadError
+                    ? datasetLoadError
+                    : <>Aún no se ha cargado el archivo Excel correspondiente a <b>{selectedState}</b> en la carpeta <code>datasets/</code>.</>}
+                </p>
                   <button
                     onClick={() => setCardTab('vocales')}
                     style={{

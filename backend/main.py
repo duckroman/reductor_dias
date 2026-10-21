@@ -1150,30 +1150,52 @@ def debug_recontrataciones():
 
 
 def _get_recontrataciones_files():
+    import re
+    from datetime import datetime
+
     if not os.path.isdir(DATASETS_DIR):
         return []
 
     files = []
     for filename in os.listdir(DATASETS_DIR):
-        if filename.startswith("~$") or not filename.lower().endswith((".xlsx", ".xlsm")):
+        if filename.startswith("~$"):
             continue
-        if "recontrataciones_" not in filename.lower():
+        match = re.fullmatch(
+            r"(\d{8})_recontrataciones_(.+)\.(xlsx|xlsm)",
+            filename,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            continue
+        try:
+            file_date = datetime.strptime(match.group(1), "%Y%m%d").date()
+        except ValueError:
             continue
         filepath = os.path.join(DATASETS_DIR, filename)
-        files.append((os.path.getmtime(filepath), filename, filepath))
-    return sorted(files, reverse=True)
+        files.append((file_date, os.path.getmtime(filepath), filename, filepath, match.group(2)))
+    return sorted(files, key=lambda item: (item[0], item[1], item[2]), reverse=True)
 
 
 @app.get("/api/recontrataciones/estados")
 def get_estados_con_recontrataciones():
     """Lista las entidades con un archivo de recontrataciones disponible."""
     estados = []
-    for _, filename, _ in _get_recontrataciones_files():
-        stem = os.path.splitext(filename)[0]
-        estado = stem.lower().split("recontrataciones_", 1)[-1].strip("_ -")
-        if estado and estado not in estados:
+    estados_normalizados = set()
+    for _, _, _, _, estado in _get_recontrataciones_files():
+        estado_normalizado = normalize_recontrataciones_estado(estado)
+        if estado_normalizado and estado_normalizado not in estados_normalizados:
             estados.append(estado)
+            estados_normalizados.add(estado_normalizado)
     return JSONResponse(content={"estados": estados})
+
+
+def normalize_recontrataciones_estado(text):
+    import re
+    import unicodedata
+
+    nfkd = unicodedata.normalize("NFKD", str(text or ""))
+    without_accents = "".join(c for c in nfkd if not unicodedata.combining(c)).casefold()
+    return re.sub(r"[^a-z0-9]", "", without_accents)
 
 
 @app.get("/api/recontrataciones/{estado}")
@@ -1184,15 +1206,7 @@ def get_recontrataciones_estado(estado: str):
     Ejemplo: 20261020_recontrataciones_aguascalientes.xlsx -> aguascalientes
     Usa el directorio de datasets configurado y compara nombres sin distinguir acentos o mayúsculas.
     """
-    import unicodedata
-
-    def normalize(text):
-        if not text:
-            return ""
-        nfkd = unicodedata.normalize('NFKD', str(text))
-        return "".join([c for c in nfkd if not unicodedata.combining(c)]).lower().replace(' ', '_').replace('-', '_').strip()
-
-    target_norm = normalize(estado)
+    target_norm = normalize_recontrataciones_estado(estado)
 
     target_dir = DATASETS_DIR
     if not os.path.isdir(target_dir):
@@ -1200,14 +1214,8 @@ def get_recontrataciones_estado(estado: str):
 
     available_files = _get_recontrataciones_files()
     matching_file = next(
-        (
-            filepath
-            for _, filename, filepath in available_files
-            if normalize(os.path.splitext(filename)[0].lower().split("recontrataciones_", 1)[-1])
-            == target_norm
-            or target_norm
-            in normalize(os.path.splitext(filename)[0].lower().split("recontrataciones_", 1)[-1])
-        ),
+        (filepath for _, _, _, filepath, file_state in available_files
+         if normalize_recontrataciones_estado(file_state) == target_norm),
         None,
     )
 
@@ -1217,7 +1225,7 @@ def get_recontrataciones_estado(estado: str):
             content={
                 "error": f"Dataset de recontrataciones no encontrado para {estado}",
                 "carpeta_explorada": target_dir,
-                "archivos_encontrados": [filename for _, filename, _ in available_files]
+                "archivos_encontrados": [filename for _, _, filename, _, _ in available_files]
             }
         )
 
@@ -1244,8 +1252,8 @@ def get_recontrataciones_estado(estado: str):
                 content={"error": "El archivo no contiene los encabezados esperados de recontrataciones."},
             )
 
-        group_row = all_rows[header_row_idx - 1]
-        metric_row = all_rows[header_row_idx]
+        group_row = all_rows[header_row_idx]
+        metric_row = all_rows[header_row_idx + 1] if header_row_idx + 1 < len(all_rows) else ()
         process_specs = [
             ("pec_2023_2024", "Proceso Electoral Concurrente 2023-2024"),
             (
@@ -1264,22 +1272,38 @@ def get_recontrataciones_estado(estado: str):
             "número de personas sin respuesta": "personas_sin_respuesta",
             "número de personas entrevistadas": "personas_entrevistadas",
         }
-        process_columns = {}
+        process_starts = []
         for process_id, process_label in process_specs:
-            columns = [
+            process_prefix = normalize_recontrataciones_estado(process_label.split(" / ", 1)[0])
+            start = next(
+                (
                 idx
                 for idx in range(4, len(group_row))
-                if str(group_row[idx] or "").replace("\n", " ").strip()
-                == process_label.replace(" / ", "\n").split("\n")[0].strip()
-            ]
-            if process_id == "pel_2024_2026":
-                columns = [
-                    idx
-                    for idx in range(4, len(group_row))
-                    if "Proceso Electoral Local 2024-2025" in str(group_row[idx] or "")
-                ]
-            if columns:
-                process_columns[process_id] = columns
+                if process_prefix
+                in normalize_recontrataciones_estado(str(group_row[idx] or "").replace("\n", " "))
+                ),
+                None,
+            )
+            if start is not None:
+                process_starts.append((process_id, start))
+
+        total_column_idx = next(
+            (
+                idx
+                for idx in range(4, len(group_row))
+                if "totaldepersonascontactadas"
+                in normalize_recontrataciones_estado(str(group_row[idx] or ""))
+            ),
+            len(group_row),
+        )
+        process_columns = {
+            process_id: list(range(start, (
+                process_starts[index + 1][1]
+                if index + 1 < len(process_starts)
+                else total_column_idx
+            )))
+            for index, (process_id, start) in enumerate(process_starts)
+        }
 
         if len(process_columns) != len(process_specs):
             return JSONResponse(
