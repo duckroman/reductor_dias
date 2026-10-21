@@ -55,11 +55,11 @@ const PROCESOS_ELECTORALES = [
 ];
 
 const CAMPOS_RECONTRATACIONES = [
-  { key: 'personas_contactadas', label: 'Número de personas contactadas' },
-  { key: 'personas_interesadas', label: 'Número de personas interesadas' },
-  { key: 'personas_no_interesadas', label: 'Número de personas no interesadas' },
-  { key: 'personas_sin_respuesta', label: 'Número de personas sin respuesta' },
-  { key: 'personas_entrevistadas', label: 'Número de personas entrevistadas' },
+  { key: 'personas_contactadas', label: 'Número de personas contactadas', color: '#C5A989' },
+  { key: 'personas_interesadas', label: 'Número de personas interesadas', color: '#89c5a8' },
+  { key: 'personas_no_interesadas', label: 'Número de personas no interesadas', color: '#828A91' },
+  { key: 'personas_sin_respuesta', label: 'Número de personas sin respuesta', color: '#C5C9CC' },
+  { key: 'personas_entrevistadas', label: 'Número de personas entrevistadas', color: '#6F8F72' },
 ];
 
 // 32 Entidades federativas
@@ -1032,21 +1032,128 @@ function formatCount(value) {
 }
 
 function DatasetMetricsGrid({ metrics, total }) {
+  const chartValues = CAMPOS_RECONTRATACIONES.map(({ key }) => {
+    const value = metrics?.[key];
+    const numericValue = typeof value === 'number' ? value : Number(value);
+    return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : 0;
+  });
+  const chartTotal = chartValues.reduce((sum, value) => sum + value, 0);
+
   return (
-    <div style={{
-      display: 'grid',
-      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
-      gap: 10,
-    }}>
-      {CAMPOS_RECONTRATACIONES.map(({ key, label }) => (
-        <DatasetFieldCard key={key} title={label} value={metrics?.[key]} />
-      ))}
-      <DatasetFieldCard
-        title="Total de personas contactadas"
-        value={total}
-        highlight
-      />
-    </div>
+    <>
+      <section
+        aria-label="Gráfica de personas por variable"
+        style={{
+          background: COLORS.blanco,
+          border: `1px solid ${COLORS.bordeSuave}`,
+          borderRadius: '12px',
+          padding: '14px 12px 10px',
+        }}
+      >
+        <div style={{
+          fontSize: '0.72rem',
+          fontWeight: 800,
+          color: COLORS.grisOxford,
+          textTransform: 'uppercase',
+          textAlign: 'center',
+          marginBottom: 6,
+        }}>
+          Personas por variable
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 210 }}>
+          <div style={{ flex: '0 0 48%', minWidth: 0, height: 210 }}>
+            {chartTotal > 0 ? (
+              <Plot
+                data={[{
+                  type: 'pie',
+                  labels: CAMPOS_RECONTRATACIONES.map(({ label }) => label),
+                  values: chartValues,
+                  textinfo: 'none',
+                  marker: {
+                    colors: CAMPOS_RECONTRATACIONES.map(({ color }) => color),
+                    line: { color: COLORS.blanco, width: 2 },
+                  },
+                  hovertemplate: '%{label}<br>%{value:,} personas (%{percent})<extra></extra>',
+                  sort: false,
+                }]}
+                layout={{
+                  height: 210,
+                  margin: { t: 4, r: 4, b: 4, l: 4 },
+                  paper_bgcolor: 'transparent',
+                  plot_bgcolor: 'transparent',
+                  showlegend: false,
+                }}
+                config={{ displayModeBar: false, responsive: true }}
+                useResizeHandler
+                style={{ width: '100%', height: 210 }}
+              />
+            ) : (
+              <div style={{
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: COLORS.grisMedio,
+                fontSize: '0.78rem',
+                textAlign: 'center',
+              }}>
+                Sin cantidades para mostrar.
+              </div>
+            )}
+          </div>
+          <div aria-label="Guía de colores de variables" style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 9,
+          }}>
+            {CAMPOS_RECONTRATACIONES.map(({ key, label, color }, index) => {
+              const percentage = chartTotal > 0 ? (chartValues[index] / chartTotal) * 100 : 0;
+              return (
+                <div key={key} style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 7,
+                  fontSize: '0.68rem',
+                  lineHeight: 1.3,
+                }}>
+                  <span aria-hidden="true" style={{
+                    width: 10,
+                    height: 10,
+                    flex: '0 0 10px',
+                    marginTop: 2,
+                    borderRadius: '50%',
+                    background: color,
+                  }} />
+                  <span style={{ flex: 1, color: COLORS.grisOxford }}>
+                    {label}
+                    <br />
+                    <b>{formatCount(metrics?.[key])}</b>
+                    {chartTotal > 0 && (
+                      <span style={{ color: COLORS.grisMedio }}> · {percentage.toFixed(1)}%</span>
+                    )}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+        gap: 10,
+      }}>
+        {CAMPOS_RECONTRATACIONES.map(({ key, label }) => (
+          <DatasetFieldCard key={key} title={label} value={metrics?.[key]} />
+        ))}
+        <DatasetFieldCard
+          title="Total de personas contactadas"
+          value={total}
+          highlight
+        />
+      </div>
+    </>
   );
 }
 
