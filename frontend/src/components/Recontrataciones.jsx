@@ -855,12 +855,12 @@ export default function Recontrataciones() {
                   {/* Vocal de Capacitación */}
                   <EditableVocalCard
                     roleKey="vocalCapacitacion"
-                    title="Vocal de Capacitación"
-                    subtitle="Educación Cívica y Capacitación"
+                    title="Vocal de Capacitación Electoral y Educación Cívica"
+                    subtitle="Capacitación Electoral y Educación Cívica"
                     data={editingCard === 'vocalCapacitacion' ? editFormData : currentVocales.vocalCapacitacion}
                     isEditing={editingCard === 'vocalCapacitacion'}
                     badgeColor={COLORS.beige}
-                    avatarInitials="VC"
+                    avatarInitials="VCEyEC"
                     onStartEdit={() => handleStartEdit('vocalCapacitacion')}
                     onSaveEdit={() => handleSaveEdit('vocalCapacitacion')}
                     onCancelEdit={handleCancelEdit}
