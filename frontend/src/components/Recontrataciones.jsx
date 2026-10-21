@@ -450,7 +450,8 @@ export default function Recontrataciones() {
               }}
             >
               <option value="">Selecciona...</option>
-              {[...ENTIDADES_CATALOGO]
+              {ENTIDADES_CATALOGO
+                .filter(({ name }) => statesWithDataset.includes(name))
                 .sort((a, b) => a.name.localeCompare(b.name, 'es'))
                 .map(({ name }) => <option key={name} value={name}>{name}</option>)}
             </select>
@@ -516,8 +517,9 @@ export default function Recontrataciones() {
               style={{
                 position: 'absolute',
                 top: '100%',
-                right: 0,
-                width: 'min(480px, calc(100vw - 16px))',
+                left: 0,
+                right: 'auto',
+                width: 'min(480px, calc(100vw - 2 * clamp(8px, 1.5vw, 20px)))',
                 maxHeight: '42vh',
                 overflow: 'auto',
                 marginTop: 8,
