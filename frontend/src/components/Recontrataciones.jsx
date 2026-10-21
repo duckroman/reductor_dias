@@ -378,7 +378,7 @@ export default function Recontrataciones() {
                 color: COLORS.grisOxford,
                 padding: '4px 10px',
                 borderRadius: '6px',
-                fontSize: '0.75rem',
+                fontSize: '0.78rem',
                 fontWeight: 600,
                 cursor: 'pointer'
               }}
@@ -403,58 +403,71 @@ export default function Recontrataciones() {
       }}>
         <div style={{
           flex: '0 0 auto',
+          width: 'max-content',
+          maxWidth: 'calc(100% - 2 * clamp(8px, 1.5vw, 20px))',
           margin: '2px clamp(8px, 1.5vw, 20px)',
-          display: 'flex',
-          flexWrap: 'wrap',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, max-content)',
           gap: 8,
         }}>
         <label style={{
-          flex: '1 1 250px',
-          width: 'fit-content',
+          flex: '0 0 auto',
+          width: '100%',
           maxWidth: '100%',
+          boxSizing: 'border-box',
           display: 'flex',
           alignItems: 'center',
-          gap: 9,
-          padding: '10px 12px',
+          gap: 8,
+          padding: '9px 12px',
           background: 'rgba(255,255,255,0.96)',
           border: `1px solid ${COLORS.bordeSuave}`,
           borderRadius: '10px',
           boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
           color: COLORS.grisOxford,
+          fontFamily: "'Outfit', 'Segoe UI', sans-serif",
           fontSize: '0.78rem',
           fontWeight: 700
         }}>
-          <Building2 size={16} color={COLORS.beige} />
+          <Building2 size={18} color={COLORS.beige} />
           <span>Elegir estado</span>
-          <select
-            aria-label="Elegir estado"
-            value={selectedState ?? ''}
-            onChange={(event) => {
-              if (event.target.value) handleMapClick(event.target.value);
-            }}
-            style={{
-              maxWidth: 'min(48vw, 220px)',
-              padding: '7px 28px 7px 9px',
-              border: `1px solid ${COLORS.bordeSuave}`,
-              borderRadius: '7px',
-              background: COLORS.blanco,
-              color: COLORS.grisOxford,
-              font: 'inherit',
-              cursor: 'pointer'
-            }}
-          >
-            <option value="">Selecciona...</option>
-            {[...ENTIDADES_CATALOGO]
-              .sort((a, b) => a.name.localeCompare(b.name, 'es'))
-              .map(({ name }) => <option key={name} value={name}>{name}</option>)}
-          </select>
+          <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+            <select
+              aria-label="Elegir estado"
+              value={selectedState ?? ''}
+              onChange={(event) => {
+                if (event.target.value) handleMapClick(event.target.value);
+              }}
+              style={{
+                appearance: 'none',
+                maxWidth: 'min(42vw, 220px)',
+                padding: '7px 34px 7px 9px',
+                border: `1px solid ${COLORS.bordeSuave}`,
+                borderRadius: '7px',
+                background: COLORS.blanco,
+                color: COLORS.grisOxford,
+                font: 'inherit',
+                cursor: 'pointer'
+              }}
+            >
+              <option value="">Selecciona...</option>
+              {[...ENTIDADES_CATALOGO]
+                .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+                .map(({ name }) => <option key={name} value={name}>{name}</option>)}
+            </select>
+            <ChevronDown
+              aria-hidden="true"
+              size={18}
+              strokeWidth={2.5}
+              style={{ position: 'absolute', right: 9, pointerEvents: 'none', color: COLORS.grisOxford }}
+            />
+          </span>
         </label>
         <section style={{
           position: 'relative',
           zIndex: 15,
-          marginLeft: 'auto',
+          marginLeft: 0,
+          width: '100%',
+          maxWidth: '100%',
         }}>
           <button
             type="button"
@@ -463,6 +476,8 @@ export default function Recontrataciones() {
             onClick={() => setIsDatasetAvailabilityOpen((isOpen) => !isOpen)}
             style={{
               display: 'flex',
+              width: '100%',
+              boxSizing: 'border-box',
               alignItems: 'center',
               gap: 8,
               padding: '9px 12px',
@@ -471,12 +486,13 @@ export default function Recontrataciones() {
               borderRadius: '9px',
               boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
               color: COLORS.grisOxford,
-              fontSize: '0.75rem',
+              fontFamily: "'Outfit', 'Segoe UI', sans-serif",
+              fontSize: '0.78rem',
               fontWeight: 700,
               cursor: 'pointer',
             }}
           >
-            <FileSpreadsheet size={15} color={COLORS.beige} />
+            <FileSpreadsheet size={18} color={COLORS.beige} />
             Disponibilidad de datasets
             {!datasetStatesError && (
               <span style={{ color: COLORS.grisMedio }}>
@@ -484,8 +500,11 @@ export default function Recontrataciones() {
               </span>
             )}
             <ChevronDown
-              size={15}
+              size={18}
+              strokeWidth={2.5}
               style={{
+                marginLeft: 'auto',
+                marginRight: 9,
                 transform: isDatasetAvailabilityOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                 transition: 'transform 0.15s ease',
               }}
