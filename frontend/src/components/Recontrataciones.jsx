@@ -1,29 +1,20 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import PlotlyComponent from 'react-plotly.js';
 import {
-  Shield,
-  Award,
-  Clock,
   User,
   Edit3,
   Check,
   X,
-  RotateCcw,
   ChevronRight,
   ArrowLeft,
   Sparkles,
-  Users,
-  PhoneCall,
-  UserCheck,
-  CheckCircle2,
-  AlertCircle,
   Building2,
   Layers,
   FileSpreadsheet,
-  MessageSquare
+  ChevronDown
 } from 'lucide-react';
 import mexicoGeoData from '../data/mexico_geo.json';
-import { getRecontratacionesEstado } from '../services/api';
+import { getEstadosRecontrataciones, getRecontratacionesEstado } from '../services/api';
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
@@ -44,6 +35,32 @@ const COLORS = {
 };
 
 const STORAGE_KEY = 'ine_recontrataciones_vocalias_v4';
+
+const PROCESOS_ELECTORALES = [
+  {
+    id: 'pec_2023_2024',
+    label: 'Proceso Electoral Concurrente 2023-2024',
+    badge: 'PEC 2023-2024',
+  },
+  {
+    id: 'pe_judicial_2024_2025',
+    label: 'Proceso Electoral Extraordinario para la elección de diversos cargos del Poder Judicial de la Federación 2024-2025',
+    badge: 'Poder Judicial 2024-2025',
+  },
+  {
+    id: 'pel_2024_2026',
+    label: 'Proceso Electoral Local 2024-2025 Durango y Veracruz / Proceso Electoral Local 2025-2026 Coahuila',
+    badge: 'Procesos Locales',
+  },
+];
+
+const CAMPOS_RECONTRATACIONES = [
+  { key: 'personas_contactadas', label: 'Número de personas contactadas' },
+  { key: 'personas_interesadas', label: 'Número de personas interesadas' },
+  { key: 'personas_no_interesadas', label: 'Número de personas no interesadas' },
+  { key: 'personas_sin_respuesta', label: 'Número de personas sin respuesta' },
+  { key: 'personas_entrevistadas', label: 'Número de personas entrevistadas' },
+];
 
 // 32 Entidades federativas
 const ENTIDADES_CATALOGO = [
@@ -118,6 +135,10 @@ export default function Recontrataciones() {
   const [selectedState, setSelectedState] = useState(null);
   const [stateDataset, setStateDataset] = useState(null);
   const [loadingDataset, setLoadingDataset] = useState(false);
+  const [availableDatasetStates, setAvailableDatasetStates] = useState([]);
+  const [datasetStatesError, setDatasetStatesError] = useState(null);
+  const [isDatasetAvailabilityOpen, setIsDatasetAvailabilityOpen] = useState(false);
+  const [selectedProcessId, setSelectedProcessId] = useState(PROCESOS_ELECTORALES[0].id);
 
   // Pestañas de la tarjeta: 'resumen_jle' | 'distritos' | 'vocales'
   const [cardTab, setCardTab] = useState('resumen_jle');
@@ -153,6 +174,18 @@ export default function Recontrataciones() {
       .replace(/[^a-z0-9]/g, '')
       .trim();
   };
+
+  useEffect(() => {
+    getEstadosRecontrataciones()
+      .then(({ estados }) => {
+        setAvailableDatasetStates(estados);
+        setDatasetStatesError(null);
+      })
+      .catch((error) => {
+        console.error('Error fetching available recontrataciones states:', error);
+        setDatasetStatesError('No fue posible consultar la disponibilidad de los datasets.');
+      });
+  }, []);
 
   // Cargar dataset del estado
   useEffect(() => {
@@ -224,15 +257,28 @@ export default function Recontrataciones() {
     return mexicoGeoData.features.map(f => f.properties.name);
   }, []);
 
-  const zValues = useMemo(() => {
-    return locations.map(name => {
-      if (!selectedState) return 20;
-      return normalize(name) === normalize(selectedState) ? 100 : 35;
-    });
-  }, [locations, selectedState]);
+  const availableStateKeys = useMemo(
+    () => new Set(availableDatasetStates.map(normalize)),
+    [availableDatasetStates]
+  );
+
+  const statesWithDataset = ENTIDADES_CATALOGO
+    .filter(({ key }) => availableStateKeys.has(normalize(key)))
+    .map(({ name }) => name);
+  const statesWithoutDataset = ENTIDADES_CATALOGO
+    .filter(({ key }) => !availableStateKeys.has(normalize(key)))
+    .map(({ name }) => name);
+
+  const zValues = useMemo(
+    () => locations.map(name => availableStateKeys.has(normalize(name)) ? 1 : 0),
+    [locations, availableStateKeys]
+  );
 
   // Datos JLE del dataset
   const jleData = stateDataset?.totales;
+  const jleProcessData = jleData?.procesos?.[selectedProcessId];
+  const selectedProcess = PROCESOS_ELECTORALES.find(({ id }) => id === selectedProcessId)
+    ?? PROCESOS_ELECTORALES[0];
 
   return (
     <div style={{
@@ -304,7 +350,7 @@ export default function Recontrataciones() {
             padding: '2px 8px',
             borderRadius: '12px'
           }}>
-            PE Concurrente
+            {selectedProcess.badge}
           </span>
         </div>
 
@@ -397,12 +443,12 @@ export default function Recontrataciones() {
             featureidkey: 'properties.name',
             colorscale: [
               [0, '#EAECEF'],
-              [0.35, '#DEE2E6'],
-              [0.7, COLORS.beige],
-              [1, COLORS.grisOxford]
+              [0.49, '#EAECEF'],
+              [0.5, COLORS.beige],
+              [1, COLORS.beige]
             ],
             zmin: 0,
-            zmax: 100,
+            zmax: 1,
             showscale: false,
             marker: {
               line: {
@@ -466,32 +512,89 @@ export default function Recontrataciones() {
           }}
         />
 
-        {/* Indicador de ayuda al inicio */}
-        {!selectedState && (
-          <div style={{
-            position: 'absolute',
-            bottom: 24,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(8px)',
-            padding: '12px 24px',
-            borderRadius: '30px',
-            border: `1px solid ${COLORS.bordeSuave}`,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 10,
-            fontSize: '0.88rem',
-            fontWeight: 600,
-            color: COLORS.grisOxford,
-            pointerEvents: 'none',
-            zIndex: 10
-          }}>
-            <Building2 size={18} color={COLORS.beige} />
-            Haz clic sobre cualquier estado para desplegar su tarjeta informativa
-          </div>
-        )}
+        <section style={{
+          position: 'absolute',
+          left: 20,
+          bottom: 24,
+          zIndex: 15,
+        }}>
+          <button
+            type="button"
+            aria-expanded={isDatasetAvailabilityOpen}
+            aria-controls="dataset-availability-panel"
+            onClick={() => setIsDatasetAvailabilityOpen((isOpen) => !isOpen)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '9px 12px',
+              background: 'rgba(255,255,255,0.97)',
+              border: `1px solid ${COLORS.bordeSuave}`,
+              borderRadius: '9px',
+              boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+              color: COLORS.grisOxford,
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+            }}
+          >
+            <FileSpreadsheet size={15} color={COLORS.beige} />
+            Disponibilidad de datasets
+            {!datasetStatesError && (
+              <span style={{ color: COLORS.grisMedio }}>
+                {statesWithDataset.length}/{ENTIDADES_CATALOGO.length}
+              </span>
+            )}
+            <ChevronDown
+              size={15}
+              style={{
+                transform: isDatasetAvailabilityOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.15s ease',
+              }}
+            />
+          </button>
+          {isDatasetAvailabilityOpen && (
+            <div
+              id="dataset-availability-panel"
+              style={{
+                width: 'min(480px, calc(100vw - 40px))',
+                maxHeight: '42vh',
+                overflow: 'auto',
+                marginTop: 8,
+                padding: '12px',
+                background: 'rgba(255,255,255,0.97)',
+                border: `1px solid ${COLORS.bordeSuave}`,
+                borderRadius: '10px',
+                boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+              }}
+            >
+              {datasetStatesError ? (
+                <div role="alert" style={{ fontSize: '0.76rem', color: '#A33A35' }}>{datasetStatesError}</div>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.72rem', color: COLORS.grisOxford }}>
+                  <thead>
+                    <tr>
+                      <th scope="col" style={{ width: '50%', padding: '5px', textAlign: 'left', borderBottom: `1px solid ${COLORS.bordeSuave}` }}>
+                        Con información ({statesWithDataset.length})
+                      </th>
+                      <th scope="col" style={{ width: '50%', padding: '5px', textAlign: 'left', borderBottom: `1px solid ${COLORS.bordeSuave}` }}>
+                        Sin información ({statesWithoutDataset.length})
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Array.from({ length: Math.max(statesWithDataset.length, statesWithoutDataset.length) }, (_, idx) => (
+                      <tr key={idx}>
+                        <td style={{ padding: '4px 5px', borderBottom: `1px solid ${COLORS.fondoClaro}` }}>{statesWithDataset[idx] ?? ''}</td>
+                        <td style={{ padding: '4px 5px', borderBottom: `1px solid ${COLORS.fondoClaro}` }}>{statesWithoutDataset[idx] ?? ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+        </section>
 
         {/* =====================================================================
             TARJETA LATERAL DESPLEGABLE DEL ESTADO
@@ -549,6 +652,43 @@ export default function Recontrataciones() {
               >
                 <X size={16} />
               </button>
+            </div>
+
+            {/* Selección del proceso electoral */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gap: 6,
+              padding: '8px',
+              borderBottom: `1px solid ${COLORS.bordeSuave}`,
+              background: COLORS.blanco,
+            }}>
+              {PROCESOS_ELECTORALES.map((proceso) => {
+                const isSelected = selectedProcessId === proceso.id;
+                return (
+                  <button
+                    key={proceso.id}
+                    type="button"
+                    title={proceso.label}
+                    aria-pressed={isSelected}
+                    onClick={() => setSelectedProcessId(proceso.id)}
+                    style={{
+                      minHeight: 52,
+                      padding: '7px 6px',
+                      border: `1px solid ${isSelected ? COLORS.beige : COLORS.bordeSuave}`,
+                      borderRadius: 8,
+                      background: isSelected ? '#FAF8F5' : COLORS.blanco,
+                      color: isSelected ? COLORS.grisOxford : COLORS.grisMedio,
+                      fontSize: '0.66rem',
+                      lineHeight: 1.25,
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {proceso.label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* Pestañas de la Tarjeta */}
@@ -716,106 +856,24 @@ export default function Recontrataciones() {
                   </button>
                 </div>
               ) : cardTab === 'resumen_jle' ? (
-                /* =============================================================
-                   PESTAÑA: DATOS JLE DEL DATASET
-                   ============================================================= */
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
                   <div style={{
-                    fontSize: '0.78rem',
+                    fontSize: '0.76rem',
                     color: COLORS.grisMedio,
                     display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
+                    flexDirection: 'column',
+                    gap: 3,
                   }}>
-                    <span>Fila: <b style={{ color: COLORS.grisOxford }}>JLE</b></span>
+                    <span><b style={{ color: COLORS.grisOxford }}>Datos acumulados de los distritos</b></span>
+                    <span>{selectedProcess.label}</span>
                     <span>Archivo: <b>{stateDataset?.archivo ?? '—'}</b></span>
                   </div>
 
-                  <ContactDistributionChart
-                    total={jleData?.total_contactar}
-                    notLocated={jleData?.contactados_no_localizados}
-                    contacted={jleData?.comunicacion_establecida}
-                    accepted={jleData?.aceptaron_recontratacion}
-                    pending={jleData?.pendiente_contactar}
+                  <DatasetMetricsGrid
+                    metrics={jleProcessData}
+                    total={jleData?.total_personas_contactadas}
                   />
 
-                  {/* Variables en Grid */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '10px'
-                  }}>
-                    {/* Total a contactar (A) */}
-                    <DatasetFieldCard
-                      title="Total de ciudadanos/as a contactar (A)"
-                      value={jleData?.total_contactar ?? 0}
-                      icon={<Users size={16} color={COLORS.grisOxford} />}
-                      borderColor={COLORS.grisOxford}
-                    />
-
-                    {/* Contactados no localizados (B) */}
-                    <DatasetFieldCard
-                      title="Ciudadanos/as contactados, pero no localizados (B)"
-                      value={jleData?.contactados_no_localizados ?? 0}
-                      icon={<PhoneCall size={16} color={COLORS.grisMedio} />}
-                      borderColor={COLORS.grisMedio}
-                    />
-
-                    {/* Comunicación establecida (C) */}
-                    <DatasetFieldCard
-                      title="Ciudadanos/as con comunicación establecida (C)"
-                      value={jleData?.comunicacion_establecida ?? 0}
-                      icon={<UserCheck size={16} color={COLORS.beige} />}
-                      borderColor={COLORS.beige}
-                      highlight
-                    />
-
-                    {/* Pendiente por contactar (A-B-C) */}
-                    <DatasetFieldCard
-                      title="Ciudadanía pendiente por contactar (A-B-C)"
-                      value={jleData?.pendiente_contactar ?? 0}
-                      icon={<AlertCircle size={16} color={COLORS.grisOxford} />}
-                      borderColor={COLORS.grisOxford}
-                    />
-                  </div>
-
-                  {/* Aceptaron la recontratación */}
-                  <div style={{
-                    background: 'linear-gradient(135deg, #FAF8F5, #FFFFFF)',
-                    borderRadius: '12px',
-                    padding: '14px 16px',
-                    border: `1.5px solid ${COLORS.beige}`,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                  }}>
-                    <div>
-                      <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', color: COLORS.beige }}>
-                        Ciudadanos/as que aceptaron la recontratación
-                      </div>
-                      <div style={{ fontSize: '1.6rem', fontWeight: 800, color: COLORS.grisOxford, marginTop: 2 }}>
-                        {jleData?.aceptaron_recontratacion ?? 0}
-                      </div>
-                    </div>
-                    <CheckCircle2 size={32} color={COLORS.beige} />
-                  </div>
-
-                  {/* ¿La JLE ya invitó a las RPP? */}
-                  <div style={{
-                    background: COLORS.fondoClaro,
-                    borderRadius: '12px',
-                    padding: '12px 14px',
-                    border: `1px solid ${COLORS.bordeSuave}`
-                  }}>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.grisMedio, textTransform: 'uppercase' }}>
-                      ¿La JLE ya invitó a las Representaciones de Partidos Políticos a las entrevistas de recontratación?
-                    </span>
-                    <div style={{ fontSize: '1rem', fontWeight: 800, color: COLORS.grisOxford, marginTop: 4 }}>
-                      {jleData?.invito_rpp || 'Sin respuesta'}
-                    </div>
-                  </div>
-
-                  {/* Observaciones (en su caso) */}
                   <div style={{
                     background: COLORS.fondoClaro,
                     borderRadius: '12px',
@@ -823,15 +881,12 @@ export default function Recontrataciones() {
                     border: `1px solid ${COLORS.bordeSuave}`
                   }}>
                     <span style={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.grisMedio, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <MessageSquare size={13} /> Observaciones (en su caso)
+                      Observaciones (en su caso)
                     </span>
                     <div style={{ fontSize: '0.85rem', color: COLORS.grisOxford, marginTop: 4 }}>
-                      {jleData?.observaciones ? jleData.observaciones : 'Sin observaciones registradas.'}
+                      {jleData?.observaciones || 'Sin observaciones registradas.'}
                     </div>
                   </div>
-
-                  {/* Botones de acción rápida dentro de la tarjeta */}
-                  
                 </div>
               ) : (
                 /* =============================================================
@@ -873,69 +928,13 @@ export default function Recontrataciones() {
                         </h3>
                       </div>
 
-                      <ContactDistributionChart
-                        total={selectedDistritoItem.total_contactar}
-                        notLocated={selectedDistritoItem.contactados_no_localizados}
-                        contacted={selectedDistritoItem.comunicacion_establecida}
-                        accepted={selectedDistritoItem.aceptaron_recontratacion}
-                        pending={selectedDistritoItem.pendiente_contactar}
+                      <span style={{ fontSize: '0.76rem', color: COLORS.grisMedio }}>
+                        {selectedProcess.label}
+                      </span>
+                      <DatasetMetricsGrid
+                        metrics={selectedDistritoItem.procesos?.[selectedProcessId]}
+                        total={selectedDistritoItem.total_personas_contactadas}
                       />
-
-                      {/* Variables con la misma nomenclatura y campos */}
-                      <div style={{
-                        display: 'grid',
-                        gridTemplateColumns: '1fr 1fr',
-                        gap: '10px'
-                      }}>
-                        <DatasetFieldCard
-                          title="Total a contactar (A)"
-                          value={selectedDistritoItem.total_contactar}
-                          icon={<Users size={16} color={COLORS.grisOxford} />}
-                          borderColor={COLORS.grisOxford}
-                        />
-
-                        <DatasetFieldCard
-                          title="No localizados (B)"
-                          value={selectedDistritoItem.contactados_no_localizados}
-                          icon={<PhoneCall size={16} color={COLORS.grisMedio} />}
-                          borderColor={COLORS.grisMedio}
-                        />
-
-                        <DatasetFieldCard
-                          title="Comunicación establecida (C)"
-                          value={selectedDistritoItem.comunicacion_establecida}
-                          icon={<UserCheck size={16} color={COLORS.beige} />}
-                          borderColor={COLORS.beige}
-                          highlight
-                        />
-
-                        <DatasetFieldCard
-                          title="Pendiente por contactar"
-                          value={selectedDistritoItem.pendiente_contactar}
-                          icon={<AlertCircle size={16} color={COLORS.grisOxford} />}
-                          borderColor={COLORS.grisOxford}
-                        />
-                      </div>
-
-                      <div style={{
-                        background: 'linear-gradient(135deg, #FAF8F5, #FFFFFF)',
-                        borderRadius: '12px',
-                        padding: '14px 16px',
-                        border: `1.5px solid ${COLORS.beige}`,
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                      }}>
-                        <div>
-                          <div style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', color: COLORS.beige }}>
-                            Aceptaron la recontratación
-                          </div>
-                          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: COLORS.grisOxford, marginTop: 2 }}>
-                            {selectedDistritoItem.aceptaron_recontratacion}
-                          </div>
-                        </div>
-                        <CheckCircle2 size={30} color={COLORS.beige} />
-                      </div>
 
                       <div style={{
                         background: COLORS.fondoClaro,
@@ -944,10 +943,10 @@ export default function Recontrataciones() {
                         border: `1px solid ${COLORS.bordeSuave}`
                       }}>
                         <span style={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.grisMedio, textTransform: 'uppercase' }}>
-                          Observaciones
+                          Observaciones (en su caso)
                         </span>
                         <div style={{ fontSize: '0.85rem', color: COLORS.grisOxford, marginTop: 4 }}>
-                          {selectedDistritoItem.observaciones ? selectedDistritoItem.observaciones : 'Sin observaciones en este distrito.'}
+                          {selectedDistritoItem.observaciones || 'Sin observaciones en este distrito.'}
                         </div>
                       </div>
                     </div>
@@ -999,7 +998,8 @@ export default function Recontrataciones() {
                               </span>
                             </div>
                             <div style={{ fontSize: '0.75rem', color: COLORS.grisMedio, marginTop: 4 }}>
-                              A contactar: <b>{dist.total_contactar}</b> • Aceptaron: <b style={{ color: COLORS.beige }}>{dist.aceptaron_recontratacion}</b>
+                              Personas contactadas en este proceso: <b>{formatCount(dist.procesos?.[selectedProcessId]?.personas_contactadas)}</b>
+                              {' · '}Total de personas contactadas: <b>{formatCount(dist.total_personas_contactadas)}</b>
                             </div>
                           </div>
                           <ChevronRight size={18} color={COLORS.grisMedio} />
@@ -1017,126 +1017,54 @@ export default function Recontrataciones() {
   );
 }
 
-function ContactDistributionChart({ total, notLocated, contacted, accepted, pending }) {
-  const toCount = (value) => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
-  const totalValue = Number.isFinite(Number(total)) ? Number(total) : 0;
-  const contactedValue = toCount(contacted);
-  const acceptedValue = Math.min(toCount(accepted), contactedValue);
-  const segments = [
-    { label: 'No localizados (B)', value: toCount(notLocated), color: COLORS.grisMedio },
-    {
-      label: 'Comunicación establecida, sin aceptación',
-      value: contactedValue - acceptedValue,
-      color: COLORS.beige,
-    },
-    { label: 'Aceptaron la recontratación', value: acceptedValue, color: '#6F8F72' },
-    { label: 'Pendientes por contactar', value: toCount(pending), color: COLORS.grisOxford },
-  ];
+function formatCount(value) {
+  return typeof value === 'number' ? value.toLocaleString('es-MX') : value ?? 'Sin dato';
+}
 
+function DatasetMetricsGrid({ metrics, total }) {
   return (
-    <section
-      aria-label="Distribución de ciudadanos por situación de contacto"
-      style={{
-        background: COLORS.blanco,
-        border: `1px solid ${COLORS.bordeSuave}`,
-        borderRadius: '12px',
-        padding: '14px 12px 8px',
-      }}
-    >
-      <div style={{ fontSize: '0.72rem', fontWeight: 800, color: COLORS.grisOxford, textTransform: 'uppercase', textAlign: 'center' }}>
-        Desglose de ciudadanos/as a contactar
-      </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 220 }}>
-        <div style={{ flex: '0 0 48%', minWidth: 0, height: 220 }}>
-          {segments.some(segment => segment.value > 0) ? (
-            <Plot
-              data={[{
-                type: 'pie',
-                labels: segments.map(segment => segment.label),
-                values: segments.map(segment => segment.value),
-                textinfo: 'none',
-                marker: {
-                  colors: segments.map(segment => segment.color),
-                  line: { color: COLORS.blanco, width: 2 },
-                },
-                hovertemplate: '%{label}<br>%{value:,} ciudadanos/as (%{percent})<extra></extra>',
-                sort: false,
-              }]}
-              layout={{
-                height: 220,
-                margin: { t: 4, r: 4, b: 4, l: 4 },
-                paper_bgcolor: 'transparent',
-                plot_bgcolor: 'transparent',
-                showlegend: false,
-              }}
-              config={{ displayModeBar: false, responsive: true }}
-              useResizeHandler
-              style={{ width: '100%', height: 220 }}
-            />
-          ) : (
-            <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: COLORS.grisMedio, fontSize: '0.78rem', textAlign: 'center' }}>
-              Sin cantidades para mostrar.
-            </div>
-          )}
-        </div>
-        <div aria-label="Referencia de colores y porcentajes" style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {segments.map(segment => {
-            const percentage = totalValue > 0 ? (segment.value / totalValue) * 100 : 0;
-            return (
-              <div key={segment.label} style={{ display: 'flex', alignItems: 'flex-start', gap: 7, fontSize: '0.7rem', lineHeight: 1.3 }}>
-                <span aria-hidden="true" style={{ width: 10, height: 10, flex: '0 0 10px', marginTop: 2, borderRadius: '50%', background: segment.color }} />
-                <span style={{ flex: 1, color: COLORS.grisOxford }}>
-                  {segment.label}
-                  <br />
-                  <b>{segment.value.toLocaleString('es-MX')}</b>
-                  <span style={{ color: COLORS.grisMedio }}> · {percentage.toFixed(1)}%</span>
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-      <div style={{
-        textAlign: 'center',
-        fontSize: '0.72rem',
-        color: COLORS.grisMedio,
-        padding: '0 8px 4px',
-      }}>
-        Total a contactar: <b style={{ color: COLORS.grisOxford }}>{totalValue.toLocaleString('es-MX')}</b>
-        {' · '}Las aceptaciones se separan de comunicación establecida.
-      </div>
-    </section>
+    <div style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+      gap: 10,
+    }}>
+      {CAMPOS_RECONTRATACIONES.map(({ key, label }) => (
+        <DatasetFieldCard key={key} title={label} value={metrics?.[key]} />
+      ))}
+      <DatasetFieldCard
+        title="Total de personas contactadas"
+        value={total}
+        highlight
+      />
+    </div>
   );
 }
 
 // ===========================================================================
 // Tarjetas de Campo de Dataset
 // ===========================================================================
-function DatasetFieldCard({ title, value, icon, borderColor, highlight }) {
+function DatasetFieldCard({ title, value, highlight = false }) {
   return (
     <div style={{
       background: highlight ? 'linear-gradient(135deg, #FAF8F5, #FFFFFF)' : COLORS.fondoClaro,
       borderRadius: '10px',
       padding: '12px 14px',
       border: `1px solid ${highlight ? COLORS.beige : COLORS.bordeSuave}`,
-      borderLeft: `3px solid ${borderColor}`,
+      borderLeft: `3px solid ${highlight ? COLORS.beige : COLORS.grisMedio}`,
       display: 'flex',
       flexDirection: 'column',
       gap: 2
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span style={{ fontSize: '0.68rem', fontWeight: 700, color: COLORS.grisMedio, textTransform: 'uppercase', lineHeight: 1.2 }}>
-          {title}
-        </span>
-        {icon}
-      </div>
+      <span style={{ fontSize: '0.68rem', fontWeight: 700, color: COLORS.grisMedio, lineHeight: 1.3 }}>
+        {title}
+      </span>
       <div style={{
-        fontSize: '1.4rem',
+        fontSize: '1.2rem',
         fontWeight: 800,
         color: highlight ? COLORS.beige : COLORS.grisOxford,
-        marginTop: 4
+        marginTop: 4,
       }}>
-        {value}
+        {formatCount(value)}
       </div>
     </div>
   );

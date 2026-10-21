@@ -73,7 +73,7 @@ uvicorn main:app --reload
 El directorio de Excel predeterminado es `datasets/` en la raíz del repositorio. Para usar otro directorio, configura la variable de entorno `DATASETS_DIR` antes de iniciar FastAPI; una ruta relativa se resuelve desde la raíz del repositorio.
 
 ### Iniciar el Servidor Frontend
-Vite solo necesita el destino del proxy al backend en desarrollo. Define `VITE_API_PROXY_TARGET` en `frontend/.env.local`:
+En desarrollo, Vite reenvía `/api` al backend en `http://127.0.0.1:8000` por defecto. Si el backend usa otra dirección, define `VITE_API_PROXY_TARGET` en `frontend/.env.local`:
 ```dotenv
 VITE_API_PROXY_TARGET=http://127.0.0.1:8000
 ```

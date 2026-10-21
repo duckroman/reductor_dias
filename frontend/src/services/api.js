@@ -189,3 +189,10 @@ export const getRecontratacionesEstado = async (estado) => {
   return response.data;
 };
 
+export const getEstadosRecontrataciones = async () => {
+  const response = await api.get('/recontrataciones/estados');
+  if (!Array.isArray(response.data?.estados)) {
+    throw new Error('La API devolvió una respuesta inválida al consultar los estados con dataset.');
+  }
+  return response.data;
+};

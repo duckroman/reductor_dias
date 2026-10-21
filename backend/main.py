@@ -1149,6 +1149,33 @@ def debug_recontrataciones():
     })
 
 
+def _get_recontrataciones_files():
+    if not os.path.isdir(DATASETS_DIR):
+        return []
+
+    files = []
+    for filename in os.listdir(DATASETS_DIR):
+        if filename.startswith("~$") or not filename.lower().endswith((".xlsx", ".xlsm")):
+            continue
+        if "recontrataciones_" not in filename.lower():
+            continue
+        filepath = os.path.join(DATASETS_DIR, filename)
+        files.append((os.path.getmtime(filepath), filename, filepath))
+    return sorted(files, reverse=True)
+
+
+@app.get("/api/recontrataciones/estados")
+def get_estados_con_recontrataciones():
+    """Lista las entidades con un archivo de recontrataciones disponible."""
+    estados = []
+    for _, filename, _ in _get_recontrataciones_files():
+        stem = os.path.splitext(filename)[0]
+        estado = stem.lower().split("recontrataciones_", 1)[-1].strip("_ -")
+        if estado and estado not in estados:
+            estados.append(estado)
+    return JSONResponse(content={"estados": estados})
+
+
 @app.get("/api/recontrataciones/{estado}")
 def get_recontrataciones_estado(estado: str):
     """
@@ -1171,28 +1198,18 @@ def get_recontrataciones_estado(estado: str):
     if not os.path.isdir(target_dir):
         return JSONResponse(status_code=500, content={"error": "Carpeta datasets no encontrada en el servidor"})
 
-    # Exploración de archivos en target_dir.
-    matching_file = None
-    try:
-        available_files = os.listdir(target_dir)
-    except Exception as err:
-        return JSONResponse(status_code=500, content={"error": f"Error al leer datasets: {err}"})
-
-    for fname in available_files:
-        if not fname.lower().endswith(('.xlsx', '.xlsm', '.xls')) or fname.startswith('~$'):
-            continue
-
-        name_without_ext = os.path.splitext(fname)[0]
-        # Extraer partes divididas por guion bajo, medio o espacio
-        parts = [p for p in name_without_ext.replace('-', '_').replace(' ', '_').split('_') if p.strip()]
-        last_word = parts[-1] if parts else ""
-        last_word_norm = normalize(last_word)
-        full_name_norm = normalize(name_without_ext)
-
-        # Coincidencia por última palabra o si el estado está en el nombre del archivo
-        if last_word_norm == target_norm or target_norm in last_word_norm or target_norm in full_name_norm:
-            matching_file = os.path.join(target_dir, fname)
-            break
+    available_files = _get_recontrataciones_files()
+    matching_file = next(
+        (
+            filepath
+            for _, filename, filepath in available_files
+            if normalize(os.path.splitext(filename)[0].lower().split("recontrataciones_", 1)[-1])
+            == target_norm
+            or target_norm
+            in normalize(os.path.splitext(filename)[0].lower().split("recontrataciones_", 1)[-1])
+        ),
+        None,
+    )
 
     if not matching_file or not os.path.exists(matching_file):
         return JSONResponse(
@@ -1200,7 +1217,7 @@ def get_recontrataciones_estado(estado: str):
             content={
                 "error": f"Dataset de recontrataciones no encontrado para {estado}",
                 "carpeta_explorada": target_dir,
-                "archivos_encontrados": [f for f in available_files if not f.startswith('~$')]
+                "archivos_encontrados": [filename for _, filename, _ in available_files]
             }
         )
 
@@ -1210,59 +1227,151 @@ def get_recontrataciones_estado(estado: str):
         all_rows = list(ws.iter_rows(values_only=True))
         wb.close()
 
-        # Extraer metadatos de cabecera si existen
-        proceso = all_rows[3][1] if len(all_rows) > 3 and all_rows[3] else None
-        tema = all_rows[4][1] if len(all_rows) > 4 and all_rows[4] else None
-        fecha_corte = all_rows[6][7] if len(all_rows) > 6 and len(all_rows[6]) > 7 else None
+        header_row_idx = next(
+            (
+                idx
+                for idx, row in enumerate(all_rows)
+                if len(row) > 3
+                and str(row[1] or "").strip().lower() == "entidad"
+                and str(row[2] or "").strip().lower() == "distrito"
+                and str(row[3] or "").strip().lower() == "cabecera"
+            ),
+            None,
+        )
+        if header_row_idx is None:
+            return JSONResponse(
+                status_code=422,
+                content={"error": "El archivo no contiene los encabezados esperados de recontrataciones."},
+            )
 
-        # Fila 9 contiene los encabezados reales (Fila 8 en 0-indexed)
-        # Columnas:
-        # Col 0: Entidad
-        # Col 1: Distrito
-        # Col 2: Cabecera distrital federal
-        # Col 3: Total de ciudadanos/as a contactar (A)
-        # Col 4: Contactados no localizados (B)
-        # Col 5: Comunicacion establecida (C)
-        # Col 6: Pendiente por contactar (A-B-C)
-        # Col 7: Aceptaron recontratacion
-        # Col 8: JLE invito a RPP a entrevistas (solo JLE)
-        # Col 9: Observaciones
-        
-        totales = None
+        group_row = all_rows[header_row_idx - 1]
+        metric_row = all_rows[header_row_idx]
+        process_specs = [
+            ("pec_2023_2024", "Proceso Electoral Concurrente 2023-2024"),
+            (
+                "pe_judicial_2024_2025",
+                "Proceso Electoral Extraordinario para la elección de diversos cargos del Poder Judicial de la Federación 2024-2025",
+            ),
+            (
+                "pel_2024_2026",
+                "Proceso Electoral Local 2024-2025 Durango y Veracruz / Proceso Electoral Local 2025-2026 Coahuila",
+            ),
+        ]
+        metric_keys = {
+            "número de personas contactadas": "personas_contactadas",
+            "número de personas interesadas": "personas_interesadas",
+            "número de personas no interesadas": "personas_no_interesadas",
+            "número de personas sin respuesta": "personas_sin_respuesta",
+            "número de personas entrevistadas": "personas_entrevistadas",
+        }
+        process_columns = {}
+        for process_id, process_label in process_specs:
+            columns = [
+                idx
+                for idx in range(4, len(group_row))
+                if str(group_row[idx] or "").replace("\n", " ").strip()
+                == process_label.replace(" / ", "\n").split("\n")[0].strip()
+            ]
+            if process_id == "pel_2024_2026":
+                columns = [
+                    idx
+                    for idx in range(4, len(group_row))
+                    if "Proceso Electoral Local 2024-2025" in str(group_row[idx] or "")
+                ]
+            if columns:
+                process_columns[process_id] = columns
+
+        if len(process_columns) != len(process_specs):
+            return JSONResponse(
+                status_code=422,
+                content={"error": "El archivo no contiene los tres bloques de procesos electorales esperados."},
+            )
+
+        def cell_value(row, index):
+            value = row[index] if index < len(row) else None
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                return value
+            if value is None or str(value).strip() == "":
+                return 0
+            return str(value).strip()
+
+        def sum_values(values):
+            numeric_values = [
+                value for value in values
+                if isinstance(value, (int, float)) and not isinstance(value, bool)
+            ]
+            if numeric_values:
+                return sum(numeric_values)
+            nonempty = [str(value).strip() for value in values if value is not None and str(value).strip()]
+            return nonempty[0] if nonempty and all(value.lower() == "no aplica" for value in nonempty) else 0
+
+        process_labels = {
+            process_id: process_label for process_id, process_label in process_specs
+        }
         distritos = []
 
-        for row_idx in range(10, len(all_rows)):
+        for row_idx in range(header_row_idx + 1, len(all_rows)):
             r = all_rows[row_idx]
-            if not r or r[0] is None:
+            if len(r) < 4 or r[1] is None or r[2] is None or r[3] is None:
                 continue
 
-            distrito_str = str(r[1]).strip() if r[1] is not None else ""
-            entidad_str = str(r[0]).strip() if r[0] is not None else ""
-            cabecera_str = str(r[2]).strip() if r[2] is not None else ""
+            distrito = str(r[2]).strip()
+            if not distrito.isdigit():
+                continue
 
-            row_data = {
-                "entidad": entidad_str,
-                "distrito": distrito_str,
-                "cabecera": cabecera_str,
-                "total_contactar": r[3] if r[3] is not None else 0,
-                "contactados_no_localizados": r[4] if r[4] is not None else 0,
-                "comunicacion_establecida": r[5] if r[5] is not None else 0,
-                "pendiente_contactar": r[6] if r[6] is not None else 0,
-                "aceptaron_recontratacion": r[7] if r[7] is not None else 0,
-                "invito_rpp": str(r[8]).strip() if r[8] is not None else "",
-                "observaciones": str(r[9]).strip() if len(r) > 9 and r[9] is not None else ""
+            procesos = {}
+            for process_id, columns in process_columns.items():
+                metrics = {}
+                for column_idx in columns:
+                    metric_label = str(metric_row[column_idx] or "").replace("\n", " ").strip().lower()
+                    metric_key = metric_keys.get(metric_label)
+                    if metric_key:
+                        metrics[metric_key] = cell_value(r, column_idx)
+                procesos[process_id] = metrics
+
+            contactados = [
+                proceso.get("personas_contactadas", 0)
+                for proceso in procesos.values()
+            ]
+            observaciones = str(r[20]).strip() if len(r) > 20 and r[20] is not None else ""
+            distritos.append({
+                "entidad": str(r[1]).strip(),
+                "distrito": distrito,
+                "cabecera": str(r[3]).strip(),
+                "procesos": procesos,
+                "total_personas_contactadas": sum_values(contactados),
+                "observaciones": observaciones,
+            })
+
+        if not distritos:
+            return JSONResponse(
+                status_code=422,
+                content={"error": "El archivo no contiene filas de distritos válidas."},
+            )
+
+        totales_procesos = {}
+        for process_id in process_columns:
+            totales_procesos[process_id] = {
+                metric_key: sum_values(
+                    [dist["procesos"][process_id].get(metric_key, 0) for dist in distritos]
+                )
+                for metric_key in metric_keys.values()
             }
 
-            if distrito_str.upper() == "JLE":
-                totales = row_data
-            elif distrito_str:
-                distritos.append(row_data)
+        observaciones_jle = []
+        for dist in distritos:
+            if dist["observaciones"] and dist["observaciones"].lower() != "no aplica":
+                observaciones_jle.append(f"Distrito {dist['distrito']}: {dist['observaciones']}")
 
         return JSONResponse(content={
-            "proceso": proceso,
-            "tema": tema,
-            "fecha_corte": fecha_corte,
-            "totales": totales,
+            "procesos": process_labels,
+            "totales": {
+                "procesos": totales_procesos,
+                "total_personas_contactadas": sum_values(
+                    [dist["total_personas_contactadas"] for dist in distritos]
+                ),
+                "observaciones": " ".join(observaciones_jle),
+            },
             "distritos": distritos,
             "archivo": os.path.basename(matching_file)
         })
