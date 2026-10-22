@@ -1599,7 +1599,7 @@ function DatasetMetricsGrid({ metrics, total, projection }) {
           highlight
         /> */}
         <DatasetFieldCard
-          title="Proyección de SE y CAE a contactar"
+          title="Proyección de SE y CAE a contratar"
           value={projection}
         />
 {/*         <DatasetFieldCard
