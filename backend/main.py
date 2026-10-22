@@ -1204,16 +1204,24 @@ def normalize_recontrataciones_estado(text):
 
 
 def _recontrataciones_row_key(row):
-    if len(row) < 4 or any(row[index] is None for index in (1, 2, 3)):
+    if len(row) < 3 or row[1] is None or row[2] is None:
         return None
 
     entidad = normalize_recontrataciones_estado(row[1])
-    distrito = str(row[2]).strip()
-    distrito = distrito.zfill(2) if distrito.isdigit() else normalize_recontrataciones_estado(distrito)
-    cabecera = normalize_recontrataciones_estado(row[3])
-    if not entidad or not distrito or not cabecera:
+    if entidad.isdigit():
+        entidad = entidad.zfill(2)
+    if not entidad:
         return None
-    return entidad, distrito, cabecera
+    distrito = str(row[2]).strip()
+    if entidad == "entidad" or normalize_recontrataciones_estado(distrito) in {"distrito", "adosdigitos"}:
+        return None
+    if distrito.isdigit():
+        return entidad, "distrito", distrito.zfill(2)
+
+    cabecera = normalize_recontrataciones_estado(row[3]) if len(row) > 3 else ""
+    if not entidad or not cabecera or cabecera == "cabecera":
+        return None
+    return entidad, "cabecera", cabecera
 
 
 def _recontrataciones_header_columns(rows, header_row_idx, final_column):
@@ -1221,10 +1229,29 @@ def _recontrataciones_header_columns(rows, header_row_idx, final_column):
     metric_row = rows[header_row_idx + 1] if header_row_idx + 1 < len(rows) else ()
     columns = {}
     current_group = ""
+    metric_labels = {
+        normalize_recontrataciones_estado(label)
+        for label in (
+            "Número de personas contactadas",
+            "Número de personas interesadas",
+            "Número de personas no interesadas",
+            "Número de personas sin respuesta",
+            "Número de personas entrevistadas",
+        )
+    }
     for column_idx in range(4, final_column + 1):
-        if column_idx < len(group_row) and group_row[column_idx]:
-            current_group = str(group_row[column_idx]).replace("\n", " ").strip()
+        group_label = (
+            str(group_row[column_idx]).replace("\n", " ").strip()
+            if column_idx < len(group_row) and group_row[column_idx]
+            else ""
+        )
         metric = metric_row[column_idx] if column_idx < len(metric_row) else None
+        if group_label:
+            current_group = group_label
+        elif metric and normalize_recontrataciones_estado(str(metric)) not in metric_labels:
+            current_group = str(metric).replace("\n", " ").strip()
+        if not metric and group_label:
+            metric = group_label
         if not metric and column_idx < len(group_row):
             metric = group_row[column_idx]
         if current_group and metric:
@@ -1235,15 +1262,13 @@ def _recontrataciones_header_columns(rows, header_row_idx, final_column):
     return columns
 
 
-@app.get("/api/recontrataciones/exportar")
-def exportar_recontrataciones_concentrado():
+def _get_recontrataciones_concentrado_template():
     import re
-    from datetime import date, datetime
+    from datetime import datetime
 
+    candidates = []
     if not os.path.isdir(DATASETS_DIR):
-        return JSONResponse(status_code=500, content={"error": "Carpeta datasets no encontrada en el servidor."})
-
-    template_files = []
+        return None
     for filename in os.listdir(DATASETS_DIR):
         match = re.fullmatch(
             r"(\d{8})_recontrataciones_concentrado\.xlsx",
@@ -1253,25 +1278,94 @@ def exportar_recontrataciones_concentrado():
         if not match:
             continue
         try:
-            template_date = datetime.strptime(match.group(1), "%Y%m%d").date()
+            file_date = datetime.strptime(match.group(1), "%Y%m%d").date()
         except ValueError:
             continue
-        template_files.append((template_date, os.path.join(DATASETS_DIR, filename)))
+        candidates.append((file_date, os.path.join(DATASETS_DIR, filename)))
+    return max(candidates, key=lambda item: item[0])[1] if candidates else None
 
-    if not template_files:
+
+def _get_recontrataciones_projections():
+    template_path = _get_recontrataciones_concentrado_template()
+    if not template_path:
+        return False, {}
+
+    workbook = openpyxl.load_workbook(template_path, data_only=True, read_only=True)
+    try:
+        worksheet = workbook.active
+        max_column = min(max(worksheet.max_column, 1), 64)
+        rows = list(worksheet.iter_rows(
+            min_col=1,
+            max_col=max_column,
+            values_only=True,
+        ))
+    finally:
+        workbook.close()
+
+    header_row_idx = next(
+        (
+            idx for idx, row in enumerate(rows)
+            if len(row) > 3
+            and str(row[1] or "").strip().lower() == "entidad"
+            and str(row[2] or "").strip().lower() == "distrito"
+            and str(row[3] or "").strip().lower() == "cabecera"
+        ),
+        None,
+    )
+    if header_row_idx is None:
+        return False, {}
+
+    projection_column_idx = next(
+        (
+            column_idx
+            for row in rows[header_row_idx:header_row_idx + 3]
+            for column_idx, value in enumerate(row)
+            if value
+            and "proyeccion"
+            in normalize_recontrataciones_estado(str(value).replace("\n", " "))
+        ),
+        None,
+    )
+    if projection_column_idx is None:
+        return False, {}
+
+    projections = {}
+    for row in rows[header_row_idx + 3:]:
+        key = _recontrataciones_row_key(row)
+        if not key or key[1] != "distrito":
+            continue
+        value = row[projection_column_idx] if projection_column_idx < len(row) else None
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            projections[key] = value
+    return True, projections
+
+
+@app.get("/api/recontrataciones/exportar")
+def exportar_recontrataciones_concentrado():
+    from copy import copy
+    from datetime import date
+
+    if not os.path.isdir(DATASETS_DIR):
+        return JSONResponse(status_code=500, content={"error": "Carpeta datasets no encontrada en el servidor."})
+
+    template_path = _get_recontrataciones_concentrado_template()
+    if not template_path:
         return JSONResponse(
             status_code=404,
             content={"error": "No se encontró la plantilla YYYYMMDD_recontrataciones_concentrado.xlsx en datasets."},
         )
 
-    template_path = max(template_files, key=lambda item: item[0])[1]
     try:
         workbook = openpyxl.load_workbook(template_path)
         worksheet = workbook.active
-        template_rows = list(worksheet.iter_rows(values_only=True))
+        header_scan_rows = worksheet.iter_rows(
+            min_col=1,
+            max_col=4,
+            values_only=True,
+        )
         header_row_idx = next(
             (
-                idx for idx, row in enumerate(template_rows)
+                idx for idx, row in enumerate(header_scan_rows)
                 if len(row) > 3
                 and str(row[1] or "").strip().lower() == "entidad"
                 and str(row[2] or "").strip().lower() == "distrito"
@@ -1286,16 +1380,44 @@ def exportar_recontrataciones_concentrado():
                 content={"error": "La plantilla no contiene los encabezados Entidad, Distrito y Cabecera."},
             )
 
+        header_scan_max_column = min(max(worksheet.max_column, 1), 64)
+        header_rows = list(worksheet.iter_rows(
+            min_row=header_row_idx + 1,
+            max_row=header_row_idx + 3,
+            min_col=1,
+            max_col=header_scan_max_column,
+            values_only=True,
+        ))
+        final_column = max(
+            column_idx + 1
+            for row in header_rows
+            for column_idx, value in enumerate(row)
+            if value is not None
+        )
+        template_rows = list(worksheet.iter_rows(
+            min_col=1,
+            max_col=final_column,
+            values_only=True,
+        ))
         template_columns = _recontrataciones_header_columns(
-            template_rows, header_row_idx, worksheet.max_column - 1
+            template_rows, header_row_idx, final_column - 1
+        )
+        projection_metric = normalize_recontrataciones_estado("Proyección SE y CAE 2026 - 2027")
+        projection_column_idx = next(
+            (
+                column_idx for (group, metric), column_idx in template_columns.items()
+                if metric == projection_metric or group == projection_metric
+            ),
+            None,
         )
         target_rows = {}
         for row_idx in range(header_row_idx + 1, len(template_rows)):
             key = _recontrataciones_row_key(template_rows[row_idx])
             if key:
                 target_rows[key] = row_idx + 1
-                for column_idx in range(5, worksheet.max_column + 1):
-                    worksheet.cell(row=row_idx + 1, column=column_idx).value = None
+                for column_idx in range(5, final_column + 1):
+                    if column_idx - 1 != projection_column_idx:
+                        worksheet.cell(row=row_idx + 1, column=column_idx).value = None
 
         total_metric = normalize_recontrataciones_estado("Total de personas contactadas")
         contacted_metric = normalize_recontrataciones_estado("Número de personas contactadas")
@@ -1321,7 +1443,11 @@ def exportar_recontrataciones_concentrado():
 
             source_workbook = openpyxl.load_workbook(filepath, data_only=True, read_only=True)
             try:
-                source_rows = list(source_workbook.active.iter_rows(values_only=True))
+                source_rows = list(source_workbook.active.iter_rows(
+                    min_col=1,
+                    max_col=min(max(source_workbook.active.max_column, 1), 64),
+                    values_only=True,
+                ))
             finally:
                 source_workbook.close()
 
@@ -1339,12 +1465,12 @@ def exportar_recontrataciones_concentrado():
                 raise ValueError(f"{os.path.basename(filepath)} no contiene los encabezados esperados.")
 
             source_columns = _recontrataciones_header_columns(
-                source_rows, source_header_idx, max(len(row) for row in source_rows) - 1
+                source_rows, source_header_idx, min(max(len(row) for row in source_rows), 64) - 1
             )
             matching_columns = [
                 (target_idx, source_columns[column_key])
                 for column_key, target_idx in template_columns.items()
-                if column_key in source_columns
+                if column_key in source_columns and target_idx != projection_column_idx
             ]
 
             for source_row in source_rows[source_header_idx + 1:]:
@@ -1357,14 +1483,22 @@ def exportar_recontrataciones_concentrado():
                     worksheet.cell(row=target_row_idx, column=target_column_idx + 1).value = value
                 if total_column_idx is not None:
                     total_cell = worksheet.cell(row=target_row_idx, column=total_column_idx + 1)
-                    contacted_values = [
-                        worksheet.cell(row=target_row_idx, column=column_idx + 1).value
-                        for column_idx in contacted_column_indices
-                    ]
-                    total_cell.value = sum(
-                        value for value in contacted_values
-                        if isinstance(value, (int, float)) and not isinstance(value, bool)
-                    )
+                    if total_cell.value is None:
+                        contacted_values = [
+                            worksheet.cell(row=target_row_idx, column=column_idx + 1).value
+                            for column_idx in contacted_column_indices
+                        ]
+                        total_cell.value = sum(
+                            value for value in contacted_values
+                            if isinstance(value, (int, float)) and not isinstance(value, bool)
+                        )
+
+        for row_idx in target_rows.values():
+            for column_idx in range(2, final_column + 1):
+                cell = worksheet.cell(row=row_idx, column=column_idx)
+                font = copy(cell.font)
+                font.color = "FF000000"
+                cell.font = font
 
         output = io.BytesIO()
         workbook.save(output)
@@ -1412,9 +1546,13 @@ def get_recontrataciones_estado(estado: str):
         )
 
     try:
-        wb = openpyxl.load_workbook(matching_file, data_only=True)
+        wb = openpyxl.load_workbook(matching_file, data_only=True, read_only=True)
         ws = wb.active
-        all_rows = list(ws.iter_rows(values_only=True))
+        all_rows = list(ws.iter_rows(
+            min_col=1,
+            max_col=min(max(ws.max_column, 1), 64),
+            values_only=True,
+        ))
         wb.close()
 
         header_row_idx = next(
@@ -1514,6 +1652,7 @@ def get_recontrataciones_estado(estado: str):
         process_labels = {
             process_id: process_label for process_id, process_label in process_specs
         }
+        projection_available, projections = _get_recontrataciones_projections()
         distritos = []
 
         for row_idx in range(header_row_idx + 1, len(all_rows)):
@@ -1539,13 +1678,22 @@ def get_recontrataciones_estado(estado: str):
                 proceso.get("personas_contactadas", 0)
                 for proceso in procesos.values()
             ]
+            global_metrics = {
+                metric_key: sum_values(
+                    [proceso.get(metric_key, 0) for proceso in procesos.values()]
+                )
+                for metric_key in metric_keys.values()
+            }
             observaciones = str(r[20]).strip() if len(r) > 20 and r[20] is not None else ""
+            projection_key = _recontrataciones_row_key(r)
             distritos.append({
                 "entidad": str(r[1]).strip(),
                 "distrito": distrito,
                 "cabecera": str(r[3]).strip(),
                 "procesos": procesos,
+                "global": global_metrics,
                 "total_personas_contactadas": sum_values(contactados),
+                "proyeccion_personas_contactar": projections.get(projection_key),
                 "observaciones": observaciones,
             })
 
@@ -1564,6 +1712,12 @@ def get_recontrataciones_estado(estado: str):
                 for metric_key in metric_keys.values()
             }
 
+        totales_globales = {
+            metric_key: sum_values(
+                [dist["global"].get(metric_key, 0) for dist in distritos]
+            )
+            for metric_key in metric_keys.values()
+        }
         observaciones_jle = []
         for dist in distritos:
             if dist["observaciones"] and dist["observaciones"].lower() != "no aplica":
@@ -1573,12 +1727,22 @@ def get_recontrataciones_estado(estado: str):
             "procesos": process_labels,
             "totales": {
                 "procesos": totales_procesos,
-                "total_personas_contactadas": sum_values(
-                    [dist["total_personas_contactadas"] for dist in distritos]
+                "global": totales_globales,
+                "total_personas_contactadas": totales_globales["personas_contactadas"],
+                "proyeccion_personas_contactar": (
+                    sum(
+                        dist["proyeccion_personas_contactar"]
+                        for dist in distritos
+                        if isinstance(dist["proyeccion_personas_contactar"], (int, float))
+                        and not isinstance(dist["proyeccion_personas_contactar"], bool)
+                    )
+                    if projection_available
+                    else None
                 ),
                 "observaciones": " ".join(observaciones_jle),
             },
             "distritos": distritos,
+            "proyeccion_disponible": projection_available,
             "archivo": os.path.basename(matching_file)
         })
     except Exception as exc:

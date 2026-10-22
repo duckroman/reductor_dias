@@ -40,6 +40,8 @@ const COLORS = {
 };
 
 const STORAGE_KEY = 'ine_recontrataciones_vocalias_v4';
+const GLOBAL_PROCESS_ID = 'global';
+const NATIONAL_VIEW = 'nacional';
 
 const PROCESOS_ELECTORALES = [
   {
@@ -126,6 +128,64 @@ const generateInitialVocales = () => {
   return store;
 };
 
+const aggregateMetrics = (items, selector) => Object.fromEntries(
+  CAMPOS_RECONTRATACIONES.map(({ key }) => [
+    key,
+    items.reduce((sum, item) => {
+      const value = selector(item)?.[key];
+      return sum + (typeof value === 'number' && Number.isFinite(value) ? value : 0);
+    }, 0),
+  ])
+);
+
+const aggregateNationalDatasets = (states, datasets) => {
+  const processTotals = Object.fromEntries(
+    PROCESOS_ELECTORALES.map(({ id }) => [
+      id,
+      aggregateMetrics(datasets, (dataset) => dataset.totales?.procesos?.[id]),
+    ])
+  );
+  const globalTotals = aggregateMetrics(datasets, (dataset) => dataset.totales?.global);
+  const districts = datasets.flatMap((dataset, index) => {
+    return (dataset.distritos ?? []).map((district) => ({
+      ...district,
+      entidadNombre: ENTIDADES_CATALOGO.find(({ id }) => (
+        String(id).padStart(2, '0') === String(district.entidad).padStart(2, '0')
+      ))?.name ?? states[index],
+    }));
+  });
+  districts.sort((a, b) => (
+    Number(a.entidad) - Number(b.entidad)
+    || Number(a.distrito) - Number(b.distrito)
+  ));
+  const projectionValues = districts
+    .map(({ proyeccion_personas_contactar }) => proyeccion_personas_contactar)
+    .filter((value) => typeof value === 'number' && Number.isFinite(value));
+
+  return {
+    procesos: datasets[0]?.procesos ?? {},
+    totales: {
+      procesos: processTotals,
+      global: globalTotals,
+      total_personas_contactadas: globalTotals.personas_contactadas,
+      proyeccion_personas_contactar: projectionValues.length
+        ? projectionValues.reduce((sum, value) => sum + value, 0)
+        : null,
+      observaciones: datasets
+        .map((dataset, index) => (
+          dataset.totales?.observaciones
+            ? `${states[index]}: ${dataset.totales.observaciones}`
+            : ''
+        ))
+        .filter(Boolean)
+        .join(' '),
+    },
+    distritos: districts,
+    proyeccion_disponible: projectionValues.length > 0,
+    archivo: `${datasets.length} datasets estatales`,
+  };
+};
+
 export default function Recontrataciones() {
   const [vocalesStore, setVocalesStore] = useState(() => {
     try {
@@ -142,10 +202,11 @@ export default function Recontrataciones() {
   const [datasetLoadError, setDatasetLoadError] = useState(null);
   const [loadingDataset, setLoadingDataset] = useState(false);
   const [availableDatasetStates, setAvailableDatasetStates] = useState([]);
+  const [loadingAvailableDatasetStates, setLoadingAvailableDatasetStates] = useState(true);
   const [datasetStatesError, setDatasetStatesError] = useState(null);
   const [isDatasetAvailabilityOpen, setIsDatasetAvailabilityOpen] = useState(false);
   const [isExportingAdvance, setIsExportingAdvance] = useState(false);
-  const [selectedProcessId, setSelectedProcessId] = useState(PROCESOS_ELECTORALES[0].id);
+  const [selectedProcessId, setSelectedProcessId] = useState(GLOBAL_PROCESS_ID);
 
   // Pestañas de la tarjeta: 'resumen_jle' | 'distritos' | 'vocales'
   const [cardTab, setCardTab] = useState('resumen_jle');
@@ -234,6 +295,9 @@ export default function Recontrataciones() {
       .catch((error) => {
         console.error('Error fetching available recontrataciones states:', error);
         setDatasetStatesError('No fue posible consultar la disponibilidad de los datasets.');
+      })
+      .finally(() => {
+        setLoadingAvailableDatasetStates(false);
       });
   }, []);
 
@@ -242,34 +306,71 @@ export default function Recontrataciones() {
     if (!selectedState) {
       setStateDataset(null);
       setDatasetLoadError(null);
+      setLoadingDataset(false);
       return;
     }
 
+    if (selectedState === NATIONAL_VIEW && loadingAvailableDatasetStates) {
+      setLoadingDataset(true);
+      return;
+    }
+
+    let cancelled = false;
     setLoadingDataset(true);
     setDatasetLoadError(null);
-    getRecontratacionesEstado(selectedState)
-      .then(res => {
-        setStateDataset(res);
+    const loadDataset = selectedState === NATIONAL_VIEW
+      ? Promise.all(availableDatasetStates.map((state) => getRecontratacionesEstado(state)))
+        .then((datasets) => {
+          if (datasets.length === 0) {
+            throw new Error('No hay datasets estatales disponibles para calcular el avance nacional.');
+          }
+          return aggregateNationalDatasets(availableDatasetStates, datasets);
+        })
+      : getRecontratacionesEstado(selectedState);
+
+    loadDataset
+      .then((dataset) => {
+        if (!cancelled) setStateDataset(dataset);
       })
-      .catch(err => {
-        console.warn('Error fetching dataset for state:', selectedState, err);
-        setStateDataset(null);
-        setDatasetLoadError(
-          err.response?.data?.error
-          || `No fue posible leer el dataset de ${selectedState}.`
-        );
+      .catch((error) => {
+        console.error(`Error fetching recontrataciones data for ${selectedState}:`, error);
+        if (!cancelled) {
+          setStateDataset(null);
+          setDatasetLoadError(
+            error.response?.data?.error
+            || error.message
+            || `No fue posible leer el dataset de ${selectedState}.`
+          );
+        }
       })
       .finally(() => {
-        setLoadingDataset(false);
+        if (!cancelled) setLoadingDataset(false);
       });
-  }, [selectedState]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedState, availableDatasetStates, loadingAvailableDatasetStates]);
 
   // Selección al hacer clic en el mapa
   const handleMapClick = (stateName) => {
     setSelectedState(stateName);
+    setSelectedProcessId(GLOBAL_PROCESS_ID);
     setCardTab('resumen_jle');
     setSelectedDistritoItem(null);
     setEditingCard(null);
+  };
+
+  const handleEntityChange = (entity) => {
+    if (entity === NATIONAL_VIEW) {
+      setSelectedState(NATIONAL_VIEW);
+      setSelectedProcessId(GLOBAL_PROCESS_ID);
+      setCardTab('resumen_jle');
+      setSelectedDistritoItem(null);
+      setEditingCard(null);
+      return;
+    }
+    if (entity) handleMapClick(entity);
   };
 
   const currentVocales = useMemo(() => {
@@ -332,9 +433,25 @@ export default function Recontrataciones() {
 
   // Datos JLE del dataset
   const jleData = stateDataset?.totales;
-  const jleProcessData = jleData?.procesos?.[selectedProcessId];
-  const selectedProcess = PROCESOS_ELECTORALES.find(({ id }) => id === selectedProcessId)
-    ?? PROCESOS_ELECTORALES[0];
+  const isGlobalProcessSelected = selectedProcessId === GLOBAL_PROCESS_ID;
+  const jleProcessData = isGlobalProcessSelected
+    ? jleData?.global
+    : jleData?.procesos?.[selectedProcessId];
+  const selectedDistritoMetrics = selectedDistritoItem
+    ? isGlobalProcessSelected
+      ? selectedDistritoItem.global
+      : selectedDistritoItem.procesos?.[selectedProcessId]
+    : null;
+  const selectedProcess = isGlobalProcessSelected
+    ? {
+      id: GLOBAL_PROCESS_ID,
+      label: selectedState === NATIONAL_VIEW
+        ? 'Avance Nacional (suma de todos los estados)'
+        : 'Avance global (suma de los tres procesos)',
+      badge: selectedState === NATIONAL_VIEW ? 'Avance Nacional' : 'Avance global',
+    }
+    : PROCESOS_ELECTORALES.find(({ id }) => id === selectedProcessId)
+      ?? PROCESOS_ELECTORALES[0];
 
   return (
     <div style={{
@@ -413,7 +530,9 @@ export default function Recontrataciones() {
         {selectedState && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: '0.85rem', color: COLORS.grisMedio }}>
-              Estado: <b style={{ color: COLORS.grisOxford }}>{selectedState}</b>
+              Entidad: <b style={{ color: COLORS.grisOxford }}>
+                {selectedState === NATIONAL_VIEW ? 'Avance Nacional' : selectedState}
+              </b>
             </span>
             <button
               onClick={() => {
@@ -485,13 +604,13 @@ export default function Recontrataciones() {
           fontWeight: 700
         }}>
           <Building2 size={18} color={COLORS.beige} />
-          <span>Elegir estado</span>
+          <span>Elegir entidad</span>
           <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
             <select
-              aria-label="Elegir estado"
+              aria-label="Elegir entidad"
               value={selectedState ?? ''}
               onChange={(event) => {
-                if (event.target.value) handleMapClick(event.target.value);
+                handleEntityChange(event.target.value);
               }}
               style={{
                 appearance: 'none',
@@ -506,7 +625,8 @@ export default function Recontrataciones() {
                 cursor: 'pointer'
               }}
             >
-              <option value="">Selecciona...</option>
+              <option value="">Selecciona una entidad...</option>
+              <option value={NATIONAL_VIEW}>Avance Nacional</option>
               {ENTIDADES_CATALOGO
                 .filter(({ name }) => statesWithDataset.includes(name))
                 .sort((a, b) => a.name.localeCompare(b.name, 'es'))
@@ -669,18 +789,22 @@ export default function Recontrataciones() {
             marker: {
               line: {
                 color: locations.map(n =>
-                  normalize(n) === normalize(selectedState)
+                  selectedState === NATIONAL_VIEW
+                    ? COLORS.grisOxford
+                    : normalize(n) === normalize(selectedState)
                     ? COLORS.grisOxford
                     : '#CBD0D5'
                 ),
                 width: locations.map(n =>
-                  normalize(n) === normalize(selectedState) ? 2.5 : 0.8
+                  selectedState === NATIONAL_VIEW
+                    ? 1.8
+                    : normalize(n) === normalize(selectedState) ? 2.5 : 0.8
                 )
               }
             },
             hoverinfo: 'text',
             text: locations.map(name => {
-              return `<b>${name.toUpperCase()}</b><br>👉 Clic para desplegar información del dataset y vocales`;
+              return `<b>${name.toUpperCase()}</b><br>👉 Clic para desplegar la información del dataset`;
             }),
             hoverlabel: {
               bgcolor: COLORS.blanco,
@@ -761,10 +885,10 @@ export default function Recontrataciones() {
             }}>
               <div>
                 <span style={{ fontSize: '0.7rem', fontWeight: 800, textTransform: 'uppercase', color: COLORS.beige, letterSpacing: '1px' }}>
-                  Estado Seleccionado
+                  Entidad seleccionada
                 </span>
                 <h2 style={{ margin: '2px 0 0', fontSize: '1.35rem', fontWeight: 800, color: COLORS.grisOxford }}>
-                  {selectedState}
+                  {selectedState === NATIONAL_VIEW ? 'Avance Nacional' : selectedState}
                 </h2>
               </div>
 
@@ -789,39 +913,63 @@ export default function Recontrataciones() {
 
             {/* Selección del proceso electoral */}
             <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-              gap: 6,
-              padding: '8px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              padding: '10px 16px',
               borderBottom: `1px solid ${COLORS.bordeSuave}`,
               background: COLORS.blanco,
             }}>
-              {PROCESOS_ELECTORALES.map((proceso) => {
-                const isSelected = selectedProcessId === proceso.id;
-                return (
-                  <button
-                    key={proceso.id}
-                    type="button"
-                    title={proceso.label}
-                    aria-pressed={isSelected}
-                    onClick={() => setSelectedProcessId(proceso.id)}
-                    style={{
-                      minHeight: 52,
-                      padding: '7px 6px',
-                      border: `1px solid ${isSelected ? COLORS.beige : COLORS.bordeSuave}`,
-                      borderRadius: 8,
-                      background: isSelected ? '#FAF8F5' : COLORS.blanco,
-                      color: isSelected ? COLORS.grisOxford : COLORS.grisMedio,
-                      fontSize: '0.66rem',
-                      lineHeight: 1.25,
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {proceso.label}
-                  </button>
-                );
-              })}
+              <label
+                htmlFor="recontrataciones-process"
+                style={{ flex: '0 0 auto', fontSize: '0.75rem', fontWeight: 700, color: COLORS.grisMedio }}
+              >
+                Vista
+              </label>
+              <span style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                <select
+                  id="recontrataciones-process"
+                  aria-label="Seleccionar proceso electoral"
+                  value={selectedProcessId}
+                  onChange={(event) => setSelectedProcessId(event.target.value)}
+                  style={{
+                    appearance: 'none',
+                    width: '100%',
+                    minWidth: 0,
+                    padding: '9px 36px 9px 11px',
+                    border: `1px solid ${COLORS.bordeSuave}`,
+                    borderRadius: 8,
+                    background: COLORS.blanco,
+                    color: COLORS.grisOxford,
+                    fontFamily: 'inherit',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  <option value={GLOBAL_PROCESS_ID}>
+                    {selectedState === NATIONAL_VIEW
+                      ? 'Avance Nacional (suma de todos los estados)'
+                      : 'Avance global (suma de los tres procesos)'}
+                  </option>
+                  {PROCESOS_ELECTORALES.map((proceso) => (
+                    <option key={proceso.id} value={proceso.id}>{proceso.label}</option>
+                  ))}
+                </select>
+                <ChevronDown
+                  aria-hidden="true"
+                  size={16}
+                  strokeWidth={2.5}
+                  style={{
+                    position: 'absolute',
+                    top: '50%',
+                    right: 12,
+                    transform: 'translateY(-50%)',
+                    pointerEvents: 'none',
+                    color: COLORS.grisOxford,
+                  }}
+                />
+              </span>
             </div>
 
             {/* Pestañas de la Tarjeta */}
@@ -880,6 +1028,7 @@ export default function Recontrataciones() {
                 Mostrar Distritos {stateDataset?.distritos?.length ? `(${stateDataset.distritos.length})` : ''}
               </button>
 
+              {/* Pestaña temporalmente deshabilitada
               <button
                 onClick={() => setCardTab('vocales')}
                 style={{
@@ -902,6 +1051,7 @@ export default function Recontrataciones() {
                 <User size={14} color={cardTab === 'vocales' ? COLORS.beige : COLORS.grisMedio} />
                 Vocales (Editar)
               </button>
+              */}
             </div>
 
             {/* Contenido Dinámico */}
@@ -971,25 +1121,6 @@ export default function Recontrataciones() {
                     ? datasetLoadError
                     : <>Aún no se ha cargado el archivo Excel correspondiente a <b>{selectedState}</b> en la carpeta <code>datasets/</code>.</>}
                 </p>
-                  <button
-                    onClick={() => setCardTab('vocales')}
-                    style={{
-                      marginTop: '16px',
-                      background: COLORS.grisOxford,
-                      color: COLORS.blanco,
-                      border: 'none',
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      fontSize: '0.8rem',
-                      fontWeight: 700,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6
-                    }}
-                  >
-                    <User size={14} color={COLORS.beige} /> Consultar o Editar Vocales
-                  </button>
                 </div>
               ) : cardTab === 'resumen_jle' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
@@ -1007,7 +1138,8 @@ export default function Recontrataciones() {
 
                   <DatasetMetricsGrid
                     metrics={jleProcessData}
-                    total={jleData?.total_personas_contactadas}
+                    total={jleProcessData?.personas_contactadas}
+                    projection={jleData?.proyeccion_personas_contactar}
                   />
 
                   <div style={{
@@ -1057,7 +1189,9 @@ export default function Recontrataciones() {
                         border: `1px solid ${COLORS.bordeSuave}`
                       }}>
                         <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', color: COLORS.beige }}>
-                          Distrito Federal {selectedDistritoItem.distrito}
+                          {selectedState === NATIONAL_VIEW
+                            ? `${selectedDistritoItem.entidadNombre} · Distrito ${selectedDistritoItem.distrito}`
+                            : `Distrito Federal ${selectedDistritoItem.distrito}`}
                         </span>
                         <h3 style={{ margin: '2px 0 0', fontSize: '1.15rem', color: COLORS.grisOxford }}>
                           Cabecera: {selectedDistritoItem.cabecera}
@@ -1068,8 +1202,9 @@ export default function Recontrataciones() {
                         {selectedProcess.label}
                       </span>
                       <DatasetMetricsGrid
-                        metrics={selectedDistritoItem.procesos?.[selectedProcessId]}
-                        total={selectedDistritoItem.total_personas_contactadas}
+                        metrics={selectedDistritoMetrics}
+                        total={selectedDistritoMetrics?.personas_contactadas}
+                        projection={selectedDistritoItem.proyeccion_personas_contactar}
                       />
 
                       <div style={{
@@ -1093,9 +1228,17 @@ export default function Recontrataciones() {
                         Selecciona un distrito para consultar sus datos correspondientes:
                       </span>
 
-                      {(stateDataset?.distritos ?? []).map((dist) => (
+                      {(stateDataset?.distritos ?? []).map((dist) => {
+                        const districtMetrics = isGlobalProcessSelected
+                          ? dist.global
+                          : dist.procesos?.[selectedProcessId];
+                        const coverage = getProjectionCoverage(
+                          districtMetrics?.personas_contactadas,
+                          dist.proyeccion_personas_contactar
+                        );
+                        return (
                         <div
-                          key={dist.distrito}
+                          key={`${dist.entidad}-${dist.distrito}`}
                           onClick={() => setSelectedDistritoItem(dist)}
                           style={{
                             background: COLORS.fondoClaro,
@@ -1129,18 +1272,30 @@ export default function Recontrataciones() {
                               }}>
                                 DTO {dist.distrito}
                               </span>
+                              {selectedState === NATIONAL_VIEW && (
+                                <span style={{
+                                  fontSize: '0.68rem',
+                                  fontWeight: 700,
+                                  color: COLORS.grisMedio,
+                                  textTransform: 'uppercase',
+                                }}>
+                                  {dist.entidadNombre}
+                                </span>
+                              )}
                               <span style={{ fontWeight: 800, fontSize: '0.95rem', color: COLORS.grisOxford }}>
                                 {dist.cabecera}
                               </span>
                             </div>
                             <div style={{ fontSize: '0.75rem', color: COLORS.grisMedio, marginTop: 4 }}>
-                              Personas contactadas en este proceso: <b>{formatCount(dist.procesos?.[selectedProcessId]?.personas_contactadas)}</b>
-                              {' · '}Total de personas contactadas: <b>{formatCount(dist.total_personas_contactadas)}</b>
+                              Contactadas: <b>{formatCount(districtMetrics?.personas_contactadas)}</b>
+                              {' · '}Proyección: <b>{formatCount(dist.proyeccion_personas_contactar)}</b>
+                              {' · '}Avance: <b>{coverage === null ? 'Sin proyección' : `${coverage.toFixed(1)}%`}</b>
                             </div>
                           </div>
                           <ChevronRight size={18} color={COLORS.grisMedio} />
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -1157,13 +1312,23 @@ function formatCount(value) {
   return typeof value === 'number' ? value.toLocaleString('es-MX') : value ?? 'Sin dato';
 }
 
-function DatasetMetricsGrid({ metrics, total }) {
+function getProjectionCoverage(contacted, projection) {
+  const contactedValue = typeof contacted === 'number' ? contacted : Number(contacted);
+  const projectionValue = typeof projection === 'number' ? projection : Number(projection);
+  if (!Number.isFinite(contactedValue) || !Number.isFinite(projectionValue) || projectionValue <= 0) {
+    return null;
+  }
+  return (contactedValue / projectionValue) * 100;
+}
+
+function DatasetMetricsGrid({ metrics, total, projection }) {
   const chartValues = CAMPOS_RECONTRATACIONES.map(({ key }) => {
     const value = metrics?.[key];
     const numericValue = typeof value === 'number' ? value : Number(value);
     return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : 0;
   });
   const chartTotal = chartValues.reduce((sum, value) => sum + value, 0);
+  const projectionCoverage = getProjectionCoverage(metrics?.personas_contactadas, projection);
 
   return (
     <>
@@ -1264,6 +1429,50 @@ function DatasetMetricsGrid({ metrics, total }) {
             })}
           </div>
         </div>
+        <div style={{
+          marginTop: 8,
+          padding: '10px 12px',
+          borderRadius: 9,
+          background: COLORS.fondoClaro,
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            gap: 8,
+            fontSize: '0.72rem',
+          }}>
+            <span style={{ color: COLORS.grisOxford, fontWeight: 700 }}>Cobertura de la proyección</span>
+            <b style={{ color: COLORS.grisOxford }}>
+              {projectionCoverage === null ? 'Sin proyección' : `${projectionCoverage.toFixed(1)}%`}
+            </b>
+          </div>
+          <div
+            role="progressbar"
+            aria-label="Cobertura de la proyección"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={projectionCoverage === null ? 0 : Math.min(projectionCoverage, 100)}
+            style={{
+              height: 7,
+              overflow: 'hidden',
+              marginTop: 7,
+              borderRadius: 999,
+              background: COLORS.bordeSuave,
+            }}
+          >
+            <div style={{
+              width: `${projectionCoverage === null ? 0 : Math.min(projectionCoverage, 100)}%`,
+              height: '100%',
+              borderRadius: 'inherit',
+              background: '#89c5a8',
+              transition: 'width 0.2s ease',
+            }} />
+          </div>
+          <div style={{ marginTop: 5, color: COLORS.grisMedio, fontSize: '0.68rem' }}>
+            {formatCount(metrics?.personas_contactadas)} de {formatCount(projection)} personas proyectadas
+          </div>
+        </div>
       </section>
       <div style={{
         display: 'grid',
@@ -1276,6 +1485,15 @@ function DatasetMetricsGrid({ metrics, total }) {
         <DatasetFieldCard
           title="Total de personas contactadas"
           value={total}
+          highlight
+        />
+        <DatasetFieldCard
+          title="Proyección de personas a contactar"
+          value={projection}
+        />
+        <DatasetFieldCard
+          title="Avance sobre la proyección"
+          value={projectionCoverage === null ? 'Sin proyección' : `${projectionCoverage.toFixed(1)}%`}
           highlight
         />
       </div>
