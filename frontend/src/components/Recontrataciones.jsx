@@ -937,7 +937,7 @@ export default function Recontrataciones() {
               lataxis: { range: [14.2, 33] },
               bgcolor: '#F5F6F8'
             },
-            margin: { t: 20, r: 0, b: 0, l: 0 },
+            margin: { t: 0, r: 0, b: 0, l: 0 },
             paper_bgcolor: '#F5F6F8',
             plot_bgcolor: '#F5F6F8',
             font: { color: COLORS.grisOxford },
