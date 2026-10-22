@@ -827,42 +827,49 @@ export default function Recontrataciones() {
           position: 'relative',
         }} ref={mapFrameRef}>
         <div
-          ref={mapLegendRef}
-          aria-label="Entidades que remitieron el formato de Avance de Recontratación. Fecha de corte: 20 de Octubre de 2026"
-          style={{
-            position: 'absolute',
-            zIndex: 20,
-            display: 'flex',
-            boxSizing: 'border-box',
-            visibility: 'hidden',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: '4px 7px',
-            padding: '4px 8px',
-            border: `1px solid ${COLORS.bordeSuave}`,
-            borderRadius: 6,
-            background: 'rgba(255,255,255,0.96)',
-            color: COLORS.grisOxford,
-            fontSize: '0.76rem',
-            fontWeight: 600,
-            textAlign: 'center',
-            lineHeight: 1.3,
-          }}
-        >
-          <span
-            aria-hidden="true"
-            style={{
-              width: 12,
-              height: 12,
-              flex: '0 0 12px',
-              background: COLORS.beige,
-              borderRadius: 2,
-            }}
-          />
-          <span>Entidades que remitieron el formato de Avance de Recontratación - </span>
-          <span style={{ whiteSpace: 'nowrap' }}>Fecha de corte: 20 de Octubre de 2026</span>
-        </div>
+  ref={mapLegendRef}
+  aria-label="Entidades que remitieron el formato de Avance de Recontratación. Fecha de corte: 20 de Octubre de 2026"
+  style={{
+    position: 'absolute',
+    zIndex: 20,
+    display: 'flex',
+    boxSizing: 'border-box',
+    visibility: 'hidden',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: '4px 7px',
+    padding: '4px 8px',
+    border: `1px solid ${COLORS.bordeSuave}`,
+    borderRadius: 6,
+    background: 'rgba(255,255,255,0.96)',
+    color: COLORS.grisOxford,
+    fontSize: '0.76rem',
+    fontWeight: 600,
+    textAlign: 'center',
+    lineHeight: 1.3,
+  }}
+>
+  {/* ✅ Cuadrito + label pegados en un inline-flex, nunca se separan */}
+  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+    <span
+      aria-hidden="true"
+      style={{
+        width: 12,
+        height: 12,
+        flex: '0 0 12px',
+        background: COLORS.beige,
+        borderRadius: 2,
+      }}
+    />
+    <span>Entidades que remitieron el formato de Avance de Recontratación</span>
+  </span>
+
+  {/* ✅ Color beige en la fecha */}
+  <span style={{ whiteSpace: 'nowrap', color: COLORS.beige }}>
+    - Fecha de corte: 20 de Octubre de 2026
+  </span>
+</div>
         <div
           ref={mapPlotRef}
           style={{
@@ -930,7 +937,7 @@ export default function Recontrataciones() {
               lataxis: { range: [14.2, 33] },
               bgcolor: '#F5F6F8'
             },
-            margin: { t: 0, r: 0, b: 0, l: 0 },
+            margin: { t: 20, r: 0, b: 0, l: 0 },
             paper_bgcolor: '#F5F6F8',
             plot_bgcolor: '#F5F6F8',
             font: { color: COLORS.grisOxford },
