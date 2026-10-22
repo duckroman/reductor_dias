@@ -1347,7 +1347,7 @@ export default function Recontrataciones() {
                           ? dist.global
                           : dist.procesos?.[selectedProcessId];
                         const coverage = getProjectionCoverage(
-                          districtMetrics?.personas_contactadas,
+                          districtMetrics?.personas_interesadas,
                           dist.proyeccion_personas_contactar
                         );
                         return (
@@ -1401,7 +1401,7 @@ export default function Recontrataciones() {
                               </span>
                             </div>
                             <div style={{ fontSize: '0.75rem', color: COLORS.grisMedio, marginTop: 4 }}>
-                              Interesadas: <b>{formatCount(districtMetrics?.personas_interesadas)}</b>
+                              Interesados/as: <b>{formatCount(districtMetrics?.personas_interesadas)}</b>
                               {' · '}Proyección: <b>{formatCount(dist.proyeccion_personas_contactar)}</b>
                               {' · '}Cobertura: <b>{coverage === null ? 'Sin proyección' : `${coverage.toFixed(1)}%`}</b>
                             </div>
