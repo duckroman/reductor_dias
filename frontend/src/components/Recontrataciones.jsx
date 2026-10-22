@@ -207,6 +207,11 @@ export default function Recontrataciones() {
   const [isDatasetAvailabilityOpen, setIsDatasetAvailabilityOpen] = useState(false);
   const [isExportingAdvance, setIsExportingAdvance] = useState(false);
   const [selectedProcessId, setSelectedProcessId] = useState(GLOBAL_PROCESS_ID);
+  const [mapTopInset, setMapTopInset] = useState(40);
+  const mapFrameRef = React.useRef(null);
+  const mapLegendRef = React.useRef(null);
+  const mapPlotRef = React.useRef(null);
+  const mapCardRef = React.useRef(null);
 
   // Pestañas de la tarjeta: 'resumen_jle' | 'distritos' | 'vocales'
   const [cardTab, setCardTab] = useState('resumen_jle');
@@ -227,6 +232,52 @@ export default function Recontrataciones() {
       console.error('Error saving localStorage', e);
     }
   }, [vocalesStore]);
+
+  useEffect(() => {
+    const frame = mapFrameRef.current;
+    const legend = mapLegendRef.current;
+    if (!frame || !legend) return undefined;
+
+    let animationFrameId;
+    const positionLegend = () => {
+      const mapRect = frame.querySelector('.geo .bg rect');
+      if (!mapRect) return;
+
+      const frameBounds = frame.getBoundingClientRect();
+      const mapBounds = mapRect.getBoundingClientRect();
+      const cardBounds = mapCardRef.current?.getBoundingClientRect();
+      const mapRight = cardBounds
+        ? Math.min(mapBounds.right, cardBounds.left)
+        : mapBounds.right;
+      const availableMapWidth = Math.max(0, mapRight - mapBounds.left);
+      const requiredTopInset = Math.max(32, Math.ceil(legend.offsetHeight) + 4);
+      setMapTopInset((currentInset) => (
+        currentInset === requiredTopInset ? currentInset : requiredTopInset
+      ));
+      const top = Math.max(0, mapBounds.top - frameBounds.top - legend.offsetHeight);
+      legend.style.left = `${mapBounds.left - frameBounds.left}px`;
+      legend.style.top = `${top}px`;
+      legend.style.width = `${availableMapWidth}px`;
+      legend.style.visibility = 'visible';
+    };
+    const schedulePosition = () => {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = requestAnimationFrame(positionLegend);
+    };
+
+    const resizeObserver = new ResizeObserver(schedulePosition);
+    resizeObserver.observe(frame);
+    if (mapPlotRef.current) resizeObserver.observe(mapPlotRef.current);
+    const mutationObserver = new MutationObserver(schedulePosition);
+    mutationObserver.observe(frame, { childList: true, subtree: true });
+    schedulePosition();
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      resizeObserver.disconnect();
+      mutationObserver.disconnect();
+    };
+  }, [selectedState]);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -446,8 +497,8 @@ export default function Recontrataciones() {
     ? {
       id: GLOBAL_PROCESS_ID,
       label: selectedState === NATIONAL_VIEW
-        ? 'Avance Nacional (suma de todos los estados)'
-        : 'Avance global (suma de los tres procesos)',
+        ? 'Avance Nacional'
+        : 'Avance global de la entidad',
       badge: selectedState === NATIONAL_VIEW ? 'Avance Nacional' : 'Avance global',
     }
     : PROCESOS_ELECTORALES.find(({ id }) => id === selectedProcessId)
@@ -490,13 +541,16 @@ export default function Recontrataciones() {
 
       {/* Header Superior Limpio */}
       <header style={{
-        height: '56px',
+        minHeight: '56px',
         background: COLORS.blanco,
         borderBottom: `1px solid ${COLORS.bordeSuave}`,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '8px 16px',
         padding: '0 24px',
+        flexShrink: 0,
         zIndex: 50,
         boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
       }}>
@@ -528,31 +582,33 @@ export default function Recontrataciones() {
         </div>
 
         {selectedState && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontSize: '0.85rem', color: COLORS.grisMedio }}>
-              Entidad: <b style={{ color: COLORS.grisOxford }}>
-                {selectedState === NATIONAL_VIEW ? 'Avance Nacional' : selectedState}
-              </b>
-            </span>
-            <button
-              onClick={() => {
-                setSelectedState(null);
-                setStateDataset(null);
-                setSelectedDistritoItem(null);
-              }}
-              style={{
-                background: COLORS.fondoClaro,
-                border: `1px solid ${COLORS.bordeSuave}`,
-                color: COLORS.grisOxford,
-                padding: '4px 10px',
-                borderRadius: '6px',
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              Cerrar tarjeta
-            </button>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, marginLeft: 'auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: '0.85rem', color: COLORS.grisMedio }}>
+                Entidad: <b style={{ color: COLORS.grisOxford }}>
+                  {selectedState === NATIONAL_VIEW ? 'Avance Nacional' : selectedState}
+                </b>
+              </span>
+              <button
+                onClick={() => {
+                  setSelectedState(null);
+                  setStateDataset(null);
+                  setSelectedDistritoItem(null);
+                }}
+                style={{
+                  background: COLORS.fondoClaro,
+                  border: `1px solid ${COLORS.bordeSuave}`,
+                  color: COLORS.grisOxford,
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cerrar tarjeta
+              </button>
+            </div>
           </div>
         )}
       </header>
@@ -564,7 +620,7 @@ export default function Recontrataciones() {
         flex: 1,
         position: 'relative',
         width: '100%',
-        height: 'calc(100vh - 56px)',
+        minHeight: 0,
         overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
@@ -765,11 +821,57 @@ export default function Recontrataciones() {
         </button>
         </div>
         <div style={{
-          position: 'relative',
           flex: '1 1 auto',
           minHeight: 0,
           width: '100%',
-        }}>
+          position: 'relative',
+        }} ref={mapFrameRef}>
+        <div
+          ref={mapLegendRef}
+          aria-label="Entidades que remitieron el formato de Avance de Recontratación. Fecha de corte: 20 de Octubre de 2026"
+          style={{
+            position: 'absolute',
+            zIndex: 20,
+            display: 'flex',
+            boxSizing: 'border-box',
+            visibility: 'hidden',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '4px 7px',
+            padding: '4px 8px',
+            border: `1px solid ${COLORS.bordeSuave}`,
+            borderRadius: 6,
+            background: 'rgba(255,255,255,0.96)',
+            color: COLORS.grisOxford,
+            fontSize: '0.76rem',
+            fontWeight: 600,
+            textAlign: 'center',
+            lineHeight: 1.3,
+          }}
+        >
+          <span
+            aria-hidden="true"
+            style={{
+              width: 12,
+              height: 12,
+              flex: '0 0 12px',
+              background: COLORS.beige,
+              borderRadius: 2,
+            }}
+          />
+          <span>Entidades que remitieron el formato de Avance de Recontratación - </span>
+          <span style={{ whiteSpace: 'nowrap' }}>Fecha de corte: 20 de Octubre de 2026</span>
+        </div>
+        <div
+          ref={mapPlotRef}
+          style={{
+            position: 'absolute',
+            inset: `${mapTopInset}px 0 0`,
+            minHeight: 0,
+            width: '100%',
+          }}
+        >
         <Plot
           data={[{
             type: 'choropleth',
@@ -852,6 +954,7 @@ export default function Recontrataciones() {
           }}
         />
         </div>
+        </div>
 
         {/* =====================================================================
             TARJETA LATERAL DESPLEGABLE DEL ESTADO
@@ -873,7 +976,7 @@ export default function Recontrataciones() {
             zIndex: 100,
             overflow: 'hidden',
             animation: 'fadeIn 0.2s ease-out'
-          }}>
+          }} ref={mapCardRef}>
             {/* Header de la Tarjeta del Estado */}
             <div style={{
               padding: '18px 22px',
@@ -949,8 +1052,8 @@ export default function Recontrataciones() {
                 >
                   <option value={GLOBAL_PROCESS_ID}>
                     {selectedState === NATIONAL_VIEW
-                      ? 'Avance Nacional (suma de todos los estados)'
-                      : 'Avance global (suma de los tres procesos)'}
+                      ? 'Avance Nacional'
+                      : 'Avance global de la entidad'}
                   </option>
                   {PROCESOS_ELECTORALES.map((proceso) => (
                     <option key={proceso.id} value={proceso.id}>{proceso.label}</option>
@@ -1142,19 +1245,21 @@ export default function Recontrataciones() {
                     projection={jleData?.proyeccion_personas_contactar}
                   />
 
-                  <div style={{
-                    background: COLORS.fondoClaro,
-                    borderRadius: '12px',
-                    padding: '12px 14px',
-                    border: `1px solid ${COLORS.bordeSuave}`
-                  }}>
-                    <span style={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.grisMedio, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      Observaciones (en su caso)
-                    </span>
-                    <div style={{ fontSize: '0.85rem', color: COLORS.grisOxford, marginTop: 4 }}>
-                      {jleData?.observaciones || 'Sin observaciones registradas.'}
+                  {selectedState !== NATIONAL_VIEW && (
+                    <div style={{
+                      background: COLORS.fondoClaro,
+                      borderRadius: '12px',
+                      padding: '12px 14px',
+                      border: `1px solid ${COLORS.bordeSuave}`
+                    }}>
+                      <span style={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.grisMedio, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 6 }}>
+                        Observaciones (en su caso)
+                      </span>
+                      <div style={{ fontSize: '0.85rem', color: COLORS.grisOxford, marginTop: 4 }}>
+                        {jleData?.observaciones || 'Sin observaciones registradas.'}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               ) : (
                 /* =============================================================
@@ -1207,19 +1312,21 @@ export default function Recontrataciones() {
                         projection={selectedDistritoItem.proyeccion_personas_contactar}
                       />
 
-                      <div style={{
-                        background: COLORS.fondoClaro,
-                        borderRadius: '12px',
-                        padding: '12px 14px',
-                        border: `1px solid ${COLORS.bordeSuave}`
-                      }}>
-                        <span style={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.grisMedio, textTransform: 'uppercase' }}>
-                          Observaciones (en su caso)
-                        </span>
-                        <div style={{ fontSize: '0.85rem', color: COLORS.grisOxford, marginTop: 4 }}>
-                          {selectedDistritoItem.observaciones || 'Sin observaciones en este distrito.'}
+                      {selectedState !== NATIONAL_VIEW && (
+                        <div style={{
+                          background: COLORS.fondoClaro,
+                          borderRadius: '12px',
+                          padding: '12px 14px',
+                          border: `1px solid ${COLORS.bordeSuave}`
+                        }}>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 800, color: COLORS.grisMedio, textTransform: 'uppercase' }}>
+                            Observaciones (en su caso)
+                          </span>
+                          <div style={{ fontSize: '0.85rem', color: COLORS.grisOxford, marginTop: 4 }}>
+                            {selectedDistritoItem.observaciones || 'Sin observaciones en este distrito.'}
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   ) : (
                     /* Lista de distritos */
@@ -1287,9 +1394,9 @@ export default function Recontrataciones() {
                               </span>
                             </div>
                             <div style={{ fontSize: '0.75rem', color: COLORS.grisMedio, marginTop: 4 }}>
-                              Contactadas: <b>{formatCount(districtMetrics?.personas_contactadas)}</b>
+                              Interesadas: <b>{formatCount(districtMetrics?.personas_interesadas)}</b>
                               {' · '}Proyección: <b>{formatCount(dist.proyeccion_personas_contactar)}</b>
-                              {' · '}Avance: <b>{coverage === null ? 'Sin proyección' : `${coverage.toFixed(1)}%`}</b>
+                              {' · '}Cobertura: <b>{coverage === null ? 'Sin proyección' : `${coverage.toFixed(1)}%`}</b>
                             </div>
                           </div>
                           <ChevronRight size={18} color={COLORS.grisMedio} />
@@ -1312,8 +1419,8 @@ function formatCount(value) {
   return typeof value === 'number' ? value.toLocaleString('es-MX') : value ?? 'Sin dato';
 }
 
-function getProjectionCoverage(contacted, projection) {
-  const contactedValue = typeof contacted === 'number' ? contacted : Number(contacted);
+function getProjectionCoverage(interested, projection) {
+  const contactedValue = typeof interested === 'number' ? interested : Number(interested);
   const projectionValue = typeof projection === 'number' ? projection : Number(projection);
   if (!Number.isFinite(contactedValue) || !Number.isFinite(projectionValue) || projectionValue <= 0) {
     return null;
@@ -1328,7 +1435,7 @@ function DatasetMetricsGrid({ metrics, total, projection }) {
     return Number.isFinite(numericValue) && numericValue > 0 ? numericValue : 0;
   });
   const chartTotal = chartValues.reduce((sum, value) => sum + value, 0);
-  const projectionCoverage = getProjectionCoverage(metrics?.personas_contactadas, projection);
+  const projectionCoverage = getProjectionCoverage(metrics?.personas_interesadas, projection);
 
   return (
     <>
@@ -1442,14 +1549,14 @@ function DatasetMetricsGrid({ metrics, total, projection }) {
             gap: 8,
             fontSize: '0.72rem',
           }}>
-            <span style={{ color: COLORS.grisOxford, fontWeight: 700 }}>Cobertura de la proyección</span>
+            <span style={{ color: COLORS.grisOxford, fontWeight: 700 }}>Proyección de cobertura de la plantilla</span>
             <b style={{ color: COLORS.grisOxford }}>
               {projectionCoverage === null ? 'Sin proyección' : `${projectionCoverage.toFixed(1)}%`}
             </b>
           </div>
           <div
             role="progressbar"
-            aria-label="Cobertura de la proyección"
+            aria-label="Proyección de cobertura de la plantilla"
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={projectionCoverage === null ? 0 : Math.min(projectionCoverage, 100)}
@@ -1470,7 +1577,7 @@ function DatasetMetricsGrid({ metrics, total, projection }) {
             }} />
           </div>
           <div style={{ marginTop: 5, color: COLORS.grisMedio, fontSize: '0.68rem' }}>
-            {formatCount(metrics?.personas_contactadas)} de {formatCount(projection)} personas proyectadas
+            {formatCount(metrics?.personas_interesadas)} de {formatCount(projection)}  SE y CAE proyectados/as
           </div>
         </div>
       </section>
@@ -1479,23 +1586,23 @@ function DatasetMetricsGrid({ metrics, total, projection }) {
         gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
         gap: 10,
       }}>
-        {CAMPOS_RECONTRATACIONES.map(({ key, label }) => (
-          <DatasetFieldCard key={key} title={label} value={metrics?.[key]} />
-        ))}
-        <DatasetFieldCard
+        {/*         <DatasetFieldCard
           title="Total de personas contactadas"
           value={total}
           highlight
-        />
+        /> */}
         <DatasetFieldCard
-          title="Proyección de personas a contactar"
+          title="Proyección de SE y CAE a contactar"
           value={projection}
         />
-        <DatasetFieldCard
+{/*         <DatasetFieldCard
           title="Avance sobre la proyección"
           value={projectionCoverage === null ? 'Sin proyección' : `${projectionCoverage.toFixed(1)}%`}
           highlight
-        />
+        /> */}
+        {CAMPOS_RECONTRATACIONES.map(({ key, label }) => (
+          <DatasetFieldCard key={key} title={label} value={metrics?.[key]} />
+        ))}
       </div>
     </>
   );
