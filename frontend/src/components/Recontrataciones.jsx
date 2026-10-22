@@ -11,10 +11,15 @@ import {
   Building2,
   Layers,
   FileSpreadsheet,
-  ChevronDown
+  ChevronDown,
+  Download
 } from 'lucide-react';
 import mexicoGeoData from '../data/mexico_geo.json';
-import { getEstadosRecontrataciones, getRecontratacionesEstado } from '../services/api';
+import {
+  exportRecontratacionesAvance,
+  getEstadosRecontrataciones,
+  getRecontratacionesEstado
+} from '../services/api';
 
 const Plot = PlotlyComponent.default || PlotlyComponent;
 
@@ -139,6 +144,7 @@ export default function Recontrataciones() {
   const [availableDatasetStates, setAvailableDatasetStates] = useState([]);
   const [datasetStatesError, setDatasetStatesError] = useState(null);
   const [isDatasetAvailabilityOpen, setIsDatasetAvailabilityOpen] = useState(false);
+  const [isExportingAdvance, setIsExportingAdvance] = useState(false);
   const [selectedProcessId, setSelectedProcessId] = useState(PROCESOS_ELECTORALES[0].id);
 
   // Pestañas de la tarjeta: 'resumen_jle' | 'distritos' | 'vocales'
@@ -164,6 +170,46 @@ export default function Recontrataciones() {
   const showToast = (msg) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleExportAdvance = async () => {
+    setIsExportingAdvance(true);
+    try {
+      const response = await exportRecontratacionesAvance();
+      const blob = new Blob([response.data], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      const now = new Date();
+      const exportDate = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+      const filename = `${exportDate}_recontrataciones_concentrado.xlsx`;
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast('El avance de recontrataciones se exportó correctamente.');
+    } catch (error) {
+      console.error('Error exporting recontrataciones advance:', error);
+      let message = error.response?.status
+        ? `No fue posible exportar el avance (HTTP ${error.response.status}).`
+        : 'No fue posible exportar el avance de recontrataciones.';
+      if (error.response?.data instanceof Blob) {
+        try {
+          const payload = JSON.parse(await error.response.data.text());
+          if (payload.error) message = payload.error;
+        } catch {
+          message = `No fue posible exportar el avance (HTTP ${error.response.status}).`;
+        }
+      } else if (error.response?.data?.error) {
+        message = error.response.data.error;
+      }
+      showToast(message);
+    } finally {
+      setIsExportingAdvance(false);
+    }
   };
 
   const normalize = (str) => {
@@ -410,6 +456,12 @@ export default function Recontrataciones() {
           maxWidth: 'calc(100% - 2 * clamp(8px, 1.5vw, 20px))',
           margin: '2px clamp(8px, 1.5vw, 20px)',
           display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) max-content',
+          gap: 8,
+        }}>
+        <div style={{
+          minWidth: 0,
+          display: 'grid',
           gridTemplateColumns: 'minmax(0, max-content)',
           gap: 8,
         }}>
@@ -419,6 +471,7 @@ export default function Recontrataciones() {
           maxWidth: '100%',
           boxSizing: 'border-box',
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
           gap: 8,
           padding: '9px 12px',
@@ -443,6 +496,7 @@ export default function Recontrataciones() {
               style={{
                 appearance: 'none',
                 maxWidth: 'min(42vw, 220px)',
+                minWidth: 0,
                 padding: '7px 34px 7px 9px',
                 border: `1px solid ${COLORS.bordeSuave}`,
                 borderRadius: '7px',
@@ -560,6 +614,35 @@ export default function Recontrataciones() {
             </div>
           )}
         </section>
+        </div>
+        <button
+          type="button"
+          onClick={handleExportAdvance}
+          disabled={isExportingAdvance}
+          aria-busy={isExportingAdvance}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            alignSelf: 'stretch',
+            gap: 8,
+            padding: '9px 14px',
+            background: '#89c5a8',
+            border: '1px solid #72ad91',
+            borderRadius: '10px',
+            boxShadow: '0 4px 14px rgba(0,0,0,0.08)',
+            color: COLORS.grisOxford,
+            fontFamily: "'Outfit', 'Segoe UI', sans-serif",
+            fontSize: '0.78rem',
+            fontWeight: 700,
+            whiteSpace: 'nowrap',
+            cursor: isExportingAdvance ? 'wait' : 'pointer',
+            opacity: isExportingAdvance ? 0.75 : 1,
+          }}
+        >
+          <Download size={18} aria-hidden="true" />
+          {isExportingAdvance ? 'Exportando...' : 'Exportar avance'}
+        </button>
         </div>
         <div style={{
           position: 'relative',

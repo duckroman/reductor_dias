@@ -72,6 +72,8 @@ uvicorn main:app --reload
 ```
 El directorio de Excel predeterminado es `datasets/` en la raíz del repositorio. Para usar otro directorio, configura la variable de entorno `DATASETS_DIR` antes de iniciar FastAPI; una ruta relativa se resuelve desde la raíz del repositorio.
 
+En **Recontrataciones**, el botón **Exportar avance** usa la plantilla más reciente `AAAAMMDD_recontrataciones_concentrado.xlsx` y los datasets estatales con el formato `AAAAMMDD_recontrataciones_estado.xlsx`. El archivo generado conserva la estructura de la plantilla, completa los registros que coinciden por entidad, distrito y cabecera, y deja vacías las métricas sin dataset. La exportación se entrega como descarga y no modifica la plantilla ni los datasets originales.
+
 ### Iniciar el Servidor Frontend
 En desarrollo, Vite reenvía `/api` al backend en `http://127.0.0.1:8000` por defecto. Si el backend usa otra dirección, define `VITE_API_PROXY_TARGET` en `frontend/.env.local`:
 ```dotenv

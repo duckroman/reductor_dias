@@ -1167,6 +1167,8 @@ def _get_recontrataciones_files():
         )
         if not match:
             continue
+        if normalize_recontrataciones_estado(match.group(2)) == "concentrado":
+            continue
         try:
             file_date = datetime.strptime(match.group(1), "%Y%m%d").date()
         except ValueError:
@@ -1199,6 +1201,183 @@ def normalize_recontrataciones_estado(text):
     if normalized in {"ciudaddemexico", "distritofederal"}:
         return "ciudaddemexico"
     return normalized
+
+
+def _recontrataciones_row_key(row):
+    if len(row) < 4 or any(row[index] is None for index in (1, 2, 3)):
+        return None
+
+    entidad = normalize_recontrataciones_estado(row[1])
+    distrito = str(row[2]).strip()
+    distrito = distrito.zfill(2) if distrito.isdigit() else normalize_recontrataciones_estado(distrito)
+    cabecera = normalize_recontrataciones_estado(row[3])
+    if not entidad or not distrito or not cabecera:
+        return None
+    return entidad, distrito, cabecera
+
+
+def _recontrataciones_header_columns(rows, header_row_idx, final_column):
+    group_row = rows[header_row_idx]
+    metric_row = rows[header_row_idx + 1] if header_row_idx + 1 < len(rows) else ()
+    columns = {}
+    current_group = ""
+    for column_idx in range(4, final_column + 1):
+        if column_idx < len(group_row) and group_row[column_idx]:
+            current_group = str(group_row[column_idx]).replace("\n", " ").strip()
+        metric = metric_row[column_idx] if column_idx < len(metric_row) else None
+        if not metric and column_idx < len(group_row):
+            metric = group_row[column_idx]
+        if current_group and metric:
+            columns[(
+                normalize_recontrataciones_estado(current_group),
+                normalize_recontrataciones_estado(str(metric).replace("\n", " ")),
+            )] = column_idx
+    return columns
+
+
+@app.get("/api/recontrataciones/exportar")
+def exportar_recontrataciones_concentrado():
+    import re
+    from datetime import date, datetime
+
+    if not os.path.isdir(DATASETS_DIR):
+        return JSONResponse(status_code=500, content={"error": "Carpeta datasets no encontrada en el servidor."})
+
+    template_files = []
+    for filename in os.listdir(DATASETS_DIR):
+        match = re.fullmatch(
+            r"(\d{8})_recontrataciones_concentrado\.xlsx",
+            filename,
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            continue
+        try:
+            template_date = datetime.strptime(match.group(1), "%Y%m%d").date()
+        except ValueError:
+            continue
+        template_files.append((template_date, os.path.join(DATASETS_DIR, filename)))
+
+    if not template_files:
+        return JSONResponse(
+            status_code=404,
+            content={"error": "No se encontró la plantilla YYYYMMDD_recontrataciones_concentrado.xlsx en datasets."},
+        )
+
+    template_path = max(template_files, key=lambda item: item[0])[1]
+    try:
+        workbook = openpyxl.load_workbook(template_path)
+        worksheet = workbook.active
+        template_rows = list(worksheet.iter_rows(values_only=True))
+        header_row_idx = next(
+            (
+                idx for idx, row in enumerate(template_rows)
+                if len(row) > 3
+                and str(row[1] or "").strip().lower() == "entidad"
+                and str(row[2] or "").strip().lower() == "distrito"
+                and str(row[3] or "").strip().lower() == "cabecera"
+            ),
+            None,
+        )
+        if header_row_idx is None:
+            workbook.close()
+            return JSONResponse(
+                status_code=422,
+                content={"error": "La plantilla no contiene los encabezados Entidad, Distrito y Cabecera."},
+            )
+
+        template_columns = _recontrataciones_header_columns(
+            template_rows, header_row_idx, worksheet.max_column - 1
+        )
+        target_rows = {}
+        for row_idx in range(header_row_idx + 1, len(template_rows)):
+            key = _recontrataciones_row_key(template_rows[row_idx])
+            if key:
+                target_rows[key] = row_idx + 1
+                for column_idx in range(5, worksheet.max_column + 1):
+                    worksheet.cell(row=row_idx + 1, column=column_idx).value = None
+
+        total_metric = normalize_recontrataciones_estado("Total de personas contactadas")
+        contacted_metric = normalize_recontrataciones_estado("Número de personas contactadas")
+        total_column_idx = next(
+            (
+                column_idx for (group, metric), column_idx in template_columns.items()
+                if group == total_metric and metric == total_metric
+            ),
+            None,
+        )
+        contacted_column_indices = [
+            column_idx for (group, metric), column_idx in template_columns.items()
+            if metric == contacted_metric and group != total_metric
+        ]
+
+        available_files = _get_recontrataciones_files()
+        processed_states = set()
+        for _, _, _, filepath, file_state in available_files:
+            normalized_state = normalize_recontrataciones_estado(file_state)
+            if normalized_state in processed_states:
+                continue
+            processed_states.add(normalized_state)
+
+            source_workbook = openpyxl.load_workbook(filepath, data_only=True, read_only=True)
+            try:
+                source_rows = list(source_workbook.active.iter_rows(values_only=True))
+            finally:
+                source_workbook.close()
+
+            source_header_idx = next(
+                (
+                    idx for idx, row in enumerate(source_rows)
+                    if len(row) > 3
+                    and str(row[1] or "").strip().lower() == "entidad"
+                    and str(row[2] or "").strip().lower() == "distrito"
+                    and str(row[3] or "").strip().lower() == "cabecera"
+                ),
+                None,
+            )
+            if source_header_idx is None:
+                raise ValueError(f"{os.path.basename(filepath)} no contiene los encabezados esperados.")
+
+            source_columns = _recontrataciones_header_columns(
+                source_rows, source_header_idx, max(len(row) for row in source_rows) - 1
+            )
+            matching_columns = [
+                (target_idx, source_columns[column_key])
+                for column_key, target_idx in template_columns.items()
+                if column_key in source_columns
+            ]
+
+            for source_row in source_rows[source_header_idx + 1:]:
+                key = _recontrataciones_row_key(source_row)
+                if key not in target_rows:
+                    continue
+                target_row_idx = target_rows[key]
+                for target_column_idx, source_column_idx in matching_columns:
+                    value = source_row[source_column_idx] if source_column_idx < len(source_row) else None
+                    worksheet.cell(row=target_row_idx, column=target_column_idx + 1).value = value
+                if total_column_idx is not None:
+                    total_cell = worksheet.cell(row=target_row_idx, column=total_column_idx + 1)
+                    contacted_values = [
+                        worksheet.cell(row=target_row_idx, column=column_idx + 1).value
+                        for column_idx in contacted_column_indices
+                    ]
+                    total_cell.value = sum(
+                        value for value in contacted_values
+                        if isinstance(value, (int, float)) and not isinstance(value, bool)
+                    )
+
+        output = io.BytesIO()
+        workbook.save(output)
+        workbook.close()
+        output.seek(0)
+        filename = f"{date.today():%Y%m%d}_recontrataciones_concentrado.xlsx"
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as exc:
+        return JSONResponse(status_code=500, content={"error": f"No fue posible generar el concentrado: {exc}"})
 
 
 @app.get("/api/recontrataciones/{estado}")

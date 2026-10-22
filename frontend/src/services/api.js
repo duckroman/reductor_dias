@@ -196,3 +196,10 @@ export const getEstadosRecontrataciones = async () => {
   }
   return response.data;
 };
+
+export const exportRecontratacionesAvance = async () => {
+  const response = await api.get('/recontrataciones/exportar', {
+    responseType: 'blob',
+  });
+  return response;
+};
