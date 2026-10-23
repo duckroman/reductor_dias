@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import PlotlyComponent from 'react-plotly.js';
+import Plotly from 'plotly.js/dist/plotly';
 import {
   User,
   Edit3,
@@ -30,6 +31,8 @@ const COLORS = {
   grisOxford: '#454248',
   gris: '#B2B2B2',
   beige: '#C5A989',
+  // Variante de beige con contraste AA para texto sobre fondos claros.
+  beigeOscuro: '#8A6A47',
   grisMedio: '#828A91',
   grisClaro: '#C5C9CC',
   grisCalido: '#DDD4CE',
@@ -42,6 +45,7 @@ const COLORS = {
 const STORAGE_KEY = 'ine_recontrataciones_vocalias_v4';
 const GLOBAL_PROCESS_ID = 'global';
 const NATIONAL_VIEW = 'nacional';
+const FECHA_CORTE_RECONTRATACIONES = '20 de octubre de 2026';
 
 const PROCESOS_ELECTORALES = [
   {
@@ -207,11 +211,7 @@ export default function Recontrataciones() {
   const [isDatasetAvailabilityOpen, setIsDatasetAvailabilityOpen] = useState(false);
   const [isExportingAdvance, setIsExportingAdvance] = useState(false);
   const [selectedProcessId, setSelectedProcessId] = useState(GLOBAL_PROCESS_ID);
-  const [mapTopInset, setMapTopInset] = useState(40);
-  const mapFrameRef = React.useRef(null);
-  const mapLegendRef = React.useRef(null);
-  const mapPlotRef = React.useRef(null);
-  const mapCardRef = React.useRef(null);
+  const mapPaneRef = React.useRef(null);
 
   // Pestañas de la tarjeta: 'resumen_jle' | 'distritos' | 'vocales'
   const [cardTab, setCardTab] = useState('resumen_jle');
@@ -233,51 +233,27 @@ export default function Recontrataciones() {
     }
   }, [vocalesStore]);
 
+  // Plotly solo reacciona al resize de la ventana. Este observer mantiene el
+  // mapa sincronizado cuando la tarjeta lateral cambia el ancho disponible.
   useEffect(() => {
-    const frame = mapFrameRef.current;
-    const legend = mapLegendRef.current;
-    if (!frame || !legend) return undefined;
+    const pane = mapPaneRef.current;
+    if (!pane || typeof ResizeObserver === 'undefined') return undefined;
 
-    let animationFrameId;
-    const positionLegend = () => {
-      const mapRect = frame.querySelector('.geo .bg rect');
-      if (!mapRect) return;
-
-      const frameBounds = frame.getBoundingClientRect();
-      const mapBounds = mapRect.getBoundingClientRect();
-      const cardBounds = mapCardRef.current?.getBoundingClientRect();
-      const mapRight = cardBounds
-        ? Math.min(mapBounds.right, cardBounds.left)
-        : mapBounds.right;
-      const availableMapWidth = Math.max(0, mapRight - mapBounds.left);
-      const requiredTopInset = Math.max(32, Math.ceil(legend.offsetHeight) + 4);
-      setMapTopInset((currentInset) => (
-        currentInset === requiredTopInset ? currentInset : requiredTopInset
-      ));
-      const top = Math.max(0, mapBounds.top - frameBounds.top - legend.offsetHeight);
-      legend.style.left = `${mapBounds.left - frameBounds.left}px`;
-      legend.style.top = `${top}px`;
-      legend.style.width = `${availableMapWidth}px`;
-      legend.style.visibility = 'visible';
-    };
-    const schedulePosition = () => {
-      cancelAnimationFrame(animationFrameId);
-      animationFrameId = requestAnimationFrame(positionLegend);
-    };
-
-    const resizeObserver = new ResizeObserver(schedulePosition);
-    resizeObserver.observe(frame);
-    if (mapPlotRef.current) resizeObserver.observe(mapPlotRef.current);
-    const mutationObserver = new MutationObserver(schedulePosition);
-    mutationObserver.observe(frame, { childList: true, subtree: true });
-    schedulePosition();
+    let frameId;
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frameId);
+      frameId = requestAnimationFrame(() => {
+        const plotlyNode = pane.querySelector('.js-plotly-plot');
+        if (plotlyNode) Plotly.Plots.resize(plotlyNode);
+      });
+    });
+    observer.observe(pane);
 
     return () => {
-      cancelAnimationFrame(animationFrameId);
-      resizeObserver.disconnect();
-      mutationObserver.disconnect();
+      cancelAnimationFrame(frameId);
+      observer.disconnect();
     };
-  }, [selectedState]);
+  }, []);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -515,6 +491,31 @@ export default function Recontrataciones() {
       position: 'relative',
       overflow: 'hidden'
     }}>
+      <style>{`
+        .recontrataciones-detail-panel {
+          flex: 0 0 clamp(400px, 36vw, 520px);
+          width: clamp(400px, 36vw, 520px);
+          min-height: 0;
+          max-height: 100%;
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+          z-index: 10;
+        }
+
+        @media (max-width: 900px) {
+          .recontrataciones-detail-panel {
+            position: absolute;
+            top: 0;
+            right: clamp(8px, 1.5vw, 20px);
+            bottom: 14px;
+            width: min(520px, calc(100% - 2 * clamp(8px, 1.5vw, 20px)));
+            max-height: none;
+            box-shadow: 0 18px 45px rgba(0, 0, 0, 0.2) !important;
+          }
+        }
+      `}</style>
+
       {/* Toast Notification */}
       {toastMessage && (
         <div style={{
@@ -820,63 +821,75 @@ export default function Recontrataciones() {
           {isExportingAdvance ? 'Exportando...' : 'Exportar avance'}
         </button>
         </div>
+        {/* La leyenda forma parte del flujo del mapa: permanece estable y no
+            se superpone con la tarjeta ni con los paneles desplegables. */}
+        <div
+          role="note"
+          aria-label={`Entidades que remitieron el formato de Avance de Recontratación. Fecha de corte: ${FECHA_CORTE_RECONTRATACIONES}.`}
+          style={{
+            flex: '0 0 auto',
+            alignSelf: 'stretch',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '4px 18px',
+            boxSizing: 'border-box',
+            margin: '2px clamp(8px, 1.5vw, 20px) 8px',
+            padding: '7px 16px',
+            background: 'rgba(255,255,255,0.82)',
+            border: `1px solid ${COLORS.bordeSuave}`,
+            borderRadius: 10,
+            color: COLORS.grisOxford,
+            fontFamily: "'Outfit', 'Segoe UI', sans-serif",
+            fontSize: '0.76rem',
+            fontWeight: 600,
+            lineHeight: 1.35,
+            textAlign: 'center',
+          }}
+        >
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, minWidth: 0, maxWidth: '100%' }}>
+            <span
+              aria-hidden="true"
+              style={{
+                width: 13,
+                height: 13,
+                flex: '0 0 13px',
+                background: COLORS.beige,
+                borderRadius: 3,
+                boxShadow: 'inset 0 0 0 1px rgba(69, 66, 72, 0.18)',
+              }}
+            />
+            <span>
+              Entidades que remitieron el formato de <b>Avance de Recontratación</b>
+            </span>
+          </span>
+          <span style={{ display: 'inline-flex', alignItems: 'baseline', gap: 5, whiteSpace: 'nowrap' }}>
+            <span>Fecha de corte:</span>
+            <b style={{ color: COLORS.beigeOscuro, fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+              {FECHA_CORTE_RECONTRATACIONES}
+            </b>
+          </span>
+        </div>
+
         <div style={{
           flex: '1 1 auto',
           minHeight: 0,
           width: '100%',
           position: 'relative',
-        }} ref={mapFrameRef}>
+          display: 'flex',
+          alignItems: 'stretch',
+          gap: 14,
+          padding: '0 clamp(8px, 1.5vw, 20px) 14px',
+          boxSizing: 'border-box',
+        }}>
         <div
-  ref={mapLegendRef}
-  aria-label="Entidades que remitieron el formato de Avance de Recontratación. Fecha de corte: 20 de Octubre de 2026"
-  style={{
-    position: 'absolute',
-    zIndex: 20,
-    display: 'flex',
-    boxSizing: 'border-box',
-    visibility: 'hidden',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: '4px 7px',
-    padding: '4px 8px',
-    border: `1px solid ${COLORS.bordeSuave}`,
-    borderRadius: 6,
-    background: 'rgba(255,255,255,0.96)',
-    color: COLORS.grisOxford,
-    fontSize: '0.76rem',
-    fontWeight: 600,
-    textAlign: 'center',
-    lineHeight: 1.3,
-  }}
->
-  {/* ✅ Cuadrito + label pegados en un inline-flex, nunca se separan */}
-  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
-    <span
-      aria-hidden="true"
-      style={{
-        width: 12,
-        height: 12,
-        flex: '0 0 12px',
-        background: COLORS.beige,
-        borderRadius: 2,
-      }}
-    />
-    <span>Entidades que remitieron el formato de Avance de Recontratación</span>
-  </span>
-
-  {/* ✅ Color beige en la fecha */}
-  <span style={{ whiteSpace: 'nowrap', color: COLORS.beige }}>
-    - Fecha de corte: 20 de Octubre de 2026
-  </span>
-</div>
-        <div
-          ref={mapPlotRef}
+          ref={mapPaneRef}
           style={{
-            position: 'absolute',
-            inset: `${mapTopInset}px 0 0`,
+            flex: '1 1 auto',
+            minWidth: 0,
             minHeight: 0,
-            width: '100%',
+            position: 'relative',
           }}
         >
         <Plot
@@ -944,7 +957,6 @@ export default function Recontrataciones() {
             dragmode: false,
             autosize: true
           }}
-          useResizeHandler={true}
           style={{ width: '100%', height: '100%' }}
           onClick={(event) => {
             if (event && event.points && event.points[0]) {
@@ -957,33 +969,25 @@ export default function Recontrataciones() {
           config={{
             displayModeBar: false,
             scrollZoom: false,
-            responsive: true
+            responsive: false
           }}
         />
-        </div>
         </div>
 
         {/* =====================================================================
             TARJETA LATERAL DESPLEGABLE DEL ESTADO
            ===================================================================== */}
         {selectedState && (
-          <div style={{
-            position: 'absolute',
-            top: 16,
-            right: 20,
-            width: '520px',
-            maxWidth: 'calc(100vw - 40px)',
-            maxHeight: 'calc(100% - 32px)',
-            background: COLORS.blanco,
-            borderRadius: '18px',
-            border: `1px solid ${COLORS.bordeSuave}`,
-            boxShadow: '0 12px 35px rgba(0,0,0,0.12)',
-            display: 'flex',
-            flexDirection: 'column',
-            zIndex: 100,
-            overflow: 'hidden',
-            animation: 'fadeIn 0.2s ease-out'
-          }} ref={mapCardRef}>
+          <div
+            className="recontrataciones-detail-panel"
+            style={{
+              background: COLORS.blanco,
+              borderRadius: '18px',
+              border: `1px solid ${COLORS.bordeSuave}`,
+              boxShadow: '0 12px 35px rgba(0,0,0,0.12)',
+              animation: 'fadeIn 0.2s ease-out',
+            }}
+          >
             {/* Header de la Tarjeta del Estado */}
             <div style={{
               padding: '18px 22px',
@@ -1417,6 +1421,7 @@ export default function Recontrataciones() {
             </div>
           </div>
         )}
+        </div>
       </main>
     </div>
   );
